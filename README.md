@@ -1,1 +1,2 @@
-# geographical-decentralization-simulation
+# Geographical Decentralization Simulation
+
