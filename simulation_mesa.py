@@ -1,6 +1,7 @@
+import json
 import math
-import matplotlib.pyplot as plt
 import numpy as np
+import pandas as pd
 import random
 
 from abc import ABC, abstractmethod
@@ -466,7 +467,7 @@ class MEVBoostModel(Model):
             agent_reporters={
                 "Position": "position", # Example agent attribute
                 "Role": "role",
-                "Is_Migrating": "is_migrating",
+                "Slot": "current_slot_idx",
                 "MEV_Captured_Slot": "mev_captured", # MEV actually earned in the last slot
             }
         )
@@ -549,9 +550,9 @@ class MEVBoostModel(Model):
 random.seed(0x06511)  # For reproducibility
 np.random.seed(0x06511)  # For reproducibility in NumPy operations
 # --- Define the Pool of Proposer Strategies ---
-NUM_VALIDATORS = 100 # Example: Simulate 100 validators
+NUM_VALIDATORS = 500 # Example: Simulate 100 validators
 # --- Define the number of slots to simulate ---
-SIM_NUM_SLOTS = 200 # Example: Simulate 200 slots
+SIM_NUM_SLOTS = 100 # Example: Simulate 200 slots
 TOTAL_TIME_STEPS = SIM_NUM_SLOTS * (SLOT_DURATION_MS // TIME_GRANULARITY_MS) + 1 # Total fine-grained steps (200 * 120 = 24000 steps)
 
 # --- Define Proposer Strategies ---
@@ -607,3 +608,23 @@ model_data = model_standard.datacollector.get_model_vars_dataframe()
 print("\n--- Collected Model Data ---")
 print(model_data.head())
 
+agent_data = model_standard.datacollector.get_agent_vars_dataframe()
+
+print("\n--- Agent Data Collected ---")
+print("DataFrame Head:")
+print(agent_data.head()) # Print the first 5 rows to see the structure
+
+print("\nDataFrame Tail:")
+print(agent_data.tail()) # Print the last 5 rows
+
+# The DataFrame has a MultiIndex: (Step, AgentID)
+# The 'Step' corresponds to the slot number.
+print("\nDataFrame Info:")
+agent_data.info()
+
+if isinstance(agent_data.index, pd.MultiIndex):
+    agent_data = agent_data.reset_index()
+positions_by_slot = agent_data.groupby('Slot')['Position'].apply(list).reset_index()
+nested_array = positions_by_slot['Position'].tolist()
+with open('data.json', 'w') as f:
+    json.dump(nested_array, f)
