@@ -176,7 +176,7 @@ class ValidatorAgent(Agent):
             required_attesters_for_supermajority = math.ceil((2/3) * len(self.model.current_attesters))
             relay_to_attester_latency = [a.network_latency_to_target + to_relay_latency for a in self.model.current_attesters]
             sorted_latencies = sorted(relay_to_attester_latency)
-            latency_threshold = sorted_latencies[required_attesters_for_supermajority]
+            latency_threshold = ATTESTATION_TIME_MS - sorted_latencies[required_attesters_for_supermajority]
             if current_slot_time_ms_inner <= latency_threshold and \
                 current_slot_time_ms_inner + TIME_GRANULARITY_MS > latency_threshold:
                 return True, mev_offer
@@ -260,6 +260,12 @@ class ValidatorAgent(Agent):
         # update the distance matrix
         self.model.validator_locations[self.index] = new_position_coords # Update model's validator locations
         update_distance_matrix_for_node(self.model.distance_matrix , self.model.validator_locations, self.model.space, self.index)
+        # update the network latency to the relay
+        space_instance = self.model.space
+        relay_position = self.model.relay_agent.position
+        distance_to_relay = space_instance.distance(self.position, relay_position)
+        self.network_latency_to_target = BASE_NETWORK_LATENCY_MS + \
+                                         2 * (distance_to_relay / space_instance.get_max_dist()) * MAX_ADDITIONAL_NETWORK_LATENCY_MS
 
 
     # --- Mesa's core step method ---
@@ -518,6 +524,7 @@ if __name__ == "__main__":
 
     print("\n--- Collected Model Data ---")
     print(model_data.head())
+    print(model_data.tail())
 
     agent_data = model_standard.datacollector.get_agent_vars_dataframe()
 
