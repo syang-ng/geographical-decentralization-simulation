@@ -3,131 +3,13 @@ import math
 import numpy as np
 import pandas as pd
 import random
+import time
 
-from abc import ABC, abstractmethod
 from mesa import Agent, Model, DataCollector
 
-
-# Constants
-SLOT_DURATION_MS = 12000  # Duration of an Ethereum slot in milliseconds
-TIME_GRANULARITY_MS = 100 # Simulation time step in milliseconds
-ATTESTATION_TIME_MS = 4000 # Default time for Attesters to attest (can be varied per Attester)
-
-# Network Latency Model Parameters: latency = BASE_NETWORK_LATENCY_MS + (distance_ratio * MAX_ADDITIONAL_NETWORK_LATENCY_MS)
-BASE_NETWORK_LATENCY_MS = 50  # Minimum network latency regardless of distance
-MAX_ADDITIONAL_NETWORK_LATENCY_MS = 2000 # Max additional latency for max distance on sphere
-
-# MEV yield model (simulating Builder bids increasing over time)
-## The number is set randomly now.
-BASE_MEV_AMOUNT = 0.2  # Initial MEV in ETH
-MEV_INCREASE_PER_SECOND = 0.08 # MEV increase per second (ETH/sec)
-
-# --- Spatial Classes ---
-class Space(ABC):
-    """
-    Abstract base class defining the interface for a 'space'
-    where nodes can live. Subclasses must implement:
-      - sample_point()
-      - distance(p1, p2)
-    """
-
-    @abstractmethod
-    def sample_point(self):
-        """Samples a random point within the space."""
-        pass
-
-    @abstractmethod
-    def distance(self, p1, p2):
-        """Calculates the distance between two points in the space."""
-        pass
-
-    @abstractmethod
-    def get_area(self):
-        """Returns the total 'area' or size of the space."""
-        pass
-
-    @abstractmethod
-    def get_max_dist(self):
-        """Returns the maximum possible distance between any two points in the space."""
-        pass
-
-class SphericalSpace(Space):
-    """
-    Sample points on (or near) the unit sphere.
-    distance() returns geodesic distance (great-circle distance).
-    """
-    def sample_point(self):
-        """Samples a random point on the unit sphere (x, y, z)."""
-        # Sample (x, y, z) from Normal(0, 1),
-        # then normalize to lie on the unit sphere.
-        while True:
-            x = random.gauss(0, 1)
-            y = random.gauss(0, 1)
-            z = random.gauss(0, 1)
-            r2 = x*x + y*y + z*z
-            if r2 > 1e-12: # Avoid division by zero for very small magnitudes
-                scale = 1.0 / math.sqrt(r2)
-                return (x*scale, y*scale, z*scale)
-
-    def distance(self, p1, p2):
-        """
-        Calculates the geodesic distance between two points on a unit sphere.
-        Distance = arc length = arccos(dot(p1,p2)).
-        """
-        dotp = p1[0]*p2[0] + p1[1]*p2[1] + p1[2]*p2[2]
-        # Numerical safety clamp for dot product to be within [-1, 1] due to floating point inaccuracies
-        dotp = max(-1.0, min(1.0, dotp))
-        return math.acos(dotp)
-    
-    def get_area(self):
-        """Returns the surface area of a unit sphere."""
-        return 4 * np.pi
-
-    def get_max_dist(self):
-        """Returns the maximum possible geodesic distance on a unit sphere (half circumference)."""
-        return np.pi # Half the circumference of a unit circle (pi * diameter = pi * 2 * radius = 2*pi * 1 / 2 = pi)
-    
-
-    def calculate_geometric_center_of_nodes(self, nodes):
-        """
-        Calculates the geometric center of a set of nodes in the spherical space.
-        Returns a point on the unit sphere that is the average of the node positions.
-        """
-        if not nodes:
-            return None
-        
-        sum_x = sum(n.position[0] for n in nodes)
-        sum_y = sum(n.position[1] for n in nodes)
-        sum_z = sum(n.position[2] for n in nodes)
-        
-        avg_x = sum_x / len(nodes)
-        avg_y = sum_y / len(nodes)
-        avg_z = sum_z / len(nodes)
-        
-        temp_center = (avg_x, avg_y, avg_z)
-        
-        magnitude = math.sqrt(temp_center[0]**2 + temp_center[1]**2 + temp_center[2]**2)
-        if magnitude < 1e-12:
-            return self.sample_point()
-        
-        scale = 1.0 / magnitude
-        return (temp_center[0]*scale, temp_center[1]*scale, temp_center[2]*scale)
-
-    
-def init_distance_matrix(positions, space):
-    """
-    Build the initial distance matrix for all node pairs.
-    Returns a 2D list (or NumPy array) of shape (n, n).
-    """
-    n = len(positions)
-    dist_matrix = np.zeros((n, n))
-    for i in range(n):
-        for j in range(i + 1, n):
-            d = space.distance(positions[i], positions[j])
-            dist_matrix[i][j] = d
-            dist_matrix[j][i] = d # Symmetric matrix
-    return dist_matrix
-
+from constants import *
+from distribution import SphericalSpace, init_distance_matrix, update_distance_matrix_for_node
+from measure import *
 
 # --- Relay Agent Class Definition ---
 
@@ -210,6 +92,7 @@ class ValidatorAgent(Agent):
         # If migration just ended, finalize it
         # This check happens at the start of a slot (model.steps * TIME_GRANULARITY_MS)
         # compared to the end time of migration.
+        # The migration can be completed immediately (current assumption)
         if self.is_migrating and (self.model.steps * TIME_GRANULARITY_MS) >= self.migration_end_time_ms:
              self.complete_migration()
 
@@ -228,6 +111,12 @@ class ValidatorAgent(Agent):
     def set_position(self, position):
         """Sets the validator's position in the space."""
         self.position = position
+
+    
+    def set_index(self, index):
+        """Sets the validator's index in the model's agent list."""
+        self.index = index
+        self.unique_id = f"validator_{index}"
 
     def set_strategy(self, timing_strategy, location_strategy):
         """Sets the validators' strategies."""
@@ -282,6 +171,15 @@ class ValidatorAgent(Agent):
                 self.random_propose_time = random.randint(self.timing_strategy["min_delay_ms"], self.timing_strategy["max_delay_ms"])
             if current_slot_time_ms_inner >= self.random_propose_time:
                 return True, mev_offer
+        elif self.timing_strategy["type"] == "optimal_latency": # The proposer knows its latency is optimized
+            to_relay_latency = self.network_latency_to_target
+            required_attesters_for_supermajority = math.ceil((2/3) * len(self.model.current_attesters))
+            relay_to_attester_latency = [a.network_latency_to_target + to_relay_latency for a in self.model.current_attesters]
+            sorted_latencies = sorted(relay_to_attester_latency)
+            latency_threshold = sorted_latencies[required_attesters_for_supermajority]
+            if current_slot_time_ms_inner <= latency_threshold and \
+                current_slot_time_ms_inner + TIME_GRANULARITY_MS > latency_threshold:
+                return True, mev_offer
         
         return False, 0.0
 
@@ -309,7 +207,6 @@ class ValidatorAgent(Agent):
             else:
                 self.attested_to_proposer_block = False
             self.has_attested = True
-            # print(self.unique_id, "Attester decided to attest", block_arrival_at_this_attester_ms, self.attested_to_proposer_block)
 
 
     # --- Migration Methods ---
@@ -359,7 +256,10 @@ class ValidatorAgent(Agent):
         self.is_migrating = True
         self.migration_cooldown = self.model.migration_cooldown_slots
         self.position = new_position_coords
-        self.is_migrating = False
+        self.is_migrating = False # Migration is completed immediately in this model
+        # update the distance matrix
+        self.model.validator_locations[self.index] = new_position_coords # Update model's validator locations
+        update_distance_matrix_for_node(self.model.distance_matrix , self.model.validator_locations, self.model.space, self.index)
 
 
     # --- Mesa's core step method ---
@@ -415,7 +315,6 @@ class MEVBoostModel(Model):
         self.mev_increase_per_second = mev_increase_per_second
         self.migration_cooldown_slots = migration_cooldown_slots
 
-
         # --- Setup the Space (SphericalSpace) ---
         self.space = SphericalSpace()
         self.distance_matrix = None # Will be initialized after validator positions are set
@@ -424,24 +323,27 @@ class MEVBoostModel(Model):
         ValidatorAgent.create_agents(model=self, n=num_validators)
         RelayAgent.create_agents(model=self, n=1)
 
-        validator_positions_initial = []
+        self.validator_locations = []
+        validator_index = 0
 
         for agent in self.agents:
             if isinstance(agent, ValidatorAgent):
                 position = self.space.sample_point()
-                validator_positions_initial.append(position)
+                self.validator_locations.append(position)
                 agent.set_position(position)
+                agent.set_index(validator_index)
                 agent.set_strategy(random.choice(self.timing_strategies_pool), random.choice(self.location_strategies_pool))
+                validator_index += 1
             elif isinstance(agent, RelayAgent):
                 agent.set_position(self.space.sample_point())
                 self.relay_agent = agent
             else:
                 continue
-        
-        self.validators = self.agents.select(agent_type=ValidatorAgent)
 
+        # Find all validators after they have been created and assigned positions
+        self.validators = self.agents.select(agent_type=ValidatorAgent)
         # Initialize distance matrix now that all validator positions are set
-        self.distance_matrix = init_distance_matrix(validator_positions_initial, self.space)
+        self.distance_matrix = init_distance_matrix(self.validator_locations, self.space)
 
         # --- Model-Level Tracking Variables ---
         self.current_slot_idx = -1 # Will increment at start of each slot
@@ -546,85 +448,94 @@ class MEVBoostModel(Model):
             self.running = False # Stop the simulation loop
 
 
-# --- Simulation Execution ---
-random.seed(0x06511)  # For reproducibility
-np.random.seed(0x06511)  # For reproducibility in NumPy operations
-# --- Define the Pool of Proposer Strategies ---
-NUM_VALIDATORS = 500 # Example: Simulate 100 validators
-# --- Define the number of slots to simulate ---
-SIM_NUM_SLOTS = 100 # Example: Simulate 200 slots
-TOTAL_TIME_STEPS = SIM_NUM_SLOTS * (SLOT_DURATION_MS // TIME_GRANULARITY_MS) + 1 # Total fine-grained steps (200 * 120 = 24000 steps)
+if __name__ == "__main__":
+    # --- Simulation Execution ---
+    random.seed(0x06511)  # For reproducibility
+    np.random.seed(0x06511)  # For reproducibility in NumPy operations
+    # --- Define the Pool of Proposer Strategies ---
+    NUM_VALIDATORS = 1000 # Example: Simulate 1000 validators
+    # --- Define the number of slots to simulate ---
+    SIM_NUM_SLOTS = 1000 # Example: Simulate 200 slots
+    TOTAL_TIME_STEPS = SIM_NUM_SLOTS * (SLOT_DURATION_MS // TIME_GRANULARITY_MS) + 1 # Total fine-grained steps (200 * 120 = 24000 steps)
 
-# --- Define Proposer Strategies ---
-all_timing_strategies = [
-    {"type": "fixed_delay", "delay_ms": 500}, # Strategy 1: Fixed delay at 0.5 seconds
-    {"type": "fixed_delay", "delay_ms": 1500}, # Strategy 2: Faster fixed delay at 1.5 second
-    {"type": "threshold_and_max_delay", "mev_threshold": 0.3, "max_delay_ms": 2500}, # Strategy 3: Threshold 0.4 ETH or max 2.5s delay
-    {"type": "random_delay", "min_delay_ms": 1000, "max_delay_ms": 3000}, # Strategy 4: Random delay between 1s and 3s
-    {"type": "threshold_and_max_delay", "mev_threshold": 0.4, "max_delay_ms": 3000}, # Strategy 5: More aggressive threshold 0.4 ETH or max 3s delay
-]
+    # --- Define Proposer Strategies ---
+    # all_timing_strategies = [
+    #     {"type": "fixed_delay", "delay_ms": 500}, # Strategy 1: Fixed delay at 0.5 seconds
+    #     {"type": "fixed_delay", "delay_ms": 1500}, # Strategy 2: Faster fixed delay at 1.5 second
+    #     {"type": "threshold_and_max_delay", "mev_threshold": 0.3, "max_delay_ms": 2500}, # Strategy 3: Threshold 0.4 ETH or max 2.5s delay
+    #     {"type": "random_delay", "min_delay_ms": 1000, "max_delay_ms": 3000}, # Strategy 4: Random delay between 1s and 3s
+    #     {"type": "threshold_and_max_delay", "mev_threshold": 0.4, "max_delay_ms": 3000}, # Strategy 5: More aggressive threshold 0.4 ETH or max 3s delay,
+    #     {"type": "optimal_latency"}, # Strategy 6: Proposer with optimized latency
+    # ]
+    all_timing_strategies = [
+        {"type": "optimal_latency"},
+    ]
 
-# --- Define Migration Strategies ---
-MIGRATION_STRATEGY_NEVER = {"type": "never_migrate"}
-MIGRATION_STRATEGY_RANDOM_EXPLORE = {"type": "random_explore", "migration_chance_per_slot": 0.01}
-MIGRATION_STRATEGY_OPTIMIZE_RELAY = {
-    "type": "optimize_to_center", 
-    "target_type": "relay", 
-}
-MIGRATION_STRATEGY_OPTIMIZE_ATTESTERS = {
-    "type": "optimize_to_center", 
-    "target_type": "attesters_geometric_center", 
-}
+    # --- Define Migration Strategies ---
+    MIGRATION_STRATEGY_NEVER = {"type": "never_migrate"}
+    MIGRATION_STRATEGY_RANDOM_EXPLORE = {"type": "random_explore", "migration_chance_per_slot": 0.01}
+    MIGRATION_STRATEGY_OPTIMIZE_RELAY = {
+        "type": "optimize_to_center", 
+        "target_type": "relay", 
+    }
+    MIGRATION_STRATEGY_OPTIMIZE_ATTESTERS = {
+        "type": "optimize_to_center", 
+        "target_type": "attesters_geometric_center", 
+    }
 
-all_location_strategies = [
-    MIGRATION_STRATEGY_NEVER,
-    MIGRATION_STRATEGY_RANDOM_EXPLORE,
-    MIGRATION_STRATEGY_OPTIMIZE_RELAY,
-    MIGRATION_STRATEGY_OPTIMIZE_ATTESTERS,
-]
+    all_location_strategies = [
+        # MIGRATION_STRATEGY_NEVER,
+        # MIGRATION_STRATEGY_RANDOM_EXPLORE,
+        MIGRATION_STRATEGY_OPTIMIZE_RELAY,
+        # MIGRATION_STRATEGY_OPTIMIZE_ATTESTERS,
+    ]
 
-model_params_standard_nomig = {
-    "num_validators": NUM_VALIDATORS,
-    "timing_strategies_pool": all_timing_strategies,
-    "location_strategies_pool": all_location_strategies,
-    "num_slots": SIM_NUM_SLOTS,
-    "proposer_has_optimized_latency": False,
-    "base_mev_amount": BASE_MEV_AMOUNT, "mev_increase_per_second": MEV_INCREASE_PER_SECOND,
-}
+    model_params_standard_nomig = {
+        "num_validators": NUM_VALIDATORS,
+        "timing_strategies_pool": all_timing_strategies,
+        "location_strategies_pool": all_location_strategies,
+        "num_slots": SIM_NUM_SLOTS,
+        "proposer_has_optimized_latency": False,
+        "base_mev_amount": BASE_MEV_AMOUNT, "mev_increase_per_second": MEV_INCREASE_PER_SECOND,
+    }
 
-model_standard = MEVBoostModel(**model_params_standard_nomig)
-for i in range(TOTAL_TIME_STEPS):
-    model_standard.step()
+    # --- Create and Run the Model ---
+    print("\n--- Starting MEV-Boost Simulation ---")
+    start_time = time.time()
+    model_standard = MEVBoostModel(**model_params_standard_nomig)
+    for i in range(TOTAL_TIME_STEPS):
+        model_standard.step()
+    end_time = time.time()
+    print(f"Simulation completed in {end_time - start_time:.2f} seconds.")
 
+    # --- Final Analysis & Plotting ---
+    print("\n--- Final Results Summary ---")
+    print(f"Total Slots: {model_standard.current_slot_idx + 1}")
+    print(f"Total MEV Earned: {model_standard.total_mev_earned:.4f} ETH")
+    print(f"Avg MEV Earned per Slot: {model_standard.total_mev_earned / (model_standard.current_slot_idx):.4f} ETH")
+    model_data = model_standard.datacollector.get_model_vars_dataframe()
+    # agent_data = model_standard.datacollector.get_agent_vars_dataframe() # If you were collecting agent data
 
-# --- Final Analysis & Plotting ---
-print("\n--- Final Results Summary ---")
-print(f"Total Slots: {model_standard.current_slot_idx + 1}")
-print(f"Total MEV Earned: {model_standard.total_mev_earned:.4f} ETH")
-print(f"Avg MEV Earned per Slot: {model_standard.total_mev_earned / (model_standard.current_slot_idx):.4f} ETH")
-model_data = model_standard.datacollector.get_model_vars_dataframe()
-# agent_data = model_standard.datacollector.get_agent_vars_dataframe() # If you were collecting agent data
+    print("\n--- Collected Model Data ---")
+    print(model_data.head())
 
-print("\n--- Collected Model Data ---")
-print(model_data.head())
+    agent_data = model_standard.datacollector.get_agent_vars_dataframe()
 
-agent_data = model_standard.datacollector.get_agent_vars_dataframe()
+    print("\n--- Agent Data Collected ---")
+    print("DataFrame Head:")
+    print(agent_data.head()) # Print the first 5 rows to see the structure
 
-print("\n--- Agent Data Collected ---")
-print("DataFrame Head:")
-print(agent_data.head()) # Print the first 5 rows to see the structure
+    print("\nDataFrame Tail:")
+    print(agent_data.tail()) # Print the last 5 rows
 
-print("\nDataFrame Tail:")
-print(agent_data.tail()) # Print the last 5 rows
+    # The DataFrame has a MultiIndex: (Step, AgentID)
+    # The 'Step' corresponds to the slot number.
+    print("\nDataFrame Info:")
+    agent_data.info()
 
-# The DataFrame has a MultiIndex: (Step, AgentID)
-# The 'Step' corresponds to the slot number.
-print("\nDataFrame Info:")
-agent_data.info()
-
-if isinstance(agent_data.index, pd.MultiIndex):
-    agent_data = agent_data.reset_index()
-positions_by_slot = agent_data.groupby('Slot')['Position'].apply(list).reset_index()
-nested_array = positions_by_slot['Position'].tolist()
-with open('data.json', 'w') as f:
-    json.dump(nested_array, f)
+    if isinstance(agent_data.index, pd.MultiIndex):
+        agent_data = agent_data.reset_index()
+    positions_by_slot = agent_data.groupby('Slot')['Position'].apply(list).reset_index()
+    nested_array = positions_by_slot['Position'].tolist()
+    with open('data.json', 'w') as f:
+        json.dump(nested_array, f)

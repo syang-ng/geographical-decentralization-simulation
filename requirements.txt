@@ -1,0 +1,7 @@
+dash
+mesa
+numpy
+pandas
+poltly
+scikit-learn
+scipy
