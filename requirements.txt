@@ -2,6 +2,6 @@ dash
 mesa
 numpy
 pandas
-poltly
+plotly
 scikit-learn
 scipy
