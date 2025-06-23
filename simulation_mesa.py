@@ -129,6 +129,7 @@ class ValidatorAgent(Agent):
         self.has_attested = False
         self.attested_to_proposer_block = False
         self.random_propose_time = -1  # Reset for next potential proposer role
+        self.latency_threshold = -1  # Reset for next potential proposer role
 
     def set_position(self, position):
         """Sets the validator's position in the space."""
@@ -151,8 +152,7 @@ class ValidatorAgent(Agent):
         distance_to_relay = space_instance.distance(self.position, relay_position)
         self.network_latency_to_target = (
             BASE_NETWORK_LATENCY_MS
-            + 2
-            * (distance_to_relay / space_instance.get_max_dist())
+            + (distance_to_relay / space_instance.get_max_dist())
             * MAX_ADDITIONAL_NETWORK_LATENCY_MS
         )
         # Set random propose time if using random strategy
@@ -160,6 +160,21 @@ class ValidatorAgent(Agent):
             self.random_propose_time = random.randint(
                 self.timing_strategy["min_delay_ms"],
                 self.timing_strategy["max_delay_ms"],
+            )
+        if self.timing_strategy["type"] == "optimal_latency":
+            # Calculate the latency threshold for optimal latency strategy
+            to_relay_latency = self.network_latency_to_target
+            required_attesters_for_supermajority = math.ceil(
+                (ATTESTATION_THRESHOLD) * len(self.model.current_attesters)
+            )
+            relay_to_attester_latency = [
+                a.network_latency_to_target + 3 * to_relay_latency
+                for a in self.model.current_attesters
+            ]
+            sorted_latencies = sorted(relay_to_attester_latency)
+            self.latency_threshold = (
+                ATTESTATION_TIME_MS
+                - sorted_latencies[required_attesters_for_supermajority]
             )
 
     def set_attester_role(
@@ -243,8 +258,10 @@ class ValidatorAgent(Agent):
         self.has_proposed_block = True
         # Apply latency to the target (relay) to the proposed time
         self.proposed_time_ms = (
-            current_slot_time_ms_inner + self.network_latency_to_target
+            current_slot_time_ms_inner + 3 * self.network_latency_to_target
         )
+        # TODO: This should be the mev of current step time + 1 x network latency to target (ie proposer querying the relay for header)
+        # relay_agent_instance.get_mev_offer(current_slot_time_ms_inner + 1 * self.network_latency_to_target)
         self.mev_captured_potential = (
             mev_offer  # Store potential MEV before supermajority check
         )
@@ -261,6 +278,8 @@ class ValidatorAgent(Agent):
         if self.has_attested:  # Already attested or migrating, cannot act
             return
 
+        # TODO: We should also account for how other attesters behave
+        # i.e., an attester should not attest if it knows that the block is not getting enough attestations
         if current_slot_time_ms_inner >= ATTESTATION_TIME_MS:
             # According to the current MEV-Boost auctions, the relay broadcasts the block
             # Todo: the proposer also broadcasts its block, which might be closer to some validators
