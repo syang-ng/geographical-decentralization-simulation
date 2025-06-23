@@ -56,3 +56,16 @@ Note: In the current version, there is a single relay, and the nodes (proposers)
 - `measure.py`: The measure of geographical decentralization.
 - `simulation_mesa.py`: Simulation code.
 - `visualization.py`: Visualization code.
+
+## Workflow
+
+The current implementation is based on a simplified MEV-Boost auction with timing games, i.e., the proposer selects the block from the relay after the beginning of the slot.
+
+![Workflow](./images/workflow.svg)
+
+The latency between when the proposer requests a block and when an attestor receives the block could be:
+
+- Assuming the relay is the only information source:
+    - `3 * latency_proposer_to_relay + latency_relay_to_attestor`
+    - `2 * latency_proposer_to_relay + latency_relay_to_attestor` (assuming the proposer knows the expected reward from the relay, so the latency only includes two parts: receiving the header from the relay and sending the submitted header back to the relay)
+- Considering that the proposer and the attestors also broadcast the block, the latency may need to take the network topology into account.
