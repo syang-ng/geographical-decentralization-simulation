@@ -1,7 +1,6 @@
 import argparse
 import dash
 import json
-import math
 import plotly.graph_objects as go
 
 from dash import State, dcc, html
@@ -12,18 +11,8 @@ from sklearn.neighbors import NearestNeighbors
 from distribution import *
 from measure import *
 
-from dash import callback_context
 
 space = SphericalSpace()
-
-
-# --- Helper Function for Distance ---
-# We need this for the density calculation.
-def geodesic_distance(p1, p2):
-    """Calculates the geodesic distance between two points on a unit sphere."""
-    dotp = p1[0] * p2[0] + p1[1] * p2[1] + p1[2] * p2[2]
-    dotp = max(-1.0, min(1.0, dotp))  # Clamp for numerical safety
-    return math.acos(dotp)
 
 
 # --- Pre-load Data ---
@@ -233,6 +222,15 @@ def create_app(all_slot_data, relay_data):
             ),
             margin=dict(l=0, r=0, b=0, t=40),
             legend=dict(title=None),
+        )
+
+        # ---- legend tweaks -----------------------------------
+        fig.update_layout(
+            legend=dict(
+                x=0.92,
+                y=1,
+                bgcolor='rgba(255,255,255,0.6)',
+            )
         )
 
         # ---- metric panel text -------------------------------

@@ -83,6 +83,7 @@ class ValidatorAgent(Agent):
         # Proposer specific attributes
         self.timing_strategy = None  # Assigned when chosen as proposer for a slot
         self.random_propose_time = -1  # For random delay strategy
+        self.latency_threshold = -1  # For optimal latency strategy
         self.attestation_time_ms = (
             ATTESTATION_TIME_MS  # Default attestation time for Attesters
         )
@@ -129,6 +130,7 @@ class ValidatorAgent(Agent):
         self.has_attested = False
         self.attested_to_proposer_block = False
         self.random_propose_time = -1  # Reset for next potential proposer role
+        self.latency_threshold = -1 # Reset for next potential proposer role
 
     def set_position(self, position):
         """Sets the validator's position in the space."""
@@ -161,6 +163,22 @@ class ValidatorAgent(Agent):
                 self.timing_strategy["min_delay_ms"],
                 self.timing_strategy["max_delay_ms"],
             )
+        if self.timing_strategy["type"] == "optimal_latency":
+            # Calculate the latency threshold for optimal latency strategy
+            to_relay_latency = self.network_latency_to_target
+            required_attesters_for_supermajority = math.ceil(
+                (ATTESTATION_THRESHOLD) * len(self.model.current_attesters)
+            )
+            relay_to_attester_latency = [
+                a.network_latency_to_target + to_relay_latency
+                for a in self.model.current_attesters
+            ]
+            sorted_latencies = sorted(relay_to_attester_latency)
+            self.latency_threshold = (
+                ATTESTATION_TIME_MS
+                - sorted_latencies[required_attesters_for_supermajority]
+            )
+        
 
     def set_attester_role(
         self, relay_position, space_instance, proposer_is_optimized_latency=False
@@ -217,22 +235,9 @@ class ValidatorAgent(Agent):
         elif (
             self.timing_strategy["type"] == "optimal_latency"
         ):  # The proposer knows its latency is optimized
-            to_relay_latency = self.network_latency_to_target
-            required_attesters_for_supermajority = math.ceil(
-                (ATTESTATION_THRESHOLD) * len(self.model.current_attesters)
-            )
-            relay_to_attester_latency = [
-                a.network_latency_to_target + to_relay_latency
-                for a in self.model.current_attesters
-            ]
-            sorted_latencies = sorted(relay_to_attester_latency)
-            latency_threshold = (
-                ATTESTATION_TIME_MS
-                - sorted_latencies[required_attesters_for_supermajority]
-            )
             if (
-                current_slot_time_ms_inner <= latency_threshold
-                and current_slot_time_ms_inner + TIME_GRANULARITY_MS > latency_threshold
+                current_slot_time_ms_inner <= self.latency_threshold
+                and current_slot_time_ms_inner + TIME_GRANULARITY_MS > self.latency_threshold
             ):
                 return True, mev_offer
 
@@ -524,12 +529,8 @@ class MEVBoostModel(Model):
             # print(f"Slot {self.current_slot_idx + 1}: No validators available to propose (all migrating).")
             return
 
+        # Randomly select a Proposer from available validators
         self.current_proposer_agent = random.choice(available_validators)
-        self.current_proposer_agent.set_proposer_role(
-            self.relay_agent.position, self.space
-        )
-        self.current_proposer_agent.decide_to_migrate()  # Check if proposer should migrate
-
         # Set Attesters and calculate their specific latencies from the Relay
         self.current_attesters = [
             v
@@ -542,6 +543,12 @@ class MEVBoostModel(Model):
                 self.space,
                 self.proposer_has_optimized_latency,
             )
+        # Set the Proposer's role and prepare for the slot
+        # The order is important: Proposer must be set after Attesters since it needs to know the attesters' latencies
+        self.current_proposer_agent.set_proposer_role(
+            self.relay_agent.position, self.space
+        )
+        self.current_proposer_agent.decide_to_migrate()  # Check if proposer should migrate
 
         # Reset relay's MEV offer for the new slot start
         self.relay_agent.update_mev_offer()
@@ -615,6 +622,7 @@ if __name__ == "__main__":
 
     # --- Define Proposer Strategies ---
     # all_timing_strategies = [
+    #     {"type": "fixed_delay", "delay_ms": 0},  # Strategy 0: Honest proposer with no delay
     #     {"type": "fixed_delay", "delay_ms": 500}, # Strategy 1: Fixed delay at 0.5 seconds
     #     {"type": "fixed_delay", "delay_ms": 1500}, # Strategy 2: Faster fixed delay at 1.5 second
     #     {"type": "threshold_and_max_delay", "mev_threshold": 0.3, "max_delay_ms": 2500}, # Strategy 3: Threshold 0.4 ETH or max 2.5s delay
