@@ -37,17 +37,24 @@ def load_data(file_path):
         return []
 
 
-def create_app(all_slot_data, relay_data):
+def create_app(all_slot_data, relay_data, mev_series, attest_series):
     n_slots = len(all_slot_data)
 
     # ---------------------------------------------------------
     #  1.  Pre-compute per-slot metric history (once)
     # ---------------------------------------------------------
-    clusters_hist, total_dist_hist, avg_nnd_hist, nni_hist = ([] for _ in range(4))
+    clusters_hist, total_dist_hist, avg_nnd_hist, nni_hist, mev_hist, attest_hist = (
+        [],
+        [],
+        [],
+        [],
+        [],
+        [],
+    )
 
     granularity = 10
     # placeholders for “last seen” metrics
-    last_c = last_t = last_a = last_nni = 0.0
+    last_c = last_t = last_a = last_nni = last_mev = last_attest = 0.0
 
     for i, pts in enumerate(all_slot_data):
         if i % granularity == 0:
@@ -58,15 +65,19 @@ def create_app(all_slot_data, relay_data):
                 last_t = total_distance(dm)
                 last_a = average_nearest_neighbor_distance(dm)
                 last_nni = nearest_neighbor_index_spherical(dm, space)[0]
+                last_mev = sum(mev_series[i]) if mev_series else 0.0
+                last_attest = sum(attest_series[i])
             else:
                 last_c = 0
-                last_t = last_a = last_nni = 0.0
+                last_t = last_a = last_nni = last_mev = last_attest = 0.0
 
         # *every* slot, append whatever the “last computed” values are
         clusters_hist.append(last_c)
         total_dist_hist.append(last_t)
         avg_nnd_hist.append(last_a)
         nni_hist.append(last_nni)
+        mev_hist.append(last_mev)
+        attest_hist.append(last_attest)
 
     # ---------------------------------------------------------
     #  2.  Helper: build the 3-D density + relay figure
@@ -144,8 +155,6 @@ def create_app(all_slot_data, relay_data):
                 y=0.98,  # top
                 bgcolor="rgba(255,255,255,0.7)",
             ),
-            # margin=dict(l=0, r=0, b=0, t=30),
-            # legend=dict(title=None, x=0.86, y=0.95, bgcolor="rgba(255,255,255,0.6)"),
         )
         return fig
 
@@ -215,13 +224,15 @@ def create_app(all_slot_data, relay_data):
                     html.Div(dcc.Graph(id="totaldist-line"), className="card"),
                     html.Div(dcc.Graph(id="avg-nnd-line"), className="card"),
                     html.Div(dcc.Graph(id="nni-line"), className="card"),
+                    html.Div(dcc.Graph(id="mev-line"), className="card"),
+                    html.Div(dcc.Graph(id="attest-line"), className="card"),
                     html.Div(id="slot-info-display", className="card"),
                 ],
                 style={
                     "display": "grid",
-                    "gridTemplateColumns": "repeat(auto-fit, minmax(360px, 1fr))",
-                    "gap": "14px",
-                    "padding": "0 14px 20px",
+                    "gridTemplateColumns": "repeat(auto-fit, minmax(300px, 1fr))",
+                    "gap": "12px",
+                    "padding": "0 16px 20px",
                 },
             ),
             # -------- hidden helpers -------------------------
@@ -272,66 +283,73 @@ def create_app(all_slot_data, relay_data):
         Output("totaldist-line", "figure"),
         Output("avg-nnd-line", "figure"),
         Output("nni-line", "figure"),
+        Output("mev-line", "figure"),
+        Output("attest-line", "figure"),
         Output("slot-info-display", "children"),
         Input("movie-state", "data"),
     )
     def redraw(state):
         idx = state["slot"]
-        x_ax = list(range(idx + 1))  # 0..current slot
+        x = list(range(idx + 1))
 
         # -- 3-D view (card 1) --
         fig3d = build_density_fig(all_slot_data[idx], relay_data[idx])
         fig3d.update_layout(title=f"Geo Tracker", margin=dict(l=15, r=10, b=20, t=40))
 
-        # -- line charts (cards 2-5) --
-        fig_c = go.Figure(go.Scatter(x=x_ax, y=clusters_hist[: idx + 1], mode="lines"))
-        fig_c.update_layout(title="Clusters", margin=dict(l=15, r=10, t=40, b=20))
+        # spatial metrics
+        def mkline(data, title):
+            f = go.Figure(go.Scatter(x=x, y=data[: idx + 1], mode="lines"))
+            f.update_layout(title=title, margin=dict(l=10, r=10, t=30, b=20))
+            return f
 
-        fig_t = go.Figure(
-            go.Scatter(x=x_ax, y=total_dist_hist[: idx + 1], mode="lines")
-        )
-        fig_t.update_layout(title="Total distance", margin=dict(l=15, r=10, t=40, b=20))
+        fig_c = mkline(clusters_hist, "Clusters")
+        fig_t = mkline(total_dist_hist, "Total Distance")
+        fig_a = mkline(avg_nnd_hist, "Avg NND")
+        fig_n = mkline(nni_hist, "NNI")
 
-        fig_a = go.Figure(go.Scatter(x=x_ax, y=avg_nnd_hist[: idx + 1], mode="lines"))
-        fig_a.update_layout(title="Average NND", margin=dict(l=15, r=10, t=40, b=20))
+        # new MEV & supermaj
+        fig_mev = mkline(mev_hist, "MEV Earned")
+        fig_attest = mkline(attest_hist, "Attestation Rate %")
 
-        fig_n = go.Figure(go.Scatter(x=x_ax, y=nni_hist[: idx + 1], mode="lines"))
-        fig_n.update_layout(title="NNI", margin=dict(l=15, r=10, t=40, b=20))
-
-        # -- info card (card 6) --
         info = html.Div(
             [
-                html.H4(f"Slot {idx + 1}", style={"marginTop": 0}),
+                html.H4(f"Slot {idx+1}", style={"marginTop": 0}),
                 html.P(f"Clusters: {clusters_hist[idx]}"),
-                html.P(f"Total distance: {total_dist_hist[idx]:,.4f}"),
-                html.P(f"Avg NND: {avg_nnd_hist[idx]:,.4f}"),
-                html.P(f"NNI: {nni_hist[idx]:,.4f}"),
+                html.P(f"Total dist: {total_dist_hist[idx]:.4f}"),
+                html.P(f"Avg NND: {avg_nnd_hist[idx]:.4f}"),
+                html.P(f"NNI: {nni_hist[idx]:.4f}"),
+                html.P(f"MEV: {mev_hist[idx]:.4f}"),
+                html.P(f"Attestation %: {attest_hist[idx]:.2f}"),
             ],
             style={"padding": "12px"},
         )
 
-        return fig3d, fig_c, fig_t, fig_a, fig_n, info
+        return fig3d, fig_c, fig_t, fig_a, fig_n, fig_mev, fig_attest, info
 
     return app
 
 
 # --- Main Execution ---
 if __name__ == "__main__":
+    dir = "output"
     parser = argparse.ArgumentParser(description="Run the simulation viewer.")
     parser.add_argument(
         "--data",
         type=str,
-        default="data.json",
+        default=f"{dir}/data.json",
         help="Path to the data file (default: data.json)",
     )
     args = parser.parse_args()
 
     data_path = args.data
     all_slot_data = load_data(data_path)
-    relay_data = load_data("relay_data.json")
+    relay_data = load_data(f"{dir}/relay_data.json")
+    mev_series = load_data(f"{dir}/mev_by_slot.json")
+    attest_series = load_data(f"{dir}/attest_by_slot.json")
+
     if not all_slot_data:
         print("Application cannot start because data is missing.")
         exit(1)
     else:
-        app = create_app(all_slot_data, relay_data)
+        app = create_app(all_slot_data, relay_data, mev_series, attest_series)
         app.run(debug=True)

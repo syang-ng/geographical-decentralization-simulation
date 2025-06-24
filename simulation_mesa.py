@@ -48,7 +48,7 @@ class RelayAgent(Agent):
     def get_mev_offer(self):
         """Provides the current best MEV offer to a Proposer."""
         return self.current_mev_offer
-    
+
     def get_mev_offer_at_time(self, time_ms):
         """
         Returns the MEV offer at a specific time in milliseconds.
@@ -108,6 +108,9 @@ class ValidatorAgent(Agent):
         self.attested_to_proposer_block = (
             False  # True if this attester made a valid attestation for Proposer's block
         )
+        self.attestation_rate = (
+            0.0  # Percentage of successful attestations in the current slot
+        )
 
     def reset_for_new_slot(self):
         """
@@ -135,6 +138,7 @@ class ValidatorAgent(Agent):
         self.proposed_time_ms = -1
         self.mev_captured = 0.0
         self.mev_captured_potential = 0.0
+        self.attestation_rate = 0.0  # Reset for new slot
         self.has_attested = False
         self.attested_to_proposer_block = False
         self.random_propose_time = -1  # Reset for next potential proposer role
@@ -170,9 +174,9 @@ class ValidatorAgent(Agent):
                 self.timing_strategy["min_delay_ms"],
                 self.timing_strategy["max_delay_ms"],
             )
-    
+
     def calculate_latency_threshold(self):
-        """ Calculates the latency threshold for the Proposer based on its timing strategy. """
+        """Calculates the latency threshold for the Proposer based on its timing strategy."""
         if self.timing_strategy["type"] == "optimal_latency":
             # Calculate the latency threshold for optimal latency strategy
             to_relay_latency = self.network_latency_to_target
@@ -188,7 +192,6 @@ class ValidatorAgent(Agent):
                 ATTESTATION_TIME_MS
                 - sorted_latencies[required_attesters_for_supermajority]
             )
-
 
     def set_attester_role(
         self, relay_position, space_instance, proposer_is_optimized_latency=False
@@ -238,9 +241,7 @@ class ValidatorAgent(Agent):
                     current_slot_time_ms_inner,
                     self.timing_strategy["max_delay_ms"],
                 )
-                mev_offer = relay_agent_instance.get_mev_offer_at_time(
-                    proposed_time_ms
-                )
+                mev_offer = relay_agent_instance.get_mev_offer_at_time(proposed_time_ms)
                 return True, mev_offer, proposed_time_ms
         elif self.timing_strategy["type"] == "random_delay":
             if (
@@ -260,8 +261,10 @@ class ValidatorAgent(Agent):
         ):  # The proposer knows its latency is optimized
             if (
                 current_slot_time_ms_inner <= self.latency_threshold
-                and current_slot_time_ms_inner + TIME_GRANULARITY_MS > self.latency_threshold
+                and current_slot_time_ms_inner + TIME_GRANULARITY_MS
+                > self.latency_threshold
             ):
+                # TODO: This should be the mev of latency_threshold + 1 x network latency to relay (ie proposer querying the relay for header)
                 mev_offer = relay_agent_instance.get_mev_offer_at_time(
                     self.latency_threshold
                 )
@@ -269,15 +272,14 @@ class ValidatorAgent(Agent):
 
         return False, 0.0, 0
 
-    def propose_block(self, current_slot_time_ms_inner, mev_offer):
+    def propose_block(self, proposed_time, mev_offer):
         """Executes the block proposal action for the Proposer."""
         self.has_proposed_block = True
         # Apply latency to the target (relay) to the proposed time
-        self.proposed_time_ms = (
-            current_slot_time_ms_inner + 3 * self.network_latency_to_target
-        )
-        # TODO: This should be the mev of current step time + 1 x network latency to target (ie proposer querying the relay for header)
-        # relay_agent_instance.get_mev_offer(current_slot_time_ms_inner + 1 * self.network_latency_to_target)
+        # self.proposed_time_ms = (
+        #     current_slot_time_ms_inner + 3 * self.network_latency_to_target
+        # )
+        self.proposed_time_ms = proposed_time
         self.mev_captured_potential = (
             mev_offer  # Store potential MEV before supermajority check
         )
@@ -300,7 +302,9 @@ class ValidatorAgent(Agent):
             # According to the current MEV-Boost auctions, the relay broadcasts the block
             # TODO: the proposer also broadcasts its block, which might be closer to some validators
             block_arrival_at_this_attester_ms = (
-                block_proposed_time_ms + relay_to_attester_latency
+                block_proposed_time_ms
+                + 3 * self.model.current_proposer_agent.network_latency_to_target
+                + relay_to_attester_latency
             )
 
             if (
@@ -421,7 +425,7 @@ class ValidatorAgent(Agent):
                     proposer_agent.proposed_time_ms,
                     self.network_latency_to_target,
                 )
-    
+
 
 # --- MEVBoostModel Class ---
 
@@ -508,6 +512,7 @@ class MEVBoostModel(Model):
         self.total_attesters_counted = (
             0  # Total number of attesters in slots where proposer successfully proposed
         )
+        self.attestation_rate = 0.0  # Calculated as a percentage
 
         # --- Setup DataCollector ---
         self.datacollector = self._setup_datacollector()
@@ -535,6 +540,7 @@ class MEVBoostModel(Model):
                 "Role": "role",
                 "Slot": "current_slot_idx",
                 "MEV_Captured_Slot": "mev_captured",  # MEV actually earned in the last slot
+                "Attestation_Rate": "attestation_rate",  # Percentage of successful attestations
             },
         )
 
@@ -605,6 +611,10 @@ class MEVBoostModel(Model):
                 required_attesters_for_supermajority = math.ceil(
                     (ATTESTATION_THRESHOLD) * len(self.current_attesters)
                 )
+
+                self.current_proposer_agent.attestation_rate = (
+                    slot_successful_attestations / len(self.current_attesters)
+                ) * 100
 
                 if slot_successful_attestations >= required_attesters_for_supermajority:
                     self.current_proposer_agent.mev_captured = (
@@ -695,6 +705,8 @@ if __name__ == "__main__":
         "mev_increase_per_second": MEV_INCREASE_PER_SECOND,
     }
 
+    dir = "output"
+
     # --- Create and Run the Model ---
     print("\n--- Starting MEV-Boost Simulation ---")
     start_time = time.time()
@@ -718,6 +730,19 @@ if __name__ == "__main__":
     print(model_data.head())
     print(model_data.tail())
 
+    # Extract the two series as plain Python lists
+    avg_mev_series = model_data["Average_MEV_Earned"].tolist()
+    supermaj_series = model_data["Supermajority_Success_Rate"].tolist()
+
+    # Write them out
+    with open(f"{dir}/avg_mev.json", "w") as f:
+        json.dump(avg_mev_series, f)
+
+    with open(f"{dir}/supermajority_success.json", "w") as f:
+        json.dump(supermaj_series, f)
+
+    print("Saved avg_mev.json and supermajority_success.json")
+
     agent_data = model_standard.datacollector.get_agent_vars_dataframe()
 
     print("\n--- Agent Data Collected ---")
@@ -736,9 +761,12 @@ if __name__ == "__main__":
 
     if isinstance(agent_data.index, pd.MultiIndex):
         agent_data = agent_data.reset_index()
+
     positions_by_slot = agent_data.groupby("Slot")["Position"].apply(list).reset_index()
     nested_array = positions_by_slot["Position"].tolist()
-
+    # Group by slot and collect lists of per-agent values:
+    mev_by_slot = agent_data.groupby("Slot")["MEV_Captured_Slot"].apply(list).tolist()
+    attest_by_slot = agent_data.groupby("Slot")["Attestation_Rate"].apply(list).tolist()
     relay_position = relay_agent_data["Position"].iloc[0]
     # Since relay is not moving, we can just use the first position and multiply it by the number of slots
     # --------------------------------------------
@@ -749,8 +777,14 @@ if __name__ == "__main__":
         [relay_pos_list] for _ in range(len(nested_array))  # <- extra [] !
     ]
 
-    with open("data.json", "w") as f:
+    with open(f"{dir}/data.json", "w") as f:
         json.dump(nested_array, f)
+    with open(f"{dir}/mev_by_slot.json", "w") as f:
+        json.dump(mev_by_slot, f)
+    with open(f"{dir}/attest_by_slot.json", "w") as f:
+        json.dump(attest_by_slot, f)
 
-    with open("relay_data.json", "w") as f:
+    with open(f"{dir}/relay_data.json", "w") as f:
         json.dump(nested_array_relay, f)
+
+    print("Saved data.json and relay_data.json")
