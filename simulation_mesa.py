@@ -48,6 +48,14 @@ class RelayAgent(Agent):
     def get_mev_offer(self):
         """Provides the current best MEV offer to a Proposer."""
         return self.current_mev_offer
+    
+    def get_mev_offer_at_time(self, time_ms):
+        """
+        Returns the MEV offer at a specific time in milliseconds.
+        This is useful for Proposers to query the Relay for MEV offers.
+        """
+        time_in_seconds = time_ms / 1000
+        return BASE_MEV_AMOUNT + time_in_seconds * MEV_INCREASE_PER_SECOND
 
     def step(self):
         """
@@ -130,7 +138,7 @@ class ValidatorAgent(Agent):
         self.has_attested = False
         self.attested_to_proposer_block = False
         self.random_propose_time = -1  # Reset for next potential proposer role
-        self.latency_threshold = -1 # Reset for next potential proposer role
+        self.latency_threshold = -1  # Reset for next potential proposer role
 
     def set_position(self, position):
         """Sets the validator's position in the space."""
@@ -153,8 +161,7 @@ class ValidatorAgent(Agent):
         distance_to_relay = space_instance.distance(self.position, relay_position)
         self.network_latency_to_target = (
             BASE_NETWORK_LATENCY_MS
-            + 2
-            * (distance_to_relay / space_instance.get_max_dist())
+            + (distance_to_relay / space_instance.get_max_dist())
             * MAX_ADDITIONAL_NETWORK_LATENCY_MS
         )
         # Set random propose time if using random strategy
@@ -163,6 +170,9 @@ class ValidatorAgent(Agent):
                 self.timing_strategy["min_delay_ms"],
                 self.timing_strategy["max_delay_ms"],
             )
+    
+    def calculate_latency_threshold(self):
+        """ Calculates the latency threshold for the Proposer based on its timing strategy. """
         if self.timing_strategy["type"] == "optimal_latency":
             # Calculate the latency threshold for optimal latency strategy
             to_relay_latency = self.network_latency_to_target
@@ -170,7 +180,7 @@ class ValidatorAgent(Agent):
                 (ATTESTATION_THRESHOLD) * len(self.model.current_attesters)
             )
             relay_to_attester_latency = [
-                a.network_latency_to_target + to_relay_latency
+                a.network_latency_to_target + 3 * to_relay_latency
                 for a in self.model.current_attesters
             ]
             sorted_latencies = sorted(relay_to_attester_latency)
@@ -178,7 +188,7 @@ class ValidatorAgent(Agent):
                 ATTESTATION_TIME_MS
                 - sorted_latencies[required_attesters_for_supermajority]
             )
-        
+
 
     def set_attester_role(
         self, relay_position, space_instance, proposer_is_optimized_latency=False
@@ -206,7 +216,7 @@ class ValidatorAgent(Agent):
         Returns (should_propose, mev_offer_if_proposing)
         """
         if self.has_proposed_block:  # Already proposed or migrating, cannot act
-            return False, 0.0
+            return False, 0.0, 0
 
         # Q: We may need to reconsider this wrt the latency to the relay.
         # we can just say the marginal value of time is known hence everyone can compute it for themselves
@@ -215,13 +225,23 @@ class ValidatorAgent(Agent):
 
         if self.timing_strategy["type"] == "fixed_delay":
             if current_slot_time_ms_inner >= self.timing_strategy["delay_ms"]:
-                return True, mev_offer
+                mev_offer = relay_agent_instance.get_mev_offer_at_time(
+                    self.timing_strategy["delay_ms"]
+                )
+                return True, mev_offer, self.timing_strategy["delay_ms"]
         elif self.timing_strategy["type"] == "threshold_and_max_delay":
             if (
                 mev_offer >= self.timing_strategy["mev_threshold"]
                 or current_slot_time_ms_inner >= self.timing_strategy["max_delay_ms"]
             ):
-                return True, mev_offer
+                proposed_time_ms = min(
+                    current_slot_time_ms_inner,
+                    self.timing_strategy["max_delay_ms"],
+                )
+                mev_offer = relay_agent_instance.get_mev_offer_at_time(
+                    proposed_time_ms
+                )
+                return True, mev_offer, proposed_time_ms
         elif self.timing_strategy["type"] == "random_delay":
             if (
                 self.random_propose_time == -1
@@ -231,7 +251,10 @@ class ValidatorAgent(Agent):
                     self.timing_strategy["max_delay_ms"],
                 )
             if current_slot_time_ms_inner >= self.random_propose_time:
-                return True, mev_offer
+                mev_offer = relay_agent_instance.get_mev_offer_at_time(
+                    self.random_propose_time
+                )
+                return True, mev_offer, self.random_propose_time
         elif (
             self.timing_strategy["type"] == "optimal_latency"
         ):  # The proposer knows its latency is optimized
@@ -239,17 +262,22 @@ class ValidatorAgent(Agent):
                 current_slot_time_ms_inner <= self.latency_threshold
                 and current_slot_time_ms_inner + TIME_GRANULARITY_MS > self.latency_threshold
             ):
-                return True, mev_offer
+                mev_offer = relay_agent_instance.get_mev_offer_at_time(
+                    self.latency_threshold
+                )
+                return True, mev_offer, self.latency_threshold
 
-        return False, 0.0
+        return False, 0.0, 0
 
     def propose_block(self, current_slot_time_ms_inner, mev_offer):
         """Executes the block proposal action for the Proposer."""
         self.has_proposed_block = True
         # Apply latency to the target (relay) to the proposed time
         self.proposed_time_ms = (
-            current_slot_time_ms_inner + self.network_latency_to_target
+            current_slot_time_ms_inner + 3 * self.network_latency_to_target
         )
+        # TODO: This should be the mev of current step time + 1 x network latency to target (ie proposer querying the relay for header)
+        # relay_agent_instance.get_mev_offer(current_slot_time_ms_inner + 1 * self.network_latency_to_target)
         self.mev_captured_potential = (
             mev_offer  # Store potential MEV before supermajority check
         )
@@ -266,9 +294,11 @@ class ValidatorAgent(Agent):
         if self.has_attested:  # Already attested or migrating, cannot act
             return
 
+        # TODO: We should also account for how other attesters behave
+        # i.e., an attester should not attest if it knows that the block is not getting enough attestations
         if current_slot_time_ms_inner >= ATTESTATION_TIME_MS:
             # According to the current MEV-Boost auctions, the relay broadcasts the block
-            # Todo: the proposer also broadcasts its block, which might be closer to some validators
+            # TODO: the proposer also broadcasts its block, which might be closer to some validators
             block_arrival_at_this_attester_ms = (
                 block_proposed_time_ms + relay_to_attester_latency
             )
@@ -377,11 +407,11 @@ class ValidatorAgent(Agent):
             return
 
         if self.role == "proposer":
-            should_propose, mev_offer = self.decide_and_propose(
+            should_propose, mev_offer, proposed_time = self.decide_and_propose(
                 current_slot_time_ms_inner, self.model.relay_agent
             )
             if should_propose:
-                self.propose_block(current_slot_time_ms_inner, mev_offer)
+                self.propose_block(proposed_time, mev_offer)
         elif self.role == "attester":
             # Attesters need to know the proposer's block proposed time and their latency to the relay
             proposer_agent = self.model.get_current_proposer_agent()
@@ -391,7 +421,7 @@ class ValidatorAgent(Agent):
                     proposer_agent.proposed_time_ms,
                     self.network_latency_to_target,
                 )
-
+    
 
 # --- MEVBoostModel Class ---
 
@@ -531,6 +561,11 @@ class MEVBoostModel(Model):
 
         # Randomly select a Proposer from available validators
         self.current_proposer_agent = random.choice(available_validators)
+        # Set the Proposer's role and prepare for the slot
+        self.current_proposer_agent.set_proposer_role(
+            self.relay_agent.position, self.space
+        )
+        self.current_proposer_agent.decide_to_migrate()  # Check if proposer should migrate
         # Set Attesters and calculate their specific latencies from the Relay
         self.current_attesters = [
             v
@@ -543,13 +578,7 @@ class MEVBoostModel(Model):
                 self.space,
                 self.proposer_has_optimized_latency,
             )
-        # Set the Proposer's role and prepare for the slot
-        # The order is important: Proposer must be set after Attesters since it needs to know the attesters' latencies
-        self.current_proposer_agent.set_proposer_role(
-            self.relay_agent.position, self.space
-        )
-        self.current_proposer_agent.decide_to_migrate()  # Check if proposer should migrate
-
+        self.current_proposer_agent.calculate_latency_threshold()
         # Reset relay's MEV offer for the new slot start
         self.relay_agent.update_mev_offer()
 

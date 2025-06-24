@@ -213,7 +213,7 @@ def create_app(all_slot_data, relay_data):
 
         # ---- layout tweaks -----------------------------------
         fig.update_layout(
-            title=f"Slot {idx} · {len(points)} validators",
+            title=f"Slot {idx+1} · {len(points)} validators",
             scene=dict(
                 xaxis=dict(range=[-1, 1]),
                 yaxis=dict(range=[-1, 1]),
@@ -229,14 +229,14 @@ def create_app(all_slot_data, relay_data):
             legend=dict(
                 x=0.92,
                 y=1,
-                bgcolor='rgba(255,255,255,0.6)',
+                bgcolor="rgba(255,255,255,0.6)",
             )
         )
 
         # ---- metric panel text -------------------------------
         info = html.Div(
             [
-                html.P(f"Slot {idx}"),
+                html.P(f"Slot {idx+1}"),
                 html.P(f"Clusters: {n_clusters}"),
                 html.P(f"Total distance: {total_dist:,.4f}"),
                 html.P(f"Avg NND: {avg_nnd:,.4f}"),
