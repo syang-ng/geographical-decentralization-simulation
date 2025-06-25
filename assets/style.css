@@ -1,5 +1,190 @@
+/* --- Base Styles (applies to light mode by default) --- */
+body {
+    font-family: Arial, sans-serif;
+    margin: 0;
+    padding: 0;
+    /* Smooth transition for theme change */
+    transition: background-color 0.3s ease, color 0.3s ease;
+    color: black; /* Default text color for light mode */
+    background-color: white; /* Default background color for light mode */
+}
+
 .card {
-    background:#fff; border-radius:12px;
-    box-shadow:0 2px 6px rgba(0,0,0,.1);
-    padding:6px;
+    background: #fff; /* Card background in light mode */
+    border-radius: 12px; /* Rounded corners for cards */
+    box-shadow: 0 2px 6px rgba(0, 0, 0, .1); /* Shadow in light mode */
+    padding: 6px; /* Padding inside cards */
+    /* Smooth transition for card elements */
+    transition: background-color 0.3s ease, box-shadow 0.3s ease, color 0.3s ease;
+}
+
+/* --- Default (Light Mode) styles for Dash components --- */
+/* Dropdown styles */
+.dash-dropdown .Select-control,
+.dash-dropdown .Select-menu-outer {
+    background-color: white;
+    border: 1px solid #ccc;
+    transition: background-color 0.3s, border-color 0.3s;
+}
+
+.dash-dropdown .Select-control {
+    border-radius: 5px; /* Add border-radius to the control */
+}
+
+.dash-dropdown .Select-value-label,
+.dash-dropdown .Select-input input,
+.dash-dropdown .Select-placeholder {
+    color: black; /* Text color for selected value, input, and placeholder */
+    transition: color 0.3s;
+}
+
+/* Explicitly target placeholder for various browsers */
+.dash-dropdown .Select-input::-webkit-input-placeholder { /* Chrome, Safari, Opera */
+  color: black;
+  opacity: 1; /* Ensure full opacity */
+}
+.dash-dropdown .Select-input:-moz-placeholder { /* Firefox 18- */
+  color: black;
+  opacity: 1;
+}
+.dash-dropdown .Select-input::-moz-placeholder { /* Firefox 19+ */
+  color: black;
+  opacity: 1;
+}
+.dash-dropdown .Select-input:-ms-input-placeholder { /* IE 10+ */
+  color: black;
+  opacity: 1;
+}
+.dash-dropdown .Select-input::placeholder { /* Modern browsers */
+  color: black;
+  opacity: 1;
+}
+
+
+.dash-dropdown .Select-arrow {
+    border-color: #999 transparent transparent transparent; /* Arrow color */
+    transition: border-color 0.3s;
+}
+
+.dash-dropdown .Select-option {
+    background-color: white;
+    color: black;
+    transition: background-color 0.3s, color 0.3s;
+}
+
+.dash-dropdown .Select-option.is-focused {
+    background-color: #f0f0f0; /* Hover background for options */
+}
+
+.dash-dropdown .Select-option.is-selected {
+    background-color: #e0e0e0; /* Selected option background */
+}
+
+/* Slider styles */
+.rc-slider-track {
+    background-color: #007bff; /* Blue accent color for slider track */
+    transition: background-color 0.3s;
+}
+
+.rc-slider-handle {
+    border-color: #007bff;
+    transition: border-color 0.3s;
+}
+
+.rc-slider-mark-text {
+    color: #666;
+    transition: color 0.3s;
+}
+
+/* Button styles */
+button {
+    background-color: #007bff;
+    color: white;
+    border: none;
+    padding: 8px 15px;
+    border-radius: 5px;
+    cursor: pointer;
+    transition: background-color 0.3s, color 0.3s;
+}
+
+button:hover {
+    background-color: #0056b3;
+}
+
+
+/* --- Dark Mode Specific Styles (activated when parent has .dark-mode class) --- */
+.dark-mode {
+    background-color: #1e1e1e; /* Overall background color in dark mode */
+    color: #f0f0f0; /* Overall text color in dark mode */
+}
+
+.dark-mode .card {
+    background: #2d2d2d; /* Card background in dark mode */
+    box-shadow: 0 2px 8px rgba(0, 0, 0, .5); /* Deeper shadow for contrast in dark mode */
+}
+
+/* --- Dark Mode styles for Dash components --- */
+/* Dropdown styles in dark mode */
+.dark-mode .dash-dropdown .Select-control,
+.dark-mode .dash-dropdown .Select-menu-outer {
+    background-color: #3a3a3a; /* Darker background for control and menu */
+    border: 1px solid #555; /* Darker border */
+}
+
+/* Make selected value and input text brighter and ensure opacity */
+.dark-mode .dash-dropdown .Select-value-label,
+.dark-mode .dash-dropdown .Select-input input {
+    color: #f0f0f0 !important; /* Force light text color */
+    opacity: 1 !important; /* Ensure full opacity */
+}
+
+/* Specifically target placeholder text for various browsers in dark mode */
+.dark-mode .dash-dropdown .Select-placeholder,
+.dark-mode .dash-dropdown .Select-input::-webkit-input-placeholder, /* Chrome, Safari, Opera */
+.dark-mode .dash-dropdown .Select-input:-moz-placeholder, /* Firefox 18- */
+.dark-mode .dash-dropdown .Select-input::-moz-placeholder, /* Firefox 19+ */
+.dark-mode .dash-dropdown .Select-input:-ms-input-placeholder, /* IE 10+ */
+.dark-mode .dash-dropdown .Select-input::placeholder { /* Modern browsers */
+  color: #cccccc !important; /* A slightly lighter grey for placeholder, easier to read */
+  opacity: 1 !important; /* Ensure full opacity */
+}
+
+
+.dark-mode .dash-dropdown .Select-arrow {
+    border-color: #ccc transparent transparent transparent; /* Lighter arrow color */
+}
+
+.dark-mode .dash-dropdown .Select-option {
+    background-color: #3a3a3a; /* Darker background for options */
+    color: #f0f0f0; /* Light text color for options */
+}
+
+.dark-mode .dash-dropdown .Select-option.is-focused {
+    background-color: #4a4a4a; /* Darker hover background for options */
+}
+
+.dark-mode .dash-dropdown .Select-option.is-selected {
+    background-color: #5a5a5a; /* Darker selected option background */
+}
+
+/* Slider styles in dark mode */
+.dark-mode .rc-slider-track {
+    background-color: #0056b3; /* Slightly darker accent for slider */
+}
+
+.dark-mode .rc-slider-handle {
+    border-color: #0056b3;
+}
+
+.dark-mode .rc-slider-mark-text {
+    color: #ccc;
+}
+
+/* Button styles in dark mode */
+.dark-mode button {
+    background-color: #0056b3;
+}
+
+.dark-mode button:hover {
+    background-color: #003d80;
 }
