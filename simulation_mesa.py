@@ -416,7 +416,7 @@ class ValidatorAgent(Agent):
         # relay_position = self.model.relay_agent.position
         # distance_to_relay = space_instance.distance(self.position, relay_position)
         self.network_latency_to_target = self.model.space.get_latency(
-            self.gcp_zone, self.model.relay_agent.gcp_zone, gcp_latency
+            self.gcp_zone, self.model.relay_agent.gcp_zone, self.model.gcp_latency
         )
         # self.network_latency_to_target = (
         #     BASE_NETWORK_LATENCY_MS
