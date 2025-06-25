@@ -354,7 +354,10 @@ class ValidatorAgent(Agent):
                 "migration_chance_per_slot", 0.01
             ):
                 new_position = self.model.space.sample_point()
-                self.do_migration(new_position)
+                gcp_zone = self.model.space.get_nearest_gcp_zone(
+                    new_position, gcp_zones
+                )
+                self.do_migration(new_position, gcp_zone)
                 return True
             return False
 
@@ -383,18 +386,20 @@ class ValidatorAgent(Agent):
                 return False
 
             if target_pos:
-                self.do_migration(target_pos)
+                gcp_zone = self.model.space.get_nearest_gcp_zone(target_pos, gcp_zones)
+                self.do_migration(target_pos, gcp_zone)
                 return True
 
             return False
 
         return False
 
-    def do_migration(self, new_position_coords):
+    def do_migration(self, new_position_coords, new_gcp_zone):
         """Completes the migration process."""
         self.is_migrating = True
         self.migration_cooldown = self.model.migration_cooldown_slots
         self.position = new_position_coords
+        self.gcp_zone = new_gcp_zone
         self.is_migrating = False  # Migration is completed immediately in this model
         # update the distance matrix
         self.model.validator_locations[self.index] = (
@@ -407,15 +412,18 @@ class ValidatorAgent(Agent):
             self.index,
         )
         # update the network latency to the relay
-        space_instance = self.model.space
-        relay_position = self.model.relay_agent.position
-        distance_to_relay = space_instance.distance(self.position, relay_position)
-        self.network_latency_to_target = (
-            BASE_NETWORK_LATENCY_MS
-            + 2
-            * (distance_to_relay / space_instance.get_max_dist())
-            * MAX_ADDITIONAL_NETWORK_LATENCY_MS
+        # space_instance = self.model.space
+        # relay_position = self.model.relay_agent.position
+        # distance_to_relay = space_instance.distance(self.position, relay_position)
+        self.network_latency_to_target = self.model.space.get_latency(
+            self.gcp_zone, self.model.relay_agent.gcp_zone, gcp_latency
         )
+        # self.network_latency_to_target = (
+        #     BASE_NETWORK_LATENCY_MS
+        #     + 2
+        #     * (distance_to_relay / space_instance.get_max_dist())
+        #     * MAX_ADDITIONAL_NETWORK_LATENCY_MS
+        # )
 
     # --- Mesa's core step method ---
     def step(self):
@@ -598,6 +606,7 @@ class MEVBoostModel(Model):
                 "Slot": "current_slot_idx",
                 "MEV_Captured_Slot": "mev_captured",  # MEV actually earned in the last slot
                 "Attestation_Rate": "attestation_rate",  # Percentage of successful attestations
+                "Proposal Time": "proposed_time_ms",  # Time when the block was proposed
             },
         )
 
@@ -831,6 +840,9 @@ def simulation(
     # Group by slot and collect lists of per-agent values:
     mev_by_slot = agent_data.groupby("Slot")["MEV_Captured_Slot"].apply(list).tolist()
     attest_by_slot = agent_data.groupby("Slot")["Attestation_Rate"].apply(list).tolist()
+    proposal_time_by_slot = (
+        agent_data.groupby("Slot")["Proposal Time"].apply(list).tolist()
+    )
     relay_position = relay_agent_data["Position"].iloc[0]
     # Since relay is not moving, we can just use the first position and multiply it by the number of slots
     # --------------------------------------------
@@ -847,6 +859,8 @@ def simulation(
         json.dump(mev_by_slot, f)
     with open(f"{dir}/attest_by_slot.json", "w") as f:
         json.dump(attest_by_slot, f)
+    with open(f"{dir}/proposal_time_by_slot.json", "w") as f:
+        json.dump(proposal_time_by_slot, f)
 
     with open(f"{dir}/relay_data.json", "w") as f:
         json.dump(nested_array_relay, f)
