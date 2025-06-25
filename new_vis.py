@@ -53,25 +53,28 @@ def latlon_to_xyz(lat, lon):
 
 
 def create_app(
-    all_slot_data, relay_data, mev_series, attest_series  # , gcp_zones, gcp_latency
+    all_slot_data, relay_data, mev_series, attest_series, proposal_time_series
 ):
     n_slots = len(all_slot_data)
 
     # ---------------------------------------------------------
     #  1.  Pre-compute per-slot metric history (once)
     # ---------------------------------------------------------
-    clusters_hist, total_dist_hist, avg_nnd_hist, nni_hist, mev_hist, attest_hist = (
-        [],
-        [],
-        [],
-        [],
-        [],
-        [],
-    )
+    (
+        clusters_hist,
+        total_dist_hist,
+        avg_nnd_hist,
+        nni_hist,
+        mev_hist,
+        attest_hist,
+        proposal_time_hist,
+    ) = ([], [], [], [], [], [], [])
 
     granularity = 10
     # placeholders for “last seen” metrics
-    last_c = last_t = last_a = last_nni = last_mev = last_attest = 0.0
+    last_c = last_t = last_a = last_nni = last_mev = last_attest = (
+        last_proposal_time
+    ) = 0.0
 
     for i, pts in enumerate(all_slot_data):
         if i % granularity == 0:
@@ -86,9 +89,17 @@ def create_app(
                 last_nni = nearest_neighbor_index_spherical(dm, space)[0]
                 last_mev = sum(mev_series[i]) if mev_series else 0.0
                 last_attest = sum(attest_series[i])
+                last_proposal_time = (
+                    sum(t for t in proposal_time_series[i] if t > 0)
+                    if proposal_time_series[i]
+                    else 0.0
+                )
+
             else:
                 last_c = 0
-                last_t = last_a = last_nni = last_mev = last_attest = 0.0
+                last_t = last_a = last_nni = last_mev = last_attest = (
+                    last_proposal_time
+                ) = 0.0
 
         # *every* slot, append whatever the “last computed” values are
         clusters_hist.append(last_c)
@@ -97,6 +108,7 @@ def create_app(
         nni_hist.append(last_nni)
         mev_hist.append(last_mev)
         attest_hist.append(last_attest)
+        proposal_time_hist.append(last_proposal_time)
 
     # ---------------------------------------------------------
     #  2.  Helper: build the 3-D density + relay figure
@@ -334,6 +346,7 @@ def create_app(
                     html.Div(dcc.Graph(id="nni-line"), className="card"),
                     html.Div(dcc.Graph(id="mev-line"), className="card"),
                     html.Div(dcc.Graph(id="attest-line"), className="card"),
+                    html.Div(dcc.Graph(id="proposal-time-line"), className="card"),
                 ],
                 style={
                     "display": "grid",
@@ -392,6 +405,7 @@ def create_app(
         Output("nni-line", "figure"),
         Output("mev-line", "figure"),
         Output("attest-line", "figure"),
+        Output("proposal-time-line", "figure"),
         Output("slot-info-display", "children"),
         Input("movie-state", "data"),
     )
@@ -413,10 +427,9 @@ def create_app(
         fig_t = mkline(total_dist_hist, "Total Distance")
         fig_a = mkline(avg_nnd_hist, "Avg NND")
         fig_n = mkline(nni_hist, "NNI")
-
-        # new MEV & supermaj
         fig_mev = mkline(mev_hist, "MEV Earned")
         fig_attest = mkline(attest_hist, "Attestation Rate %")
+        fig_proposal_time = mkline(proposal_time_hist, "Proposal Time (s)")
 
         info = html.Div(
             [
@@ -439,6 +452,10 @@ def create_app(
                 ),
                 html.Span(
                     f"Attestation Rate: {attest_hist[idx]:.2f}%",
+                    style={"marginRight": "24px"},
+                ),
+                html.Span(
+                    f"Proposal Time: {proposal_time_hist[idx]:.2f} ms",
                 ),
             ],
             style={
@@ -450,7 +467,17 @@ def create_app(
             },
         )
 
-        return fig3d, fig_c, fig_t, fig_a, fig_n, fig_mev, fig_attest, info
+        return (
+            fig3d,
+            fig_c,
+            fig_t,
+            fig_a,
+            fig_n,
+            fig_mev,
+            fig_attest,
+            fig_proposal_time,
+            info,
+        )
 
     return app
 
@@ -472,18 +499,13 @@ if __name__ == "__main__":
     relay_data = load_data(f"{dir}/relay_data.json")
     mev_series = load_data(f"{dir}/mev_by_slot.json")
     attest_series = load_data(f"{dir}/attest_by_slot.json")
-
-    # gcp_zones = pd.read_csv(f"./data/gcp_zones.csv")
-    # gcp_latency = pd.read_csv(f"./data/gcp_latency.csv")
+    proposal_time_series = load_data(f"{dir}/proposal_time_by_slot.json")
 
     if not all_slot_data:
         print("Application cannot start because data is missing.")
         exit(1)
     else:
         app = create_app(
-            all_slot_data,
-            relay_data,
-            mev_series,
-            attest_series,  # , gcp_zones, gcp_latency
+            all_slot_data, relay_data, mev_series, attest_series, proposal_time_series
         )
         app.run(debug=True)
