@@ -19,6 +19,14 @@ from measure import *
 
 # --- Relay Agent Class Definition ---
 
+RELAY_PROFILES = [
+    # Flashbots Relay, aws us-east-1, "Northern Virginia, USA" -- this is close to GCP us-east4, "Ashburn, Virginia, USA"
+    {"unique_id": "Flashbots", "gcp_zone": "us-east4", "lat": 38.8951, "lon": -77.0364},
+    # UltraSound Relay, ovh roubaix, "Roubaix, France" -- this is close to GCP europe-west1, "St. Ghislain, Belgium"  
+    {"unique_id": "UltraSound EU", "gcp_zone": "europe-west1", "lat": 50.5039, "lon": 4.4699},
+    # UltraSound Relay, ovh vint hill, "Vint Hill, Virginia, USA" -- this is close to GCP us-east4, "Ashburn, Virginia, USA" 
+    {"unique_id": "UltraSound US", "gcp_zone": "us-east4", "lat": 38.8951, "lon": -77.0364},
+]
 
 class RelayAgent(Agent):
     """
@@ -29,6 +37,18 @@ class RelayAgent(Agent):
     def __init__(self, model):
         super().__init__(model)
         self.current_mev_offer = 0.0
+
+    def initialize_with_profile(self, profile):
+        """
+        Initializes the Relay Agent with a specific profile.
+        The profile should contain 'unique_id', 'gcp_zone', 'lat', and 'lon'.
+        """
+        self.unique_id = profile["unique_id"]
+        self.gcp_zone = profile["gcp_zone"]
+        self.position = self.model.space.get_coordinate_from_lat_lon(
+            profile["lat"], profile["lon"]
+        )
+        self.role = "relay_agent"
 
     def set_position(self, position):
         """Sets the Relay's position in the space."""
@@ -545,16 +565,10 @@ class MEVBoostModel(Model):
                 )
                 validator_index += 1
             elif isinstance(agent, RelayAgent):
-                # TODO: Update with real relay position if available
-                # Let's use europe-west3,europe-west3,"Frankfurt, Germany",50.1109,8.6821
-                agent.set_position(
-                    self.space.get_coordinate_from_lat_lon(
-                        50.1109, 8.6821
-                    )  # Frankfurt, Germany
+                # Initialize the Relay Agent with UltraSound EU
+                agent.initialize_with_profile(
+                    RELAY_PROFILES[1] # Default to UltraSound EU relay profile
                 )
-                agent.set_gcp_zone("europe-west3")
-                agent.unique_id = "relay_agent"
-                agent.role = "relay_agent"
                 self.relay_agent = agent
             else:
                 continue
