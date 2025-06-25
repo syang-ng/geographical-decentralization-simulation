@@ -492,6 +492,9 @@ class MEVBoostModel(Model):
             None  # Will be initialized after validator positions are set
         )
 
+        # Set GCP latency if provided
+        self.gcp_latency = gcp_latency
+
         # --- Create Agents ---
         ValidatorAgent.create_agents(
             model=self,
@@ -623,7 +626,7 @@ class MEVBoostModel(Model):
         self.current_proposer_agent = random.choice(available_validators)
         # Set the Proposer's role and prepare for the slot
         self.current_proposer_agent.set_proposer_role(
-            self.relay_agent.position, self.space, gcp_latency
+            self.relay_agent.position, self.space, self.gcp_latency
         )
         self.current_proposer_agent.decide_to_migrate()  # Check if proposer should migrate
         # Set Attesters and calculate their specific latencies from the Relay
@@ -637,7 +640,7 @@ class MEVBoostModel(Model):
                 self.relay_agent.position,
                 self.space,
                 self.proposer_has_optimized_latency,
-                gcp_latency,
+                self.gcp_latency,
             )
         self.current_proposer_agent.calculate_latency_threshold()
         # Reset relay's MEV offer for the new slot start
