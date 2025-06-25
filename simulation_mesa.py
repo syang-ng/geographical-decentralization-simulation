@@ -34,6 +34,10 @@ class RelayAgent(Agent):
         """Sets the Relay's position in the space."""
         self.position = position
 
+    def set_gcp_zone(self, gcp_zone):
+        """Sets the Relay's GCP zone for latency calculations."""
+        self.gcp_zone = gcp_zone
+
     def update_mev_offer(self):
         """Simulates builders providing better offers to the Relay over time."""
         # Get current time from the model's steps
@@ -150,6 +154,10 @@ class ValidatorAgent(Agent):
         """Sets the validator's position in the space."""
         self.position = position
 
+    def set_gcp_zone(self, gcp_zone):
+        """Sets the validator's GCP zone for latency calculations."""
+        self.gcp_zone = gcp_zone
+
     def set_index(self, index):
         """Sets the validator's index in the model's agent list."""
         self.index = index
@@ -161,6 +169,7 @@ class ValidatorAgent(Agent):
         self.location_strategy = location_strategy
 
     # --- Role Assignment Methods (Called by the Model) ---
+    # TODO
     def set_proposer_role(self, relay_position, space_instance):
         """Sets this validator as the Proposer for the current slot."""
         self.role = "proposer"
@@ -195,6 +204,7 @@ class ValidatorAgent(Agent):
                 - sorted_latencies[required_attesters_for_supermajority]
             )
 
+    # TODO
     def set_attester_role(
         self, relay_position, space_instance, proposer_is_optimized_latency=False
     ):
@@ -447,6 +457,9 @@ class MEVBoostModel(Model):
         base_mev_amount=0.1,
         mev_increase_per_second=0.05,
         migration_cooldown_slots=5,
+        validators=None,
+        gcp_zones=None,
+        gcp_latency=None,
     ):
 
         # Call the base Model constructor
@@ -471,7 +484,10 @@ class MEVBoostModel(Model):
         )
 
         # --- Create Agents ---
-        ValidatorAgent.create_agents(model=self, n=num_validators)
+        ValidatorAgent.create_agents(
+            model=self,
+            n=num_validators,
+        )
         RelayAgent.create_agents(model=self, n=1)
 
         self.validator_locations = []
@@ -479,9 +495,29 @@ class MEVBoostModel(Model):
 
         for agent in self.agents:
             if isinstance(agent, ValidatorAgent):
-                position = self.space.sample_point()
+                # position = self.space.sample_point()
+                # Get the first validator from the validators DataFrame if provided
+                v = (
+                    validators.iloc[validator_index]
+                    if validators is not None and validator_index < len(validators)
+                    else {"latitude": None, "longitude": None}
+                )
+
+                position = (
+                    self.space.get_coordinate_from_lat_lon(
+                        v["latitude"], v["longitude"]
+                    )
+                    if v["latitude"] is not None and v["longitude"] is not None
+                    else self.space.sample_point()
+                )
                 self.validator_locations.append(position)
+                gcp_zone = (
+                    self.space.get_nearest_gcp_zone(position, gcp_zones)
+                    if gcp_zones is not None
+                    else None
+                )
                 agent.set_position(position)
+                agent.set_gcp_zone(gcp_zone)
                 agent.set_index(validator_index)
                 agent.set_strategy(
                     random.choice(self.timing_strategies_pool),
@@ -489,7 +525,14 @@ class MEVBoostModel(Model):
                 )
                 validator_index += 1
             elif isinstance(agent, RelayAgent):
-                agent.set_position(self.space.sample_point())
+                # TODO: Update with real relay position if available
+                # Let's use europe-west3,europe-west3,"Frankfurt, Germany",50.1109,8.6821
+                agent.set_position(
+                    self.space.get_coordinate_from_lat_lon(
+                        50.1109, 8.6821
+                    )  # Frankfurt, Germany
+                )
+                agent.set_gcp_zone("europe-west3")
                 agent.unique_id = "relay_agent"
                 agent.role = "relay_agent"
                 self.relay_agent = agent
@@ -500,7 +543,7 @@ class MEVBoostModel(Model):
         self.validators = self.agents.select(agent_type=ValidatorAgent)
         # Initialize distance matrix now that all validator positions are set
         self.distance_matrix = init_distance_matrix(
-            self.validator_locations, self.space
+            self.validator_locations, self.space  # , gcp_latency, gcp_zones
         )
 
         # --- Model-Level Tracking Variables ---
@@ -649,7 +692,14 @@ class MEVBoostModel(Model):
             self.running = False  # Stop the simulation loop
 
 
-def simulation(number_of_validators, num_slots, dir):
+def simulation(
+    number_of_validators,
+    num_slots,
+    dir,
+    validators=None,
+    gcp_zones=None,
+    gcp_latency=None,
+):
     # --- Simulation Execution ---
     random.seed(0x06511)  # For reproducibility
     np.random.seed(0x06511)  # For reproducibility in NumPy operations
@@ -703,6 +753,9 @@ def simulation(number_of_validators, num_slots, dir):
         "proposer_has_optimized_latency": False,
         "base_mev_amount": BASE_MEV_AMOUNT,
         "mev_increase_per_second": MEV_INCREASE_PER_SECOND,
+        "validators": validators,  # Will be set from CSV
+        "gcp_zones": gcp_zones,  # Will be set from CSV
+        "gcp_latency": gcp_latency,  # Will be set from CSV
     }
 
     # --- Create and Run the Model ---
@@ -814,14 +867,33 @@ if __name__ == "__main__":
         default="output",
         help="Directory to save output data (default: 'output')",
     )
+    parser.add_argument(
+        "--input_dir",
+        type=str,
+        default="data",
+        help="Directory to read input data (default: 'data')",
+    )
     args = parser.parse_args()
     # Ensure the output directory exists
     if not os.path.exists(args.output_dir):
         os.makedirs(args.output_dir)
-    
+
+    # Input data
+    validators = pd.read_csv(f"{args.input_dir}/validators.csv")
+    # Sample 1000 validators if more than 1000
+    if len(validators) > args.num_validators:
+        validators = validators.sample(n=args.num_validators, random_state=42)
+    gcp_zones = pd.read_csv(f"{args.input_dir}/gcp_zones.csv")
+    gcp_latency = pd.read_csv(f"{args.input_dir}/gcp_latency.csv")
+
+    num_validators = len(validators)
+
     # Run the simulation with the specified parameters
     simulation(
-        number_of_validators=args.num_validators,
+        number_of_validators=num_validators,  # args.num_validators,
         num_slots=args.num_slots,
-        dir=args.output_dir
+        dir=args.output_dir,
+        validators=validators,
+        gcp_zones=gcp_zones,
+        gcp_latency=gcp_latency,
     )

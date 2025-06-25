@@ -2,6 +2,7 @@ import argparse
 import dash
 import json
 import math
+import pandas as pd
 import plotly.graph_objects as go
 
 from dash import State, dcc, html
@@ -13,6 +14,9 @@ from distribution import *
 from measure import *
 
 from dash import callback_context
+import urllib.request
+import os
+
 
 space = SphericalSpace()
 
@@ -37,7 +41,20 @@ def load_data(file_path):
         return []
 
 
-def create_app(all_slot_data, relay_data, mev_series, attest_series):
+def latlon_to_xyz(lat, lon):
+    """Convert in‐place, as before."""
+    phi = math.radians(lat)
+    theta = math.radians(lon)
+    return (
+        math.cos(phi) * math.cos(theta),
+        math.cos(phi) * math.sin(theta),
+        math.sin(phi),
+    )
+
+
+def create_app(
+    all_slot_data, relay_data, mev_series, attest_series  # , gcp_zones, gcp_latency
+):
     n_slots = len(all_slot_data)
 
     # ---------------------------------------------------------
@@ -59,7 +76,9 @@ def create_app(all_slot_data, relay_data, mev_series, attest_series):
     for i, pts in enumerate(all_slot_data):
         if i % granularity == 0:
             # do the full n×n compute only on multiples of `granularity`
-            dm = init_distance_matrix(pts, space)
+            dm = init_distance_matrix(
+                pts, space  # , gcp_zones=gcp_zones, gcp_latency=gcp_latency
+            )
             if len(pts) > 1:
                 last_c = cluster_matrix(dm)
                 last_t = total_distance(dm)
@@ -117,6 +136,66 @@ def create_app(all_slot_data, relay_data, mev_series, attest_series):
                 name="Validators",
             )
         )
+
+        # now – add a low-opacity wireframe sphere
+        phi = np.linspace(0, np.pi, 40)
+        theta = np.linspace(0, 2 * np.pi, 80)
+        phi, theta = np.meshgrid(phi, theta)
+
+        # unit‐sphere coordinates
+        xs = np.sin(phi) * np.cos(theta)
+        ys = np.sin(phi) * np.sin(theta)
+        zs = np.cos(phi)
+
+        fig.add_trace(
+            go.Surface(
+                x=xs,
+                y=ys,
+                z=zs,
+                showscale=False,
+                opacity=0.2,
+                colorscale=[[0, "lightblue"], [1, "lightblue"]],  # uniform light‐blue
+                name="Earth",
+                hoverinfo="skip",
+            )
+        )
+        # Load GeoJSON of countries (low‐res version for speed)
+        if not os.path.exists("./data/world_countries.geo.json"):
+            url = "https://raw.githubusercontent.com/johan/world.geo.json/master/countries.geo.json"
+            with urllib.request.urlopen(url) as resp:
+                world = json.load(resp)
+                # Save the world data to a local file for future use
+                with open("./data/world_countries.geo.json", "w") as f:
+                    json.dump(world, f)
+        else:
+            with open("./data/world_countries.geo.json", "r") as f:
+                world = json.load(f)
+
+        # add country boundary lines
+        for feature in world["features"]:
+            geom = feature["geometry"]
+            # handle both Polygons and MultiPolygons
+            polygons = geom["coordinates"]
+            if geom["type"] == "Polygon":
+                polygons = [polygons]
+            for poly in polygons:
+                # each poly is a list of rings; we only need the outer ring (first)
+                ring = poly[0]
+                lons, lats = zip(*ring)
+                # convert to xyz
+                xyz = [latlon_to_xyz(lat, lon) for lat, lon in zip(lats, lons)]
+                xs, ys, zs = map(list, zip(*xyz))
+                fig.add_trace(
+                    go.Scatter3d(
+                        x=xs,
+                        y=ys,
+                        z=zs,
+                        mode="lines",
+                        line=dict(color="white", width=1),
+                        hoverinfo="skip",
+                        showlegend=False,
+                    )
+                )
 
         # ----- overlay relay position(s) ---------------------
         if relay_pts:
@@ -216,23 +295,51 @@ def create_app(all_slot_data, relay_data, mev_series, attest_series):
                     "padding": "8px 14px",
                 },
             ),
+            # --- full-width info bar -------------------------
+            html.Div(
+                id="slot-info-display",
+                className="card",
+                style={
+                    # "width": "100%",
+                    "padding": "12px 24px",
+                    "margin": "8px 16px",
+                    # "backgroundColor": "#f5f5f5",
+                    "borderRadius": "8px",
+                    "boxShadow": "0 1px 4px rgba(0,0,0,0.1)",
+                    "display": "flex",
+                    "justifyContent": "space-around",
+                    "alignItems": "center",
+                    "fontFamily": "Arial, sans-serif",
+                },
+            ),
             # -------- card grid ------------------------------
+            # --- first row: full-width globe  -----------------------
+            html.Div(
+                dcc.Graph(
+                    id="density-graph",
+                ),
+                style={
+                    "padding": "0 16px",
+                    "gridColumn": "1 / -1",  # span all columns
+                    "height": "600px",  # make it taller if you like
+                },
+                className="card",
+            ),
+            # --- second row: plots ------------
             html.Div(
                 [
-                    html.Div(dcc.Graph(id="density-graph"), className="card"),
                     html.Div(dcc.Graph(id="clusters-line"), className="card"),
                     html.Div(dcc.Graph(id="totaldist-line"), className="card"),
                     html.Div(dcc.Graph(id="avg-nnd-line"), className="card"),
                     html.Div(dcc.Graph(id="nni-line"), className="card"),
                     html.Div(dcc.Graph(id="mev-line"), className="card"),
                     html.Div(dcc.Graph(id="attest-line"), className="card"),
-                    html.Div(id="slot-info-display", className="card"),
                 ],
                 style={
                     "display": "grid",
                     "gridTemplateColumns": "repeat(auto-fit, minmax(300px, 1fr))",
                     "gap": "12px",
-                    "padding": "0 16px 20px",
+                    "padding": "20px 16px",
                 },
             ),
             # -------- hidden helpers -------------------------
@@ -313,15 +420,34 @@ def create_app(all_slot_data, relay_data, mev_series, attest_series):
 
         info = html.Div(
             [
-                html.H4(f"Slot {idx+1}", style={"marginTop": 0}),
-                html.P(f"Clusters: {clusters_hist[idx]}"),
-                html.P(f"Total dist: {total_dist_hist[idx]:.4f}"),
-                html.P(f"Avg NND: {avg_nnd_hist[idx]:.4f}"),
-                html.P(f"NNI: {nni_hist[idx]:.4f}"),
-                html.P(f"MEV: {mev_hist[idx]:.4f}"),
-                html.P(f"Attestation %: {attest_hist[idx]:.2f}"),
+                html.Span(
+                    f"Slot {idx+1}", style={"fontWeight": "bold", "marginRight": "24px"}
+                ),
+                html.Span(
+                    f"Clusters: {clusters_hist[idx]}", style={"marginRight": "24px"}
+                ),
+                html.Span(
+                    f"Total Distance: {total_dist_hist[idx]:.4f}",
+                    style={"marginRight": "24px"},
+                ),
+                html.Span(
+                    f"Avg NND: {avg_nnd_hist[idx]:.4f}", style={"marginRight": "24px"}
+                ),
+                html.Span(f"NNI: {nni_hist[idx]:.4f}", style={"marginRight": "24px"}),
+                html.Span(
+                    f"MEV Earned: {mev_hist[idx]:.4f}", style={"marginRight": "24px"}
+                ),
+                html.Span(
+                    f"Attestation Rate: {attest_hist[idx]:.2f}%",
+                ),
             ],
-            style={"padding": "12px"},
+            style={
+                "display": "flex",
+                "flexWrap": "wrap",
+                "justifyContent": "space-around",
+                "alignItems": "center",
+                "fontFamily": "Arial, sans-serif",
+            },
         )
 
         return fig3d, fig_c, fig_t, fig_a, fig_n, fig_mev, fig_attest, info
@@ -347,9 +473,17 @@ if __name__ == "__main__":
     mev_series = load_data(f"{dir}/mev_by_slot.json")
     attest_series = load_data(f"{dir}/attest_by_slot.json")
 
+    # gcp_zones = pd.read_csv(f"./data/gcp_zones.csv")
+    # gcp_latency = pd.read_csv(f"./data/gcp_latency.csv")
+
     if not all_slot_data:
         print("Application cannot start because data is missing.")
         exit(1)
     else:
-        app = create_app(all_slot_data, relay_data, mev_series, attest_series)
+        app = create_app(
+            all_slot_data,
+            relay_data,
+            mev_series,
+            attest_series,  # , gcp_zones, gcp_latency
+        )
         app.run(debug=True)
