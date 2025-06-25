@@ -169,15 +169,18 @@ class ValidatorAgent(Agent):
         self.location_strategy = location_strategy
 
     # --- Role Assignment Methods (Called by the Model) ---
-    # TODO
-    def set_proposer_role(self, relay_position, space_instance):
+    def set_proposer_role(self, relay_position, space_instance, gcp_latency):
         """Sets this validator as the Proposer for the current slot."""
         self.role = "proposer"
-        distance_to_relay = space_instance.distance(self.position, relay_position)
-        self.network_latency_to_target = (
-            BASE_NETWORK_LATENCY_MS
-            + (distance_to_relay / space_instance.get_max_dist())
-            * MAX_ADDITIONAL_NETWORK_LATENCY_MS
+        # distance_to_relay = space_instance.distance(self.position, relay_position)
+        # self.network_latency_to_target = (
+        #     BASE_NETWORK_LATENCY_MS
+        #     + (distance_to_relay / space_instance.get_max_dist())
+        #     * MAX_ADDITIONAL_NETWORK_LATENCY_MS
+        # )
+        # GCP Latency
+        self.network_latency_to_target = self.model.space.get_latency(
+            self.gcp_zone, self.model.relay_agent.gcp_zone, gcp_latency
         )
         # Set random propose time if using random strategy
         if self.timing_strategy["type"] == "random_delay":
@@ -204,9 +207,12 @@ class ValidatorAgent(Agent):
                 - sorted_latencies[required_attesters_for_supermajority]
             )
 
-    # TODO
     def set_attester_role(
-        self, relay_position, space_instance, proposer_is_optimized_latency=False
+        self,
+        relay_position,
+        space_instance,
+        proposer_is_optimized_latency=False,
+        gcp_latency=None,
     ):
         """
         Sets this validator as an Attester for the current slot and calculates its specific latency.
@@ -217,12 +223,15 @@ class ValidatorAgent(Agent):
         if proposer_is_optimized_latency:
             self.network_latency_to_target = BASE_NETWORK_LATENCY_MS
         else:
-            distance_from_relay = space_instance.distance(self.position, relay_position)
-            self.network_latency_to_target = (
-                BASE_NETWORK_LATENCY_MS
-                + (distance_from_relay / space_instance.get_max_dist())
-                * MAX_ADDITIONAL_NETWORK_LATENCY_MS
+            self.network_latency_to_target = self.model.space.get_latency(
+                self.gcp_zone, self.model.relay_agent.gcp_zone, gcp_latency
             )
+            # distance_from_relay = space_instance.distance(self.position, relay_position)
+            # self.network_latency_to_target = (
+            #     BASE_NETWORK_LATENCY_MS
+            #     + (distance_from_relay / space_instance.get_max_dist())
+            #     * MAX_ADDITIONAL_NETWORK_LATENCY_MS
+            # )
 
     # --- In-Slot Behavior Methods (Called from step()) ---
     def decide_and_propose(self, current_slot_time_ms_inner, relay_agent_instance):
@@ -614,7 +623,7 @@ class MEVBoostModel(Model):
         self.current_proposer_agent = random.choice(available_validators)
         # Set the Proposer's role and prepare for the slot
         self.current_proposer_agent.set_proposer_role(
-            self.relay_agent.position, self.space
+            self.relay_agent.position, self.space, gcp_latency
         )
         self.current_proposer_agent.decide_to_migrate()  # Check if proposer should migrate
         # Set Attesters and calculate their specific latencies from the Relay
@@ -628,6 +637,7 @@ class MEVBoostModel(Model):
                 self.relay_agent.position,
                 self.space,
                 self.proposer_has_optimized_latency,
+                gcp_latency,
             )
         self.current_proposer_agent.calculate_latency_threshold()
         # Reset relay's MEV offer for the new slot start

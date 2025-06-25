@@ -101,6 +101,21 @@ class SphericalSpace(Space):
                 nearest_zone = row["region"]
         return nearest_zone if nearest_zone else None
 
+    def get_latency(self, gcp1, gcp2, gcp_latency):
+        """
+        Returns the avg latency between two GCP zones according GCP latency data.
+        Assumes gcp_latency is a DataFrame with columns 'sending_region', 'receiving_region', and 'milliseconds'.
+        """
+        if gcp1 == gcp2:
+            return 0.0
+        latency_row = gcp_latency[
+            (gcp_latency["sending_region"] == gcp1)
+            & (gcp_latency["receiving_region"] == gcp2)
+        ]
+        if not latency_row.empty:
+            return latency_row["milliseconds"].values[0]
+        return float("inf")
+
     def calculate_geometric_center_of_nodes(self, nodes):
         """
         Calculates the geometric center of a set of nodes in the spherical space.
