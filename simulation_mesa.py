@@ -1,6 +1,8 @@
+import argparse
 import json
 import math
 import numpy as np
+import os
 import pandas as pd
 import random
 import time
@@ -647,16 +649,14 @@ class MEVBoostModel(Model):
             self.running = False  # Stop the simulation loop
 
 
-if __name__ == "__main__":
+def simulation(number_of_validators, num_slots, dir):
     # --- Simulation Execution ---
     random.seed(0x06511)  # For reproducibility
     np.random.seed(0x06511)  # For reproducibility in NumPy operations
-    # --- Define the Pool of Proposer Strategies ---
-    NUM_VALIDATORS = 1000  # Example: Simulate 1000 validators
-    # --- Define the number of slots to simulate ---
-    SIM_NUM_SLOTS = 1000  # Example: Simulate 200 slots
+
+    # --- Define Simulation Parameters ---
     TOTAL_TIME_STEPS = (
-        SIM_NUM_SLOTS * (SLOT_DURATION_MS // TIME_GRANULARITY_MS) + 1
+        num_slots * (SLOT_DURATION_MS // TIME_GRANULARITY_MS) + 1
     )  # Total fine-grained steps (200 * 120 = 24000 steps)
 
     # --- Define Proposer Strategies ---
@@ -696,16 +696,14 @@ if __name__ == "__main__":
     ]
 
     model_params_standard_nomig = {
-        "num_validators": NUM_VALIDATORS,
+        "num_validators": number_of_validators,
         "timing_strategies_pool": all_timing_strategies,
         "location_strategies_pool": all_location_strategies,
-        "num_slots": SIM_NUM_SLOTS,
+        "num_slots": num_slots,
         "proposer_has_optimized_latency": False,
         "base_mev_amount": BASE_MEV_AMOUNT,
         "mev_increase_per_second": MEV_INCREASE_PER_SECOND,
     }
-
-    dir = "output"
 
     # --- Create and Run the Model ---
     print("\n--- Starting MEV-Boost Simulation ---")
@@ -788,3 +786,42 @@ if __name__ == "__main__":
         json.dump(nested_array_relay, f)
 
     print("Saved data.json and relay_data.json")
+
+
+if __name__ == "__main__":
+    # --- Define the Pool of Proposer Strategies ---
+    NUM_VALIDATORS = 1000  # Example: Simulate 1000 validators
+    # --- Define the number of slots to simulate ---
+    SIM_NUM_SLOTS = 1000  # Example: Simulate 200 slots
+    parser = argparse.ArgumentParser(
+        description="Run the MEV-Boost simulation and visualize results."
+    )
+    parser.add_argument(
+        "--num_validators",
+        type=int,
+        default=NUM_VALIDATORS,
+        help="Number of validators to simulate (default: 1000)",
+    )
+    parser.add_argument(
+        "--num_slots",
+        type=int,
+        default=SIM_NUM_SLOTS,
+        help="Number of slots to simulate (default: 1000)",
+    )
+    parser.add_argument(
+        "--output_dir",
+        type=str,
+        default="output",
+        help="Directory to save output data (default: 'output')",
+    )
+    args = parser.parse_args()
+    # Ensure the output directory exists
+    if not os.path.exists(args.output_dir):
+        os.makedirs(args.output_dir)
+    
+    # Run the simulation with the specified parameters
+    simulation(
+        number_of_validators=args.num_validators,
+        num_slots=args.num_slots,
+        dir=args.output_dir
+    )
