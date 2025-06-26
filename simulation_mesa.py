@@ -21,20 +21,25 @@ from measure import *
 
 RELAY_PROFILES = [
     # Flashbots Relay, aws us-east-1, "Northern Virginia, USA" -- this is close to GCP us-east4, "Ashburn, Virginia, USA"
-    {"unique_id": "Flashbots", "gcp_zone": "us-east4", "lat": 38.8951, "lon": -77.0364},
+    {
+        "unique_id": "Flashbots",
+        "gcp_region": "us-east4",
+        "lat": 39.0437,
+        "lon": -77.4874,
+    },
     # UltraSound Relay, ovh roubaix, "Roubaix, France" -- this is close to GCP europe-west1, "St. Ghislain, Belgium"
     {
         "unique_id": "UltraSound EU",
-        "gcp_zone": "europe-west1",
-        "lat": 50.5039,
-        "lon": 4.4699,
+        "gcp_region": "europe-west1",
+        "lat": 50.4577,
+        "lon": 3.8643,
     },
     # UltraSound Relay, ovh vint hill, "Vint Hill, Virginia, USA" -- this is close to GCP us-east4, "Ashburn, Virginia, USA"
     {
         "unique_id": "UltraSound US",
-        "gcp_zone": "us-east4",
-        "lat": 38.8951,
-        "lon": -77.0364,
+        "gcp_region": "us-east4",
+        "lat": 39.0437,
+        "lon": -77.4874,
     },
 ]
 
@@ -52,10 +57,10 @@ class RelayAgent(Agent):
     def initialize_with_profile(self, profile):
         """
         Initializes the Relay Agent with a specific profile.
-        The profile should contain 'unique_id', 'gcp_zone', 'lat', and 'lon'.
+        The profile should contain 'unique_id', 'gcp_region', 'lat', and 'lon'.
         """
         self.unique_id = profile["unique_id"]
-        self.gcp_zone = profile["gcp_zone"]
+        self.gcp_region = profile["gcp_region"]
         self.position = self.model.space.get_coordinate_from_lat_lon(
             profile["lat"], profile["lon"]
         )
