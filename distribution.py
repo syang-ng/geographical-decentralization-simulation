@@ -115,7 +115,7 @@ class SphericalSpace(Space):
             & (gcp_latency["receiving_region"] == gcp2)
         ]
         if not latency_row.empty:
-            return latency_row["milliseconds"].values[0]
+            return latency_row["milliseconds"].values[0] / 2 # Convert to one-way latency
         return float("inf")
 
     def calculate_geometric_center_of_nodes(self, nodes):
