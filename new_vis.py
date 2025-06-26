@@ -145,8 +145,12 @@ def create_app(
                         x=1.15,  # → 115% of the plot width
                         y=0.5,  # center vertically
                         len=0.7,  # 70% of the plot height
-                        title_font_color="#f0f0f0" if dark_mode_enabled else "black", # Colorbar title
-                        tickfont_color="#f0f0f0" if dark_mode_enabled else "black", # Colorbar ticks                    ),
+                        title_font_color=(
+                            "#f0f0f0" if dark_mode_enabled else "black"
+                        ),  # Colorbar title
+                        tickfont_color=(
+                            "#f0f0f0" if dark_mode_enabled else "black"
+                        ),  # Colorbar ticks                    ),
                     ),
                 ),
                 name="Validators",
@@ -247,28 +251,56 @@ def create_app(
 
         fig.update_layout(
             scene=dict(
-                xaxis=dict(range=[-1, 1], backgroundcolor=bg_color, gridcolor="#444444", zerolinecolor="#666666", showbackground=True, showgrid=True, showticklabels=False),
-                yaxis=dict(range=[-1, 1], backgroundcolor=bg_color, gridcolor="#444444", zerolinecolor="#666666", showbackground=True, showgrid=True, showticklabels=False),
-                zaxis=dict(range=[-1, 1], backgroundcolor=bg_color, gridcolor="#444444", zerolinecolor="#666666", showbackground=True, showgrid=True, showticklabels=False),
+                xaxis=dict(
+                    range=[-1, 1],
+                    backgroundcolor=bg_color,
+                    gridcolor="#444444",
+                    zerolinecolor="#666666",
+                    showbackground=True,
+                    showgrid=True,
+                    showticklabels=False,
+                ),
+                yaxis=dict(
+                    range=[-1, 1],
+                    backgroundcolor=bg_color,
+                    gridcolor="#444444",
+                    zerolinecolor="#666666",
+                    showbackground=True,
+                    showgrid=True,
+                    showticklabels=False,
+                ),
+                zaxis=dict(
+                    range=[-1, 1],
+                    backgroundcolor=bg_color,
+                    gridcolor="#444444",
+                    zerolinecolor="#666666",
+                    showbackground=True,
+                    showgrid=True,
+                    showticklabels=False,
+                ),
                 aspectmode="cube",
             ),
             margin=dict(l=0, r=160, b=0, t=30),  # make room on the right
             legend=dict(
                 x=0.02,  # near left edge of the plotting area
                 y=0.98,  # top
-                bgcolor="rgba(255,255,255,0.7)" if not dark_mode_enabled else "rgba(45,45,45,0.7)",
-                font=dict(color=plot_text_color)
+                bgcolor=(
+                    "rgba(255,255,255,0.7)"
+                    if not dark_mode_enabled
+                    else "rgba(45,45,45,0.7)"
+                ),
+                font=dict(color=plot_text_color),
             ),
             paper_bgcolor=bg_color,
             plot_bgcolor=bg_color,
-            font=dict(color=plot_text_color)
+            font=dict(color=plot_text_color),
         )
         return fig
 
     # ---------------------------------------------------------
     #  3.  Build the Dash app & layout
     # ---------------------------------------------------------
-    app = dash.Dash(__name__, external_stylesheets=['/assets/styles.css'])
+    app = dash.Dash(__name__, external_stylesheets=["/assets/styles.css"])
 
     app.layout = html.Div(
         [
@@ -299,7 +331,7 @@ def create_app(
                             "display": "inline-block",
                             "marginRight": "18px",
                         },
-                        className="dash-dropdown" # Add a class for CSS targeting
+                        className="dash-dropdown",  # Add a class for CSS targeting
                     ),
                     # wrap the slider in a div; give *that* div flex-1
                     html.Div(
@@ -314,12 +346,12 @@ def create_app(
                                 for i in range(0, n_slots, max(1, n_slots // 10))
                             },
                             tooltip={"placement": "bottom"},
-                            className="rc-slider" # Add a class for CSS targeting
+                            className="rc-slider",  # Add a class for CSS targeting
                         ),
                         style={"flex": 1},
                     ),
                     html.Button(
-                        "🌓 Switch", # New button for theme toggle
+                        "🌓 Switch",  # New button for theme toggle
                         id="theme-toggle-btn",
                         n_clicks=0,
                         style={"marginLeft": "18px"},
@@ -334,7 +366,7 @@ def create_app(
             # --- full-width info bar -------------------------
             html.Div(
                 id="slot-info-display",
-                className="card", # Apply card class here
+                className="card",  # Apply card class here
                 style={
                     # "width": "100%",
                     "padding": "12px 24px",
@@ -355,9 +387,11 @@ def create_app(
                     id="density-graph",
                 ),
                 style={
-                    "padding": "0 16px",
+                    "padding": "20px 16px",
                     "gridColumn": "1 / -1",  # span all columns
-                    "height": "600px",  # make it taller if you like
+                    # "height": "600px",  # make it taller if you like
+                    # "height": "calc(100vh - 200px)",  # full height minus controls
+                    "marginTop": "12px",
                 },
                 className="card",
             ),
@@ -382,9 +416,11 @@ def create_app(
             # -------- hidden helpers -------------------------
             dcc.Interval(id="play-interval", interval=500, disabled=True),
             dcc.Store(id="movie-state", data={"slot": 0, "playing": False}),
-            dcc.Store(id="theme-state", data={"dark_mode": False}), # Store to keep track of the current theme
+            dcc.Store(
+                id="theme-state", data={"dark_mode": False}
+            ),  # Store to keep track of the current theme
         ],
-        id="main-app-container", # Assign an ID to the main container
+        id="main-app-container",  # Assign an ID to the main container
     )
 
     # ---------------------------------------------------------
@@ -424,8 +460,10 @@ def create_app(
     #  5.  Theme Toggle Callback
     # ---------------------------------------------------------
     @app.callback(
-        Output("main-app-container", "className"), # Update the class of the main container
-        Output("theme-state", "data"),             # Update the stored theme state
+        Output(
+            "main-app-container", "className"
+        ),  # Update the class of the main container
+        Output("theme-state", "data"),  # Update the stored theme state
         Input("theme-toggle-btn", "n_clicks"),
         State("theme-state", "data"),
         prevent_initial_call=True,
@@ -435,11 +473,10 @@ def create_app(
             new_mode = not theme_data["dark_mode"]
             theme_data["dark_mode"] = new_mode
             if new_mode:
-                return "dark-mode", theme_data # Add 'dark-mode' class
+                return "dark-mode", theme_data  # Add 'dark-mode' class
             else:
-                return "", theme_data # Remove 'dark-mode' class
-        return "", theme_data # Default to light mode on initial load
-
+                return "", theme_data  # Remove 'dark-mode' class
+        return "", theme_data  # Default to light mode on initial load
 
     # ---------------------------------------------------------
     #  6.  Redraw everything when slot changes (or theme changes)
@@ -455,21 +492,25 @@ def create_app(
         Output("proposal-time-line", "figure"),
         Output("slot-info-display", "children"),
         Input("movie-state", "data"),
-        Input("theme-state", "data"), # Add theme state as an input
+        Input("theme-state", "data"),  # Add theme state as an input
     )
     def redraw(state, theme_data):
         idx = state["slot"]
         x = list(range(idx + 1))
-        
+
         dark_mode_enabled = theme_data["dark_mode"]
-        
+
         # Define Plotly template based on the current theme
         template = "plotly_dark" if dark_mode_enabled else "plotly_white"
         plot_text_color = "#f0f0f0" if dark_mode_enabled else "black"
-        
+
         # -- 3-D view (card 1) --
-        fig3d = build_density_fig(all_slot_data[idx], relay_data[idx], dark_mode_enabled)
-        fig3d.update_layout(title=f"Geo Tracker", margin=dict(l=15, r=10, b=20, t=40), template=template)
+        fig3d = build_density_fig(
+            all_slot_data[idx], relay_data[idx], dark_mode_enabled
+        )
+        fig3d.update_layout(
+            title=f"Geo Tracker", margin=dict(l=15, r=10, b=20, t=40), template=template
+        )
 
         # spatial metrics
         def mkline(data, title):
@@ -477,10 +518,18 @@ def create_app(
             f.update_layout(
                 title=title,
                 margin=dict(l=10, r=10, t=30, b=20),
-                template=template, # Apply template here
-                font=dict(color=plot_text_color), # Set font color for plot title/labels
-                xaxis=dict(gridcolor="#444444" if dark_mode_enabled else "#e0e0e0", showgrid=True), # Adjust grid color
-                yaxis=dict(gridcolor="#444444" if dark_mode_enabled else "#e0e0e0", showgrid=True) # Adjust grid color
+                template=template,  # Apply template here
+                font=dict(
+                    color=plot_text_color
+                ),  # Set font color for plot title/labels
+                xaxis=dict(
+                    gridcolor="#444444" if dark_mode_enabled else "#e0e0e0",
+                    showgrid=True,
+                ),  # Adjust grid color
+                yaxis=dict(
+                    gridcolor="#444444" if dark_mode_enabled else "#e0e0e0",
+                    showgrid=True,
+                ),  # Adjust grid color
             )
             return f
 
@@ -498,28 +547,40 @@ def create_app(
         info = html.Div(
             [
                 html.Span(
-                    f"Slot {idx+1}", style={"fontWeight": "bold", "marginRight": "24px", "color": info_text_color}
+                    f"Slot {idx+1}",
+                    style={
+                        "fontWeight": "bold",
+                        "marginRight": "24px",
+                        "color": info_text_color,
+                    },
                 ),
                 html.Span(
-                    f"Clusters: {clusters_hist[idx]}", style={"marginRight": "24px", "color": info_text_color}
+                    f"Clusters: {clusters_hist[idx]}",
+                    style={"marginRight": "24px", "color": info_text_color},
                 ),
                 html.Span(
                     f"Total Distance: {total_dist_hist[idx]:.4f}",
                     style={"marginRight": "24px", "color": info_text_color},
                 ),
                 html.Span(
-                    f"Avg NND: {avg_nnd_hist[idx]:.4f}", style={"marginRight": "24px", "color": info_text_color}
+                    f"Avg NND: {avg_nnd_hist[idx]:.4f}",
+                    style={"marginRight": "24px", "color": info_text_color},
                 ),
-                html.Span(f"NNI: {nni_hist[idx]:.4f}", style={"marginRight": "24px", "color": info_text_color}),
                 html.Span(
-                    f"MEV Earned: {mev_hist[idx]:.4f}", style={"marginRight": "24px", "color": info_text_color}
+                    f"NNI: {nni_hist[idx]:.4f}",
+                    style={"marginRight": "24px", "color": info_text_color},
+                ),
+                html.Span(
+                    f"MEV Earned: {mev_hist[idx]:.4f}",
+                    style={"marginRight": "24px", "color": info_text_color},
                 ),
                 html.Span(
                     f"Attestation Rate: {attest_hist[idx]:.2f}%",
                     style={"marginRight": "24px", "color": info_text_color},
                 ),
                 html.Span(
-                    f"Proposal Time: {proposal_time_hist[idx]:.2f} ms", style={"color": info_text_color}
+                    f"Proposal Time: {proposal_time_hist[idx]:.2f} ms",
+                    style={"color": info_text_color},
                 ),
             ],
             style={
