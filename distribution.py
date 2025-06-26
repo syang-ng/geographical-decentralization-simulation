@@ -86,24 +86,26 @@ class SphericalSpace(Space):
         z = math.sin(phi)
         return (x, y, z)
 
-    def get_nearest_gcp_zone(self, position, gcp_zones):
+    def get_nearest_gcp_region(self, position, gcp_regions):
         """
-        Finds the nearest GCP zone to a given position on the unit sphere.
-        Returns the GCP zone that is closest in terms of geodesic distance.
+        Finds the nearest GCP region to a given position on the unit sphere.
+        Returns the GCP region that is closest in terms of geodesic distance.
         """
         min_distance = float("inf")
         nearest_zone = None
-        for index, row in gcp_zones.iterrows():
-            zone_position = (row["x"], row["y"], row["z"])
+        for index, row in gcp_regions.iterrows():
+            zone_position = self.get_coordinate_from_lat_lon(
+                row["Nearest City Latitude"], row["Nearest City Longitude"]
+            )
             distance = self.distance(position, zone_position)
             if distance < min_distance:
                 min_distance = distance
-                nearest_zone = row["region"]
+                nearest_zone = row["Region Name"]
         return nearest_zone if nearest_zone else None
 
     def get_latency(self, gcp1, gcp2, gcp_latency):
         """
-        Returns the avg latency between two GCP zones according GCP latency data.
+        Returns the avg latency between two GCP regions according GCP latency data.
         Assumes gcp_latency is a DataFrame with columns 'sending_region', 'receiving_region', and 'milliseconds'.
         """
         if gcp1 == gcp2:
@@ -144,7 +146,7 @@ class SphericalSpace(Space):
         return (temp_center[0] * scale, temp_center[1] * scale, temp_center[2] * scale)
 
 
-def init_distance_matrix(positions, space):  # , gcp_latency, gcp_zones):
+def init_distance_matrix(positions, space):
     """
     Build the initial distance matrix for all node pairs.
     Returns a 2D list (or NumPy array) of shape (n, n).

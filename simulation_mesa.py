@@ -21,12 +21,28 @@ from measure import *
 
 RELAY_PROFILES = [
     # Flashbots Relay, aws us-east-1, "Northern Virginia, USA" -- this is close to GCP us-east4, "Ashburn, Virginia, USA"
-    {"unique_id": "Flashbots", "gcp_zone": "us-east4", "lat": 38.8951, "lon": -77.0364},
-    # UltraSound Relay, ovh roubaix, "Roubaix, France" -- this is close to GCP europe-west1, "St. Ghislain, Belgium"  
-    {"unique_id": "UltraSound EU", "gcp_zone": "europe-west1", "lat": 50.5039, "lon": 4.4699},
-    # UltraSound Relay, ovh vint hill, "Vint Hill, Virginia, USA" -- this is close to GCP us-east4, "Ashburn, Virginia, USA" 
-    {"unique_id": "UltraSound US", "gcp_zone": "us-east4", "lat": 38.8951, "lon": -77.0364},
+    {
+        "unique_id": "Flashbots",
+        "gcp_region": "us-east4",
+        "lat": 39.0437,
+        "lon": -77.4874,
+    },
+    # UltraSound Relay, ovh roubaix, "Roubaix, France" -- this is close to GCP europe-west1, "St. Ghislain, Belgium"
+    {
+        "unique_id": "UltraSound EU",
+        "gcp_region": "europe-west1",
+        "lat": 50.4577,
+        "lon": 3.8643,
+    },
+    # UltraSound Relay, ovh vint hill, "Vint Hill, Virginia, USA" -- this is close to GCP us-east4, "Ashburn, Virginia, USA"
+    {
+        "unique_id": "UltraSound US",
+        "gcp_region": "us-east4",
+        "lat": 39.0437,
+        "lon": -77.4874,
+    },
 ]
+
 
 class RelayAgent(Agent):
     """
@@ -41,10 +57,10 @@ class RelayAgent(Agent):
     def initialize_with_profile(self, profile):
         """
         Initializes the Relay Agent with a specific profile.
-        The profile should contain 'unique_id', 'gcp_zone', 'lat', and 'lon'.
+        The profile should contain 'unique_id', 'gcp_region', 'lat', and 'lon'.
         """
         self.unique_id = profile["unique_id"]
-        self.gcp_zone = profile["gcp_zone"]
+        self.gcp_region = profile["gcp_region"]
         self.position = self.model.space.get_coordinate_from_lat_lon(
             profile["lat"], profile["lon"]
         )
@@ -54,9 +70,9 @@ class RelayAgent(Agent):
         """Sets the Relay's position in the space."""
         self.position = position
 
-    def set_gcp_zone(self, gcp_zone):
-        """Sets the Relay's GCP zone for latency calculations."""
-        self.gcp_zone = gcp_zone
+    def set_gcp_region(self, gcp_region):
+        """Sets the Relay's GCP region for latency calculations."""
+        self.gcp_region = gcp_region
 
     def update_mev_offer(self):
         """Simulates builders providing better offers to the Relay over time."""
@@ -174,9 +190,9 @@ class ValidatorAgent(Agent):
         """Sets the validator's position in the space."""
         self.position = position
 
-    def set_gcp_zone(self, gcp_zone):
-        """Sets the validator's GCP zone for latency calculations."""
-        self.gcp_zone = gcp_zone
+    def set_gcp_region(self, gcp_region):
+        """Sets the validator's GCP region for latency calculations."""
+        self.gcp_region = gcp_region
 
     def set_index(self, index):
         """Sets the validator's index in the model's agent list."""
@@ -200,7 +216,7 @@ class ValidatorAgent(Agent):
         # )
         # GCP Latency
         self.network_latency_to_target = self.model.space.get_latency(
-            self.gcp_zone, self.model.relay_agent.gcp_zone, gcp_latency
+            self.gcp_region, self.model.relay_agent.gcp_region, gcp_latency
         )
         # Set random propose time if using random strategy
         if self.timing_strategy["type"] == "random_delay":
@@ -244,7 +260,7 @@ class ValidatorAgent(Agent):
             self.network_latency_to_target = BASE_NETWORK_LATENCY_MS
         else:
             self.network_latency_to_target = self.model.space.get_latency(
-                self.gcp_zone, self.model.relay_agent.gcp_zone, gcp_latency
+                self.gcp_region, self.model.relay_agent.gcp_region, gcp_latency
             )
             # distance_from_relay = space_instance.distance(self.position, relay_position)
             # self.network_latency_to_target = (
@@ -374,10 +390,10 @@ class ValidatorAgent(Agent):
                 "migration_chance_per_slot", 0.01
             ):
                 new_position = self.model.space.sample_point()
-                gcp_zone = self.model.space.get_nearest_gcp_zone(
-                    new_position, gcp_zones
+                gcp_region = self.model.space.get_nearest_gcp_region(
+                    new_position, gcp_regions
                 )
-                self.do_migration(new_position, gcp_zone)
+                self.do_migration(new_position, gcp_region)
                 return True
             return False
 
@@ -406,20 +422,22 @@ class ValidatorAgent(Agent):
                 return False
 
             if target_pos:
-                gcp_zone = self.model.space.get_nearest_gcp_zone(target_pos, gcp_zones)
-                self.do_migration(target_pos, gcp_zone)
+                gcp_region = self.model.space.get_nearest_gcp_region(
+                    target_pos, gcp_regions
+                )
+                self.do_migration(target_pos, gcp_region)
                 return True
 
             return False
 
         return False
 
-    def do_migration(self, new_position_coords, new_gcp_zone):
+    def do_migration(self, new_position_coords, new_gcp_region):
         """Completes the migration process."""
         self.is_migrating = True
         self.migration_cooldown = self.model.migration_cooldown_slots
         self.position = new_position_coords
-        self.gcp_zone = new_gcp_zone
+        self.gcp_region = new_gcp_region
         self.is_migrating = False  # Migration is completed immediately in this model
         # update the distance matrix
         self.model.validator_locations[self.index] = (
@@ -436,7 +454,7 @@ class ValidatorAgent(Agent):
         # relay_position = self.model.relay_agent.position
         # distance_to_relay = space_instance.distance(self.position, relay_position)
         self.network_latency_to_target = self.model.space.get_latency(
-            self.gcp_zone, self.model.relay_agent.gcp_zone, self.model.gcp_latency
+            self.gcp_region, self.model.relay_agent.gcp_region, self.model.gcp_latency
         )
         # self.network_latency_to_target = (
         #     BASE_NETWORK_LATENCY_MS
@@ -495,7 +513,7 @@ class MEVBoostModel(Model):
         mev_increase_per_second=0.05,
         migration_cooldown_slots=5,
         validators=None,
-        gcp_zones=None,
+        gcp_regions=None,
         gcp_latency=None,
     ):
 
@@ -551,13 +569,13 @@ class MEVBoostModel(Model):
                     else self.space.sample_point()
                 )
                 self.validator_locations.append(position)
-                gcp_zone = (
-                    self.space.get_nearest_gcp_zone(position, gcp_zones)
-                    if gcp_zones is not None
+                gcp_region = (
+                    self.space.get_nearest_gcp_region(position, gcp_regions)
+                    if gcp_regions is not None
                     else None
                 )
                 agent.set_position(position)
-                agent.set_gcp_zone(gcp_zone)
+                agent.set_gcp_region(gcp_region)
                 agent.set_index(validator_index)
                 agent.set_strategy(
                     random.choice(self.timing_strategies_pool),
@@ -567,7 +585,7 @@ class MEVBoostModel(Model):
             elif isinstance(agent, RelayAgent):
                 # Initialize the Relay Agent with UltraSound EU
                 agent.initialize_with_profile(
-                    RELAY_PROFILES[1] # Default to UltraSound EU relay profile
+                    RELAY_PROFILES[1]  # Default to UltraSound EU relay profile
                 )
                 self.relay_agent = agent
             else:
@@ -577,7 +595,7 @@ class MEVBoostModel(Model):
         self.validators = self.agents.select(agent_type=ValidatorAgent)
         # Initialize distance matrix now that all validator positions are set
         self.distance_matrix = init_distance_matrix(
-            self.validator_locations, self.space  # , gcp_latency, gcp_zones
+            self.validator_locations, self.space  # , gcp_latency, gcp_regions
         )
 
         # --- Model-Level Tracking Variables ---
@@ -733,7 +751,7 @@ def simulation(
     num_slots,
     dir,
     validators=None,
-    gcp_zones=None,
+    gcp_regions=None,
     gcp_latency=None,
 ):
     # --- Simulation Execution ---
@@ -790,7 +808,7 @@ def simulation(
         "base_mev_amount": BASE_MEV_AMOUNT,
         "mev_increase_per_second": MEV_INCREASE_PER_SECOND,
         "validators": validators,  # Will be set from CSV
-        "gcp_zones": gcp_zones,  # Will be set from CSV
+        "gcp_regions": gcp_regions,  # Will be set from CSV
         "gcp_latency": gcp_latency,  # Will be set from CSV
     }
 
@@ -924,7 +942,7 @@ if __name__ == "__main__":
     # Sample 1000 validators if more than 1000
     if len(validators) > args.num_validators:
         validators = validators.sample(n=args.num_validators, random_state=42)
-    gcp_zones = pd.read_csv(f"{args.input_dir}/gcp_zones.csv")
+    gcp_regions = pd.read_csv(f"{args.input_dir}/gcp_regions.csv")
     gcp_latency = pd.read_csv(f"{args.input_dir}/gcp_latency.csv")
 
     num_validators = len(validators)
@@ -935,6 +953,6 @@ if __name__ == "__main__":
         num_slots=args.num_slots,
         dir=args.output_dir,
         validators=validators,
-        gcp_zones=gcp_zones,
+        gcp_regions=gcp_regions,
         gcp_latency=gcp_latency,
     )
