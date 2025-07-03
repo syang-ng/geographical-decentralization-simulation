@@ -3,7 +3,7 @@ import numpy as np
 import random
 
 from abc import ABC, abstractmethod
-
+from scipy.stats import norm, lognorm
 
 # --- Spatial Classes ---
 class Space(ABC):
@@ -175,3 +175,100 @@ def update_distance_matrix_for_node(dist_matrix, positions, space, moved_idx):
             d = space.distance(positions[i], positions[j])
             dist_matrix[i][j] = d
             dist_matrix[j][i] = d
+
+
+# --- Latency Distribution ---
+# This function generates a normal distribution of latencies based on a given mean latency.
+def generate_normal_latency_distribution(mean_latency, std_dev_ratio=0.1, num_samples=10000):
+    """
+    Generates a normal distribution of latencies from a given mean latency.
+
+    Parameters:
+    mean_latency (float): The desired mean of the latency distribution.
+    std_dev_ratio (float): The ratio of standard deviation to the mean.
+                           (e.g., 0.1 means std_dev = 10% of mean_latency)
+    num_samples (int): The number of latency samples to generate.
+
+    Returns:
+    numpy.ndarray: An array of simulated latency values.
+    """
+    if mean_latency <= 0:
+        raise ValueError("Mean latency must be positive.")
+    if std_dev_ratio <= 0:
+        raise ValueError("Standard deviation ratio must be positive.")
+
+    # Calculate standard deviation based on the ratio
+    std_dev = mean_latency * std_dev_ratio
+
+    # Generate samples from a normal distribution
+    latencies = np.random.normal(loc=mean_latency, scale=std_dev, size=num_samples)
+
+    # Latency cannot be negative, so cap any negative values at 0.
+    # This is a common practical adjustment for normal distributions modeling non-negative quantities.
+    latencies[latencies < 0] = 0
+    
+    return latencies
+import numpy as np
+from scipy.stats import norm, lognorm
+
+class LatencyGenerator:
+    """
+    A performance-optimized class for generating latency samples from a given distribution.
+    """
+    def __init__(self, distribution_type="lognormal"):
+        """
+        Initializes the generator.
+        :param distribution_type: The type of distribution to use, either 'normal' or 'lognormal'.
+        """
+        if distribution_type not in ["normal", "lognormal"]:
+            raise ValueError("Unsupported distribution type. Use 'normal' or 'lognormal'.")
+        self.distribution_type = distribution_type
+        # The cache will store the calculated distribution objects, not large arrays of samples.
+        self.dist_cache = {}
+
+    def get_latency(self, mean_latency, std_dev_ratio=0.1):
+        """
+        Directly generates and returns a single latency sample from a statistical distribution.
+        This method caches the distribution object itself for efficiency, not the sample data.
+        
+        :param mean_latency: The target mean for the latency distribution.
+        :param std_dev_ratio: The standard deviation as a fraction of the mean.
+        :return: A single float representing a latency sample.
+        """
+        if mean_latency <= 0:
+            return 0.0
+
+        key = (mean_latency, std_dev_ratio)
+
+        # 1. Check if the distribution object is already cached.
+        if key not in self.dist_cache:
+            std_dev = mean_latency * std_dev_ratio
+            
+            # If standard deviation is zero, there's no variance.
+            if std_dev <= 0:
+                self.dist_cache[key] = None  # Mark as no generation needed.
+                return mean_latency
+
+            # 2. If not cached, create and cache the appropriate distribution object.
+            if self.distribution_type == "normal":
+                # Create a normal distribution object from scipy.stats.
+                self.dist_cache[key] = norm(loc=mean_latency, scale=std_dev)
+            
+            elif self.distribution_type == "lognormal":
+                # Parameter conversion for lognormal is required because its native
+                # parameters (mu, sigma) are for the underlying normal distribution.
+                mu = np.log(mean_latency**2 / np.sqrt(mean_latency**2 + std_dev**2))
+                sigma = np.sqrt(np.log(1 + (std_dev**2 / mean_latency**2)))
+                
+                # Create a lognormal distribution object.
+                self.dist_cache[key] = lognorm(s=sigma, scale=np.exp(mu))
+        
+        distribution = self.dist_cache[key]
+
+        # If the distribution object is None (because std_dev was 0), return the mean.
+        if distribution is None:
+            return mean_latency
+            
+        # 3. Generate a single random variate (rvs) from the cached distribution object.
+        # This is extremely fast compared to sampling from a large list.
+        return distribution.rvs(size=1)[0]

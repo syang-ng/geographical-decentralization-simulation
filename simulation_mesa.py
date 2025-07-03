@@ -12,6 +12,7 @@ from mesa import Agent, Model, DataCollector
 from constants import *
 from distribution import (
     SphericalSpace,
+    LatencySimulator,
     init_distance_matrix,
     update_distance_matrix_for_node,
 )
@@ -205,15 +206,9 @@ class ValidatorAgent(Agent):
         self.location_strategy = location_strategy
 
     # --- Role Assignment Methods (Called by the Model) ---
-    def set_proposer_role(self, relay_position, space_instance, gcp_latency):
+    def set_proposer_role(self, gcp_latency):
         """Sets this validator as the Proposer for the current slot."""
         self.role = "proposer"
-        # distance_to_relay = space_instance.distance(self.position, relay_position)
-        # self.network_latency_to_target = (
-        #     BASE_NETWORK_LATENCY_MS
-        #     + (distance_to_relay / space_instance.get_max_dist())
-        #     * MAX_ADDITIONAL_NETWORK_LATENCY_MS
-        # )
         # GCP Latency
         self.network_latency_to_target = self.model.space.get_latency(
             self.gcp_region, self.model.relay_agent.gcp_region, gcp_latency
@@ -232,7 +227,7 @@ class ValidatorAgent(Agent):
             to_relay_latency = self.network_latency_to_target
             required_attesters_for_supermajority = math.ceil(
                 (ATTESTATION_THRESHOLD) * len(self.model.current_attesters)
-            )
+            ) + 30  # Add 30 to ensure we have enough for supermajority
             relay_to_attester_latency = [
                 a.network_latency_to_target + 3 * to_relay_latency
                 for a in self.model.current_attesters
@@ -245,8 +240,6 @@ class ValidatorAgent(Agent):
 
     def set_attester_role(
         self,
-        relay_position,
-        space_instance,
         proposer_is_optimized_latency=False,
         gcp_latency=None,
     ):
@@ -262,12 +255,7 @@ class ValidatorAgent(Agent):
             self.network_latency_to_target = self.model.space.get_latency(
                 self.gcp_region, self.model.relay_agent.gcp_region, gcp_latency
             )
-            # distance_from_relay = space_instance.distance(self.position, relay_position)
-            # self.network_latency_to_target = (
-            #     BASE_NETWORK_LATENCY_MS
-            #     + (distance_from_relay / space_instance.get_max_dist())
-            #     * MAX_ADDITIONAL_NETWORK_LATENCY_MS
-            # )
+
 
     # --- In-Slot Behavior Methods (Called from step()) ---
     def decide_and_propose(self, current_slot_time_ms_inner, relay_agent_instance):
@@ -490,12 +478,12 @@ class ValidatorAgent(Agent):
                 self.decide_and_attest(
                     current_slot_time_ms_inner,
                     proposer_agent.proposed_time_ms,
-                    self.network_latency_to_target,
+                    self.model.latency_simulator.get_latency(self.network_latency_to_target, 0.5),
+                    # self.network_latency_to_target,
                 )
 
 
 # --- MEVBoostModel Class ---
-
 
 class MEVBoostModel(Model):
     """
@@ -537,6 +525,7 @@ class MEVBoostModel(Model):
         self.distance_matrix = (
             None  # Will be initialized after validator positions are set
         )
+        self.latency_simulator = LatencySimulator()
 
         # Set GCP latency if provided
         self.gcp_latency = gcp_latency
@@ -638,7 +627,10 @@ class MEVBoostModel(Model):
                 "Slot": "current_slot_idx",
                 "MEV_Captured_Slot": "mev_captured",  # MEV actually earned in the last slot
                 "Attestation_Rate": "attestation_rate",  # Percentage of successful attestations
-                "Proposal Time": "proposed_time_ms",  # Time when the block was proposed
+                "Proposal Time": "proposed_time_ms",  # Time when the block was proposed,
+                "Location_Strategy": lambda v: (
+                    v.location_strategy["type"] if v.role == "proposer" else "none"
+                ),
             },
         )
 
@@ -667,7 +659,7 @@ class MEVBoostModel(Model):
         self.current_proposer_agent = random.choice(available_validators)
         # Set the Proposer's role and prepare for the slot
         self.current_proposer_agent.set_proposer_role(
-            self.relay_agent.position, self.space, self.gcp_latency
+            self.gcp_latency
         )
         self.current_proposer_agent.decide_to_migrate()  # Check if proposer should migrate
         # Set Attesters and calculate their specific latencies from the Relay
@@ -678,8 +670,6 @@ class MEVBoostModel(Model):
         ]
         for attester in self.current_attesters:
             attester.set_attester_role(
-                self.relay_agent.position,
-                self.space,
                 self.proposer_has_optimized_latency,
                 self.gcp_latency,
             )
@@ -715,6 +705,8 @@ class MEVBoostModel(Model):
                     slot_successful_attestations / len(self.current_attesters)
                 ) * 100
 
+                print(self.current_slot_idx, slot_successful_attestations, required_attesters_for_supermajority)
+
                 if slot_successful_attestations >= required_attesters_for_supermajority:
                     self.current_proposer_agent.mev_captured = (
                         self.current_proposer_agent.mev_captured_potential
@@ -736,6 +728,9 @@ class MEVBoostModel(Model):
 
             # --- Setup for New Slot ---
             self._setup_new_slot()  # This calls reset_for_new_slot on agents
+            print(
+                f"Slot {self.current_slot_idx} setup complete. Proposer: {self.current_proposer_agent.unique_id if self.current_proposer_agent else 'None'}"
+            )
 
         # --- Agents perform their step actions ---
         self.agents.do("step")
@@ -793,7 +788,7 @@ def simulation(
     }
 
     all_location_strategies = [
-        # MIGRATION_STRATEGY_NEVER,
+        MIGRATION_STRATEGY_NEVER,
         # MIGRATION_STRATEGY_RANDOM_EXPLORE,
         MIGRATION_STRATEGY_OPTIMIZE_RELAY,
         # MIGRATION_STRATEGY_OPTIMIZE_ATTESTERS,
@@ -885,6 +880,12 @@ def simulation(
         [relay_pos_list] for _ in range(len(nested_array))  # <- extra [] !
     ]
 
+    # Proposer data
+    proposer_data = agent_data[agent_data["Role"] == "proposer"]
+    proposer_strategy_and_mev = proposer_data[
+        ["Slot", "Location_Strategy", "MEV_Captured_Slot"]
+    ].to_dict(orient="records")
+
     with open(f"{dir}/data.json", "w") as f:
         json.dump(nested_array, f)
     with open(f"{dir}/mev_by_slot.json", "w") as f:
@@ -893,11 +894,13 @@ def simulation(
         json.dump(attest_by_slot, f)
     with open(f"{dir}/proposal_time_by_slot.json", "w") as f:
         json.dump(proposal_time_by_slot, f)
+    with open(f"{dir}/proposer_strategy_and_mev.json", "w") as f:
+        json.dump(proposer_strategy_and_mev, f)
 
     with open(f"{dir}/relay_data.json", "w") as f:
         json.dump(nested_array_relay, f)
 
-    print("Saved data.json and relay_data.json")
+    print("Saved data in JSON files in the output directory.")
 
 
 if __name__ == "__main__":
