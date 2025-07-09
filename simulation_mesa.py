@@ -7,6 +7,7 @@ import pandas as pd
 import random
 import time
 
+from enum import Enum
 from mesa import Agent, Model, DataCollector
 
 from constants import *
@@ -44,6 +45,9 @@ RELAY_PROFILES = [
     },
 ]
 
+class RelayType(Enum):
+    CENSORING = 0
+    NONCENSORING = 1
 
 class RelayAgent(Agent):
     """
@@ -54,6 +58,7 @@ class RelayAgent(Agent):
     def __init__(self, model):
         super().__init__(model)
         self.current_mev_offer = 0.0
+        self.type = RelayType.NONCENSORING
 
     def initialize_with_profile(self, profile):
         """
@@ -110,6 +115,13 @@ class RelayAgent(Agent):
 
 # --- Validator Agent Class Definition ---
 
+class ValidatorType(Enum):
+    HOME = 1
+    CLOUD = 2
+
+class ValidatorPreference(Enum):
+    COMPLIANT = 1
+    NONCOMPLIANT = 2
 
 class ValidatorAgent(Agent):
     """
@@ -122,6 +134,8 @@ class ValidatorAgent(Agent):
 
         # State variables, will be reset each slot by the model
         self.role = "none"  # "proposer" or "attester"
+        self.type = ValidatorType.HOME  # "home staker" or "cloud"
+        self.preference = ValidatorPreference.COMPLIANT  # Compliant or Non-compliant
         self.network_latency_to_target = (
             -1
         )  # Latency to Relay (for Proposer) or from Relay (for Attester)
@@ -186,6 +200,9 @@ class ValidatorAgent(Agent):
         self.attested_to_proposer_block = False
         self.random_propose_time = -1  # Reset for next potential proposer role
         self.latency_threshold = -1  # Reset for next potential proposer role
+
+    def set_type(self, validator_type):
+        self.type = validator_type
 
     def set_position(self, position):
         """Sets the validator's position in the space."""
@@ -366,8 +383,9 @@ class ValidatorAgent(Agent):
         """
         Validator decides whether to migrate based on its assigned migration strategy.
         This is called by the Model after a slot where this validator was Proposer.
+        Only the validator on the cloud can migrate.
         """
-        if self.is_migrating or self.migration_cooldown > 0:
+        if self.is_migrating or self.migration_cooldown > 0 or self.type == ValidatorType.HOME:
             return False
 
         if self.location_strategy["type"] == "never_migrate":
@@ -537,51 +555,45 @@ class MEVBoostModel(Model):
         )
         RelayAgent.create_agents(model=self, n=1)
 
+        self.relay_agent = self.agents.select(agent_type=RelayAgent)[0]
+        self.relay_agent.initialize_with_profile(
+            RELAY_PROFILES[1]  # Default to UltraSound EU relay profile
+        )
+
         self.validator_locations = []
         validator_index = 0
 
-        for agent in self.agents:
-            if isinstance(agent, ValidatorAgent):
-                # position = self.space.sample_point()
-                # Get the first validator from the validators DataFrame if provided
-                v = (
-                    validators.iloc[validator_index]
-                    if validators is not None and validator_index < len(validators)
-                    else {"latitude": None, "longitude": None}
-                )
-
-                position = (
-                    self.space.get_coordinate_from_lat_lon(
-                        v["latitude"], v["longitude"]
-                    )
-                    if v["latitude"] is not None and v["longitude"] is not None
-                    else self.space.sample_point()
-                )
-                self.validator_locations.append(position)
-                gcp_region = (
-                    self.space.get_nearest_gcp_region(position, gcp_regions)
-                    if gcp_regions is not None
-                    else None
-                )
-                agent.set_position(position)
-                agent.set_gcp_region(gcp_region)
-                agent.set_index(validator_index)
-                agent.set_strategy(
-                    random.choice(self.timing_strategies_pool),
-                    random.choice(self.location_strategies_pool),
-                )
-                validator_index += 1
-            elif isinstance(agent, RelayAgent):
-                # Initialize the Relay Agent with UltraSound EU
-                agent.initialize_with_profile(
-                    RELAY_PROFILES[1]  # Default to UltraSound EU relay profile
-                )
-                self.relay_agent = agent
-            else:
-                continue
-
         # Find all validators after they have been created and assigned positions
         self.validators = self.agents.select(agent_type=ValidatorAgent)
+        for validator_agent in self.validators:
+            v = (
+                validators.iloc[validator_index]
+                if validators is not None and validator_index < len(validators)
+                else {"latitude": None, "longitude": None}
+            )
+
+            position = (
+                self.space.get_coordinate_from_lat_lon(
+                    v["latitude"], v["longitude"]
+                )
+                if v["latitude"] is not None and v["longitude"] is not None
+                else self.space.sample_point()
+            )
+            self.validator_locations.append(position)
+            gcp_region = (
+                self.space.get_nearest_gcp_region(position, gcp_regions)
+                if gcp_regions is not None
+                else None
+            )
+            validator_agent.set_position(position)
+            validator_agent.set_gcp_region(gcp_region)
+            validator_agent.set_index(validator_index)
+            validator_agent.set_strategy(
+                random.choice(self.timing_strategies_pool),
+                random.choice(self.location_strategies_pool),
+            )
+            validator_index += 1
+
         # Initialize distance matrix now that all validator positions are set
         self.distance_matrix = init_distance_matrix(
             self.validator_locations, self.space  # , gcp_latency, gcp_regions

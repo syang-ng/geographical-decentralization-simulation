@@ -208,8 +208,7 @@ def generate_normal_latency_distribution(mean_latency, std_dev_ratio=0.1, num_sa
     latencies[latencies < 0] = 0
     
     return latencies
-import numpy as np
-from scipy.stats import norm, lognorm
+
 
 class LatencyGenerator:
     """
