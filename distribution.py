@@ -117,6 +117,48 @@ class SphericalSpace(Space):
         if not latency_row.empty:
             return latency_row["milliseconds"].values[0] / 2 # Convert to one-way latency
         return float("inf")
+    
+    def get_best_region_to_targets(self, targets, gcp_latency, gcp_regions):
+        """
+        Given a list of target GCP regions, finds the one with the lowest average latency to all targets.
+        """
+        subset = gcp_latency[
+            (gcp_latency["sending_region"].isin(targets))
+            & (gcp_latency["receiving_region"].isin(targets))
+        ]
+        if subset.empty:
+            return None, (0, 0)
+        
+        region_to_target = {}
+        for sending_region, receiving_region, latency in subset[["sending_region", "receiving_region", "milliseconds"]].values:
+            latency = latency / 2 # Convert to one-way latency
+            region_to_target[(sending_region, receiving_region)] = latency
+            region_to_target[(receiving_region, sending_region)] = latency
+        
+        candidates = set(subset["sending_region"].unique()).union(
+            set(subset["receiving_region"].unique())
+        )
+
+        candidates_avg_latency = [
+            (
+                candidate,
+                sum(
+                    region_to_target.get((candidate, target), float("inf"))
+                    for target in targets
+                )
+                / len(targets),
+            )
+            for candidate in candidates
+        ]
+
+        candidates_avg_latency.sort(key=lambda x: x[1])
+        region = candidates_avg_latency[0][0]
+        row = gcp_regions[gcp_regions["Region Name"] == region]
+        location = (
+            row["Nearest City Latitude"].values[0],
+            row["Nearest City Longitude"].values[0]
+        )
+        return region, location
 
     def calculate_geometric_center_of_nodes(self, nodes):
         """

@@ -13,6 +13,7 @@ class RelayType(Enum):
     NONCENSORING = 1
 
 # --- Relay Agent Profiles --- 
+# Currently, we have three relays with different locations but the same utility functions.
 
 RELAY_PROFILES = [
     # Flashbots Relay, aws us-east-1, "Northern Virginia, USA" -- this is close to GCP us-east4, "Ashburn, Virginia, USA"
