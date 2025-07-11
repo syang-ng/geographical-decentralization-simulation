@@ -3,9 +3,7 @@ from mesa import Agent
 
 from constants import (
     BASE_MEV_AMOUNT,
-    MEV_INCREASE_PER_SECOND,
-    SLOT_DURATION_MS,
-    TIME_GRANULARITY_MS,
+    MEV_INCREASE_PER_SECOND
 )
 
 # --- Relay Types ---
@@ -94,8 +92,8 @@ class RelayAgent(Agent):
         # Get current time from the model's steps
         # Convert model time steps to milliseconds within the current slot
         current_slot_time_ms = (
-            self.model.steps * TIME_GRANULARITY_MS
-        ) % SLOT_DURATION_MS
+            self.model.steps * self.model.consensus_settings.time_granularity_ms
+        ) % self.model.consensus_settings.slot_duration_ms
         time_in_seconds = current_slot_time_ms / 1000
 
         # MEV offer is calculated based on the utility function

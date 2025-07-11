@@ -3,10 +3,8 @@ import random
 
 from mesa import Model, DataCollector
 
+from consensus import ConsensusSettings
 from constants import (
-    SLOT_DURATION_MS,
-    TIME_GRANULARITY_MS,
-    ATTESTATION_THRESHOLD,
     CLOUD_VALIDATOR_PERCENTAGE,
     NON_COMPLIANT_VALIDATOR_PERCENTAGE,
 )
@@ -39,6 +37,7 @@ class MEVBoostModel(Model):
         validators=None,
         gcp_regions=None,
         gcp_latency=None,
+        consensus_settings=ConsensusSettings(),
     ):
 
         # Call the base Model constructor
@@ -56,6 +55,9 @@ class MEVBoostModel(Model):
         self.mev_increase_per_second = mev_increase_per_second
         self.migration_cooldown_slots = migration_cooldown_slots
 
+        # Consensus parameters
+        self.consensus_settings = consensus_settings
+
         # --- Setup the Space (SphericalSpace) ---
         self.space = SphericalSpace()
         self.distance_matrix = (
@@ -65,6 +67,7 @@ class MEVBoostModel(Model):
 
         # Set GCP latency if provided
         self.gcp_latency = gcp_latency
+        self.gcp_regions = gcp_regions
 
         # --- Create Agents ---
         ValidatorAgent.create_agents(
@@ -232,7 +235,7 @@ class MEVBoostModel(Model):
         Advance the simulation by one step (TIME_GRANULARITY_MS).
         """
         # Determine if we are at the start of a new logical slot
-        is_new_slot_start = (self.steps * TIME_GRANULARITY_MS) % SLOT_DURATION_MS == 0
+        is_new_slot_start = (self.steps * self.consensus_settings.time_granularity_ms) % self.consensus_settings.slot_duration_ms == 0
 
         if is_new_slot_start and self.steps > 0:  # Avoid re-setup for time 0
             # --- End of Previous Slot Logic & Rewards ---
@@ -244,7 +247,7 @@ class MEVBoostModel(Model):
                     1 for a in self.current_attesters if a.attested_to_proposer_block
                 )
                 required_attesters_for_supermajority = math.ceil(
-                    (ATTESTATION_THRESHOLD) * len(self.current_attesters)
+                    (self.consensus_settings.attestation_threshold) * len(self.current_attesters)
                 )
 
                 self.current_proposer_agent.attestation_rate = (
@@ -283,5 +286,5 @@ class MEVBoostModel(Model):
         self.agents.do("advance")
 
         # Condition to stop simulation early if all agents are migrating or something goes wrong
-        if self.steps * TIME_GRANULARITY_MS > (self.num_slots * SLOT_DURATION_MS):
+        if self.steps * self.consensus_settings.time_granularity_ms > (self.num_slots * self.consensus_settings.slot_duration_ms):
             self.running = False  # Stop the simulation loop
