@@ -124,9 +124,10 @@ class MEVBoostModel(Model):
 
         # Set validator type and preferences
         # Note: This is a simple random assignment based on constants.
+        self.validators = list(self.validators)  # Convert to list for shuffling
         random.shuffle(self.validators)
         for validator_agent in self.validators[:int(self.num_validators * CLOUD_VALIDATOR_PERCENTAGE)]:
-            validator_agent.set_validator_type(ValidatorType.CLOUD)
+            validator_agent.set_type(ValidatorType.CLOUD)
         random.shuffle(self.validators)
         for validator_agent in self.validators[int(self.num_validators * NON_COMPLIANT_VALIDATOR_PERCENTAGE):]:
             validator_agent.set_validator_preference(ValidatorPreference.NONCOMPLIANT)
@@ -206,11 +207,6 @@ class MEVBoostModel(Model):
 
         # Randomly select a Proposer from available validators
         self.current_proposer_agent = random.choice(available_validators)
-        # Set the Proposer's role and prepare for the slot
-        self.current_proposer_agent.set_proposer_role(
-            self.gcp_latency
-        )
-        self.current_proposer_agent.decide_to_migrate()  # Check if proposer should migrate
         # Set Attesters and calculate their specific latencies from the Relay
         self.current_attesters = [
             v
@@ -222,6 +218,12 @@ class MEVBoostModel(Model):
                 self.proposer_has_optimized_latency,
                 self.gcp_latency,
             )
+        # Set the Proposer's role and prepare for the slot
+        self.current_proposer_agent.set_proposer_role(
+            self.gcp_latency
+        )
+        self.current_proposer_agent.decide_to_migrate()  # Check if proposer should migrate
+
         self.current_proposer_agent.calculate_latency_threshold()
         # Reset relay's MEV offer for the new slot start
         [relay_agent.update_mev_offer() for relay_agent in self.relay_agents]

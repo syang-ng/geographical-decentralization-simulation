@@ -116,7 +116,9 @@ class SphericalSpace(Space):
         ]
         if not latency_row.empty:
             return latency_row["milliseconds"].values[0] / 2 # Convert to one-way latency
-        return float("inf")
+        # If no direct latency data is found, return the max latency for the pair
+
+        return gcp_latency["milliseconds"].max() / 2
     
     def get_best_region_to_targets(self, targets, gcp_latency, gcp_regions):
         """

@@ -15,6 +15,7 @@ from mevboost import MEVBoostModel
 
 def simulation(
     number_of_validators,
+    number_of_relays,
     num_slots,
     dir,
     validators=None,
@@ -46,29 +47,21 @@ def simulation(
 
     # --- Define Migration Strategies ---
     MIGRATION_STRATEGY_NEVER = {"type": "never_migrate"}
-    MIGRATION_STRATEGY_RANDOM_EXPLORE = {
-        "type": "random_explore",
-        "migration_chance_per_slot": 0.01,
-    }
-    MIGRATION_STRATEGY_OPTIMIZE_RELAY = {
-        "type": "optimize_to_center",
-        "target_type": "relay",
-    }
-    MIGRATION_STRATEGY_OPTIMIZE_ATTESTERS = {
-        "type": "optimize_to_center",
-        "target_type": "attesters_geometric_center",
-    }
+    MIGRATION_STRATEGY_RANDOM = {"type": "random_relay"}
+    MIGRATION_STRATEGY_TARGET = {"type": "target_relay", "target_relay": "us-central1-a"}
+    MIGRATION_STRATEGY_CENTER = {"type": "optimize_to_center"}
+    MIGRATION_STRATEGY_BEST = {"type": "best_relay"}
 
     all_location_strategies = [
-        MIGRATION_STRATEGY_NEVER,
-        # MIGRATION_STRATEGY_RANDOM_EXPLORE,
-        MIGRATION_STRATEGY_OPTIMIZE_RELAY,
-        # MIGRATION_STRATEGY_OPTIMIZE_ATTESTERS,
+        # MIGRATION_STRATEGY_NEVER,
+        # MIGRATION_STRATEGY_RANDOM,
+        # MIGRATION_STRATEGY_CENTER,
+        MIGRATION_STRATEGY_BEST
     ]
 
     model_params_standard_nomig = {
         "num_validators": number_of_validators,
-        "number_relays": 3,
+        "num_relays": number_of_relays,
         "timing_strategies_pool": all_timing_strategies,
         "location_strategies_pool": all_location_strategies,
         "num_slots": num_slots,
@@ -143,14 +136,14 @@ def simulation(
     proposal_time_by_slot = (
         agent_data.groupby("Slot")["Proposal Time"].apply(list).tolist()
     )
-    relay_position = relay_agent_data["Position"].iloc[0]
+    relay_positions = relay_agent_data["Position"].iloc[0:number_of_relays]
     # Since relay is not moving, we can just use the first position and multiply it by the number of slots
     # --------------------------------------------
     # build one relay-point list per slot
     # --------------------------------------------
-    relay_pos_list = list(relay_position)  # JSON wants lists
+    relay_pos_list = [list(relay_position) for relay_position in relay_positions]  # JSON wants lists
     nested_array_relay = [
-        [relay_pos_list] for _ in range(len(nested_array))  # <- extra [] !
+        relay_pos_list for _ in range(len(nested_array))  # <- extra [] !
     ]
 
     # Proposer data
@@ -179,8 +172,10 @@ def simulation(
 if __name__ == "__main__":
     # --- Define the Pool of Proposer Strategies ---
     NUM_VALIDATORS = 1000  # Example: Simulate 1000 validators
+    # --- Define the number of Relays ---
+    NUM_RELAYS = 3  # Example: Simulate 3 relays
     # --- Define the number of slots to simulate ---
-    SIM_NUM_SLOTS = 1000  # Example: Simulate 200 slots
+    SIM_NUM_SLOTS = 1000  # Example: Simulate 1000 slots
     parser = argparse.ArgumentParser(
         description="Run the MEV-Boost simulation and visualize results."
     )
@@ -189,6 +184,12 @@ if __name__ == "__main__":
         type=int,
         default=NUM_VALIDATORS,
         help="Number of validators to simulate (default: 1000)",
+    )
+    parser.add_argument(
+        "--num_relays",
+        type=int,
+        default=NUM_RELAYS,
+        help="Number of relays to simulate (default: 3)",
     )
     parser.add_argument(
         "--num_slots",
@@ -226,6 +227,7 @@ if __name__ == "__main__":
     # Run the simulation with the specified parameters
     simulation(
         number_of_validators=num_validators,  # args.num_validators,
+        number_of_relays=args.num_relays,
         num_slots=args.num_slots,
         dir=args.output_dir,
         validators=validators,

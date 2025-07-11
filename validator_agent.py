@@ -48,6 +48,7 @@ class ValidatorAgent(Agent):
         self.random_propose_time = -1  # For random delay strategy
         self.latency_threshold = -1  # For optimal latency strategy
         self.location_strategy = None
+        self.target_relay = None  # Target relay for migration or attestation
 
         # Slot-specific performance tracking (reset by model per slot, or used for decision-making)
         self.has_proposed_block = False
@@ -85,7 +86,7 @@ class ValidatorAgent(Agent):
 
         # Reset ephemeral state for new slot activities
         self.role = "none"  # Role will be reassigned by the Model
-        self.network_latency_to_target = -1
+        self.network_latency_to_target = {}
         self.has_proposed_block = False
         self.proposed_time_ms = -1
         self.mev_captured = 0.0
@@ -95,6 +96,9 @@ class ValidatorAgent(Agent):
         self.attested_to_proposer_block = False
         self.random_propose_time = -1  # Reset for next potential proposer role
         self.latency_threshold = -1  # Reset for next potential proposer role
+        self.relay_id = None  # Reset relay ID for attesters
+        self.target_relay = None  # Reset target relay for migration decisions
+        
 
     def set_type(self, validator_type):
         self.type = validator_type
@@ -121,6 +125,13 @@ class ValidatorAgent(Agent):
         """Sets the target relay for this validator."""
         self.target_relay = relay_agent
 
+    def set_validator_preference(self, preference):
+        """Sets the validator's preference for relay types."""
+        if isinstance(preference, ValidatorPreference):
+            self.preference = preference
+        else:
+            raise ValueError("Preference must be an instance of ValidatorPreference Enum")
+
     # --- Role Assignment Methods (Called by the Model) ---
     def set_proposer_role(self, gcp_latency):
         """Sets this validator as the Proposer for the current slot."""
@@ -142,19 +153,22 @@ class ValidatorAgent(Agent):
     def calculate_latency_threshold(self):
         """Calculates the latency threshold for the Proposer based on its timing strategy."""
         if self.timing_strategy["type"] == "optimal_latency":
+            if self.target_relay is None:
+                self.target_relay = list(self.model.relay_agents)[0]  # Default to first relay if none set
             # Calculate the latency threshold for optimal latency strategy
-            to_relay_latency = self.network_latency_to_target
+            to_relay_latency = self.network_latency_to_target[self.target_relay.unique_id]
             required_attesters_for_supermajority = math.ceil(
                 (self.model.consensus_settings.attestation_threshold) * len(self.model.current_attesters)
-            ) + 30  # Add 30 to ensure we have enough for supermajority
+            ) 
             relay_to_attester_latency = [
-                a.network_latency_to_target + 3 * to_relay_latency
+                a.network_latency_to_target[self.target_relay.unique_id] + 3 * to_relay_latency
                 for a in self.model.current_attesters
             ]
             sorted_latencies = sorted(relay_to_attester_latency)
             self.latency_threshold = (
                 self.model.consensus_settings.attestation_time_ms
                 - sorted_latencies[required_attesters_for_supermajority]
+                - 50  # 50ms buffer to account for network latency and processing time
             )
 
     def set_attester_role(
@@ -189,7 +203,7 @@ class ValidatorAgent(Agent):
         for r in relay_agents:
             if self.preference == ValidatorPreference.COMPLIANT and r.type != RelayType.CENSORING:
                 continue
-            mev_offers.append((r.get_mev_offer_at_time(current_time)), r.unique_id)
+            mev_offers.append((r.get_mev_offer_at_time(current_time), r.unique_id))
         return mev_offers
 
     def get_best_mev_offer_from_relays(
@@ -213,7 +227,7 @@ class ValidatorAgent(Agent):
         Returns (should_propose, mev_offer_if_proposing)
         """
         if self.has_proposed_block:  # Already proposed or migrating, cannot act
-            return False, 0.0, 0
+            return False, 0.0, None, 0
 
         # Q: We may need to reconsider this wrt the latency to the relay.
         # we can just say the marginal value of time is known hence everyone can compute it for themselves
@@ -276,7 +290,7 @@ class ValidatorAgent(Agent):
 
         return False, 0.0, None, 0
 
-    def propose_block(self, proposed_time, mev_offer):
+    def propose_block(self, proposed_time, mev_offer, relay_id):
         """Executes the block proposal action for the Proposer."""
         self.has_proposed_block = True
         # Apply latency to the target (relay) to the proposed time
@@ -287,6 +301,7 @@ class ValidatorAgent(Agent):
         self.mev_captured_potential = (
             mev_offer  # Store potential MEV before supermajority check
         )
+        self.relay_id = relay_id  # Store the relay ID for attesters
 
     def decide_and_attest(
         self,
@@ -309,9 +324,10 @@ class ValidatorAgent(Agent):
             block_arrival_at_this_attester_ms = (
                 block_proposed_time_ms
                 + proposer_to_relay_latency
-                # + self.model.current_proposer_agent.network_latency_to_target
                 + relay_to_attester_latency
             )
+
+            # print(block_proposed_time_ms, block_arrival_at_this_attester_ms, self.model.consensus_settings.attestation_time_ms)
 
             if (
                 block_proposed_time_ms != -1
@@ -333,22 +349,22 @@ class ValidatorAgent(Agent):
             to_relay_latency = self.network_latency_to_target[relay_agent.unique_id]
             required_attesters_for_supermajority = math.ceil(
                 (self.model.consensus_settings.attestation_threshold) * len(attesters)
-            ) + 30  # Add 30 to ensure we have enough for supermajority
+            )
+            
             relay_to_attester_latency = [
-                a.network_latency_to_target[relay_agent.unique_id] + 3 * to_relay_latency
+                a.network_latency_to_target[relay_agent.unique_id]
                 for a in self.model.current_attesters
             ]
             sorted_latencies = sorted(relay_to_attester_latency)
             latency_threshold = (
                 self.model.consensus_settings.attestation_time_ms
                 - sorted_latencies[required_attesters_for_supermajority]
+                - 50 # 50ms buffer to account for network latency and processing time
             )
             mev_offer = relay_agent.get_mev_offer_at_time(latency_threshold)
             simulation_results.append(
                 {
-                    "relay_id": relay_agent.unique_id,
-                    "relay_position": relay_agent.position,
-                    "relay_gcp_region": relay_agent.gcp_region,
+                    "relay": relay_agent,
                     "latency_threshold": latency_threshold,
                     "mev_offer": mev_offer,
                     "to_relay_latency": to_relay_latency,
@@ -382,6 +398,11 @@ class ValidatorAgent(Agent):
             return True
         
         elif self.location_strategy["type"] == "target_relay":
+            for relay_agent in self.model.relay_agents:
+                if relay_agent.unique_id == self.location_strategy["target_relay"]:
+                    self.target_relay = relay_agent
+                    break
+
             target_pos = self.target_relay.position
             gcp_region = self.model.space.get_nearest_gcp_region(
                 target_pos, self.model.gcp_regions
@@ -405,8 +426,9 @@ class ValidatorAgent(Agent):
             
         elif self.location_strategy["type"] == "best_relay":
             simulation_result = self.how_to_migrate()
-            target_pos = simulation_result["relay_position"]
-            gcp_region = simulation_result["relay_gcp_region"]
+            self.target_relay = simulation_result["relay"]
+            target_pos = self.target_relay.position
+            gcp_region = self.target_relay.gcp_region
             if self.model.space.distance(self.position, target_pos) > 0:
                 self.do_migration(target_pos, gcp_region)
                 return True
@@ -434,9 +456,11 @@ class ValidatorAgent(Agent):
         # space_instance = self.model.space
         # relay_position = self.model.relay_agent.position
         # distance_to_relay = space_instance.distance(self.position, relay_position)
-        self.network_latency_to_target = self.model.space.get_latency(
-            self.gcp_region, self.model.relay_agent.gcp_region, self.model.gcp_latency
-        )
+        self.network_latency_to_target = {}
+        for relay_agent in self.model.relay_agents:
+            self.network_latency_to_target[relay_agent.unique_id] = self.model.space.get_latency(
+                self.gcp_region, relay_agent.gcp_region, self.model.gcp_latency
+            )
 
     # dummy method for now, we complete migration immediately
     def complete_migration(self):
@@ -458,15 +482,15 @@ class ValidatorAgent(Agent):
             return
 
         if self.role == "proposer":
-            should_propose, mev_offer, proposed_time = self.decide_and_propose(
+            should_propose, mev_offer, relay_id, proposed_time = self.decide_and_propose(
                 current_slot_time_ms_inner, self.model.relay_agents
             )
             if should_propose:
-                self.propose_block(proposed_time, mev_offer)
+                self.propose_block(proposed_time, mev_offer, relay_id)
         elif self.role == "attester":
             # Attesters need to know the proposer's block proposed time and their latency to the relay
             proposer_agent = self.model.get_current_proposer_agent()
-            proposer_to_relay_latency = proposer_agent.proposer_to_relay_latency if proposer_agent else 0
+            proposer_to_relay_latency = proposer_agent.network_latency_to_target[proposer_agent.relay_id] if proposer_agent and proposer_agent.relay_id else 0
             avg_latency_to_relay = self.network_latency_to_target.get(proposer_agent.relay_id, BASE_NETWORK_LATENCY_MS)
 
             if proposer_agent:
@@ -474,5 +498,5 @@ class ValidatorAgent(Agent):
                     current_slot_time_ms_inner,
                     proposer_agent.proposed_time_ms,
                     proposer_to_relay_latency,
-                    self.model.latency_simulator.get_latency(avg_latency_to_relay, 0.5),
+                    self.model.latency_generator.get_latency(avg_latency_to_relay, 0.5),
                 )
