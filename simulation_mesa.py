@@ -128,13 +128,14 @@ def simulation(
     if isinstance(agent_data.index, pd.MultiIndex):
         agent_data = agent_data.reset_index()
 
-    positions_by_slot = agent_data.groupby("Slot")["Position"].apply(list).reset_index()
+    validator_agent_data = agent_data[agent_data["Role"] != "relay_agent"].reindex()
+    positions_by_slot = validator_agent_data.groupby("Slot")["Position"].apply(list).reset_index()
     nested_array = positions_by_slot["Position"].tolist()
     # Group by slot and collect lists of per-agent values:
-    mev_by_slot = agent_data.groupby("Slot")["MEV_Captured_Slot"].apply(list).tolist()
-    attest_by_slot = agent_data.groupby("Slot")["Attestation_Rate"].apply(list).tolist()
+    mev_by_slot = validator_agent_data.groupby("Slot")["MEV_Captured_Slot"].apply(list).tolist()
+    attest_by_slot = validator_agent_data.groupby("Slot")["Attestation_Rate"].apply(list).tolist()
     proposal_time_by_slot = (
-        agent_data.groupby("Slot")["Proposal Time"].apply(list).tolist()
+        validator_agent_data.groupby("Slot")["Proposal Time"].apply(list).tolist()
     )
     relay_positions = relay_agent_data["Position"].iloc[0:number_of_relays]
     # Since relay is not moving, we can just use the first position and multiply it by the number of slots

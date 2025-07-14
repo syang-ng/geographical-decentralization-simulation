@@ -76,6 +76,11 @@ def create_app(
         last_proposal_time
     ) = 0.0
 
+    # relay data
+    relay_dist = []
+    relay_positions = relay_data[0] if relay_data else []
+    relay_dist_per_slot = []
+
     for i, pts in enumerate(all_slot_data):
         if i % granularity == 0:
             # do the full n×n compute only on multiples of `granularity`
@@ -95,11 +100,17 @@ def create_app(
                     else 0.0
                 )
 
+                relay_dist_per_slot = [
+                    sum([space.distance(pt, relay_pos) for pt in pts]) / len(pts)
+                    for relay_pos in relay_positions
+                ]
+
             else:
                 last_c = 0
                 last_t = last_a = last_nni = last_mev = last_attest = (
                     last_proposal_time
                 ) = 0.0
+                relay_dist_per_slot = [0.0] * len(relay_positions)
 
         # *every* slot, append whatever the “last computed” values are
         clusters_hist.append(last_c)
@@ -109,6 +120,7 @@ def create_app(
         mev_hist.append(last_mev)
         attest_hist.append(last_attest)
         proposal_time_hist.append(last_proposal_time)
+        relay_dist.append(relay_dist_per_slot)
 
     # ---------------------------------------------------------
     #  2.  Helper: build the 3-D density + relay figure
@@ -405,6 +417,7 @@ def create_app(
                     html.Div(dcc.Graph(id="mev-line"), className="card"),
                     html.Div(dcc.Graph(id="attest-line"), className="card"),
                     html.Div(dcc.Graph(id="proposal-time-line"), className="card"),
+                    html.Div(dcc.Graph(id="relay-dist-line"), className="card"),
                 ],
                 style={
                     "display": "grid",
@@ -490,6 +503,7 @@ def create_app(
         Output("mev-line", "figure"),
         Output("attest-line", "figure"),
         Output("proposal-time-line", "figure"),
+        Output("relay-dist-line", "figure"),
         Output("slot-info-display", "children"),
         Input("movie-state", "data"),
         Input("theme-state", "data"),  # Add theme state as an input
@@ -540,6 +554,33 @@ def create_app(
         fig_mev = mkline(mev_hist, "MEV Earned")
         fig_attest = mkline(attest_hist, "Attestation Rate %")
         fig_proposal_time = mkline(proposal_time_hist, "Proposal Time (s)")
+        
+        fig_relay_dist = go.Figure()
+        # Check if there's any relay distance data to plot
+        if relay_dist and relay_dist[idx]:
+            num_relays = len(relay_dist[idx])
+            for i, relay_name in zip(range(num_relays), ["Flashbots", "UltraSound EU", "UltraSound US"]):
+                # Extract the history for the i-th relay up to the current slot
+                relay_y_data = [slot_data[i] for slot_data in relay_dist[: idx + 1] if i < len(slot_data)]
+                fig_relay_dist.add_trace(
+                    go.Scatter(x=x, y=relay_y_data, mode="lines", name=relay_name)
+                )
+
+        fig_relay_dist.update_layout(
+            title="Avg Distance to Relays",
+            margin=dict(l=10, r=10, t=30, b=20),
+            template=template,
+            font=dict(color=plot_text_color),
+            xaxis=dict(title="Slot", gridcolor="#444444" if dark_mode_enabled else "#e0e0e0", showgrid=True),
+            yaxis=dict(title="Avg. Distance", gridcolor="#444444" if dark_mode_enabled else "#e0e0e0", showgrid=True),
+            legend=dict(
+                orientation="h",
+                yanchor="top",
+                y=-0.2,
+                xanchor="center",
+                x=0.5 
+            )
+        )
 
         # Info display text color
         info_text_color = "#f0f0f0" if dark_mode_enabled else "black"
@@ -602,6 +643,7 @@ def create_app(
             fig_mev,
             fig_attest,
             fig_proposal_time,
+            fig_relay_dist,
             info,
         )
 
