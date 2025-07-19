@@ -20,9 +20,14 @@ MEV_INCREASE_PER_SECOND = 0.08  # MEV increase per second (ETH/sec)
 ATTESTATION_THRESHOLD = (
     2 / 3
 )  # Threshold for attestation to be valid (2/3 of validators)
-
+# Consensus reward parameters
+TIMELY_HEAD_REWARD = 14
+TIMELY_SOURCE_REWARD = 14
+TIMELY_TARGET_REWARD = 14
+PROPOSER_REWARD = 4
+SYNC_COMMITTEE_REWARD = 2
 
 # Percentage of validators that are cloud-based
-CLOUD_VALIDATOR_PERCENTAGE = 0.9
-# Percentage of validators that are non-compliant (i.e., willing to use censoring rel
-NON_COMPLIANT_VALIDATOR_PERCENTAGE = 0.5
+CLOUD_VALIDATOR_PERCENTAGE = 1
+# Percentage of validators that are non-compliant (i.e., willing to use noncensoring relay)
+NON_COMPLIANT_VALIDATOR_PERCENTAGE = 1
