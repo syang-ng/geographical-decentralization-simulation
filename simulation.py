@@ -101,6 +101,11 @@ def simulation(
     print(model_data.head())
     print(model_data.tail())
 
+    # relay profiles:
+    relay_names = [relay['unique_id'] for relay in relay_profiles]
+    with open(f"{output_folder}/relay_names.json", "w") as f:
+        json.dump(relay_names, f)
+
     avg_mev_series = model_data["Average_MEV_Earned"].tolist()
     supermaj_series = model_data["Supermajority_Success_Rate"].tolist()
 

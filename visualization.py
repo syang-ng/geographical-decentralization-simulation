@@ -54,7 +54,7 @@ def latlon_to_xyz(lat, lon):
 
 
 def create_app(
-    all_slot_data, relay_data, mev_series, attest_series, proposal_time_series, validator_agent_regions, validator_agent_countries
+    all_slot_data, relay_data, mev_series, attest_series, proposal_time_series, validator_agent_regions, validator_agent_countries, relay_names
 ):
     n_slots = len(all_slot_data)
 
@@ -601,7 +601,7 @@ def create_app(
         # Check if there's any relay distance data to plot
         if relay_dist and relay_dist[idx]:
             num_relays = len(relay_dist[idx])
-            for i, relay_name in zip(range(num_relays), ["Flashbots", "UltraSound EU", "UltraSound US"]):
+            for i, relay_name in zip(range(num_relays), relay_names):
                 # Extract the history for the i-th relay up to the current slot
                 relay_y_data = [slot_data[i] for slot_data in relay_dist[: idx + 1] if i < len(slot_data)]
                 fig_relay_dist.add_trace(
@@ -700,25 +700,40 @@ def create_app(
 
 # --- Main Execution ---
 if __name__ == "__main__":
-    dir = "output"
     parser = argparse.ArgumentParser(description="Run the simulation viewer.")
     parser.add_argument(
-        "--data",
+        "--data-dir",
+        "-d",
         type=str,
-        default=f"{dir}/data.json",
-        help="Path to the data file (default: data.json)",
+        default="data",
+        help="Path to the slot data folder.",
+    )   
+    parser.add_argument(
+        "--output-dir",
+        "-o",
+        type=str,
+        default="default-simulation",
+        help="Output directory where simulation results are stored.",
+    )
+    parser.add_argument(
+        "--port",
+        "-p",
+        type=int,
+        default=8050,
+        help="Port to run the Dash app on.",
     )
     args = parser.parse_args()
+    
 
-    data_path = args.data
-    all_slot_data = load_data(data_path)
-    relay_data = load_data(f"{dir}/relay_data.json")
-    mev_series = load_data(f"{dir}/mev_by_slot.json")
-    attest_series = load_data(f"{dir}/attest_by_slot.json")
-    proposal_time_series = load_data(f"{dir}/proposal_time_by_slot.json")
-    validator_agent_regions = load_data(f"{dir}/region_counter_per_slot.json")
+    data_path = args.data_dir
+    all_slot_data = load_data(f"{args.output_dir}/data.json")
+    relay_data = load_data(f"{args.output_dir}/relay_data.json")
+    mev_series = load_data(f"{args.output_dir}/mev_by_slot.json")
+    attest_series = load_data(f"{args.output_dir}/attest_by_slot.json")
+    proposal_time_series = load_data(f"{args.output_dir}/proposal_time_by_slot.json")
+    validator_agent_regions = load_data(f"{args.output_dir}/region_counter_per_slot.json")
     validator_agent_countries = {}
-    region_df = pd.read_csv("data/gcp_regions.csv")
+    region_df = pd.read_csv(f"{data_path}/gcp_regions.csv")
     region_to_country = {}
     for region, city in zip(region_df["Region"], region_df["location"]):
         region_to_country[region] = city.split(",")[-1].strip() if "," in city else city.strip()
@@ -731,11 +746,13 @@ if __name__ == "__main__":
     
         validator_agent_countries[slot] = Counter(country_counter).most_common()
 
+    relay_names = load_data(f"{args.output_dir}/relay_names.json")
+
     if not all_slot_data:
         print("Application cannot start because data is missing.")
         exit(1)
     else:
         app = create_app(
-            all_slot_data, relay_data, mev_series, attest_series, proposal_time_series, validator_agent_regions, validator_agent_countries
+            all_slot_data, relay_data, mev_series, attest_series, proposal_time_series, validator_agent_regions, validator_agent_countries, relay_names=relay_names
         )
-        app.run(debug=True)
+        app.run(debug=True, port=args.port)
