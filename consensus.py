@@ -33,3 +33,17 @@ class ConsensusSettings:
         self.proposer_reward = proposer_reward
         self.sync_committee_reward = sync_committee_reward
 
+    def __repr__(self):
+        return (
+            f"ConsensusSettings(\n"
+            f"  slot_duration_ms={self.slot_duration_ms},\n"
+            f"  time_granularity_ms={self.time_granularity_ms},\n"
+            f"  attestation_time_ms={self.attestation_time_ms},\n"
+            f"  attestation_threshold={self.attestation_threshold},\n"
+            f"  timely_head_reward={self.timely_head_reward},\n"
+            f"  timely_source_reward={self.timely_source_reward},\n"
+            f"  timely_target_reward={self.timely_target_reward},\n"
+            f"  proposer_reward={self.proposer_reward},\n"
+            f"  sync_committee_reward={self.sync_committee_reward}\n"
+            f")"
+        )

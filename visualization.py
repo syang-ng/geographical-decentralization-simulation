@@ -5,6 +5,7 @@ import math
 import pandas as pd
 import plotly.graph_objects as go
 
+from collections import Counter, defaultdict
 from dash import State, dcc, html
 from dash.dependencies import Input, Output
 from sklearn.neighbors import NearestNeighbors
@@ -53,7 +54,7 @@ def latlon_to_xyz(lat, lon):
 
 
 def create_app(
-    all_slot_data, relay_data, mev_series, attest_series, proposal_time_series
+    all_slot_data, relay_data, mev_series, attest_series, proposal_time_series, validator_agent_regions, validator_agent_countries
 ):
     n_slots = len(all_slot_data)
 
@@ -310,6 +311,43 @@ def create_app(
         return fig
 
     # ---------------------------------------------------------
+    #  Helper: build the Top Regions Bar Graph for current slot
+    # ---------------------------------------------------------
+    def build_top_regions_fig(current_slot_regions, title, x_title, dark_mode_enabled):
+        template = "plotly_dark" if dark_mode_enabled else "plotly_white"
+        plot_text_color = "#f0f0f0" if dark_mode_enabled else "black"
+
+        # Prepare data for the bar chart
+        regions = [item[0] for item in current_slot_regions]
+        counts = [item[1] for item in current_slot_regions]
+
+        fig = go.Figure(go.Bar(
+            x=regions,
+            y=counts,
+            marker_color='lightblue' if not dark_mode_enabled else 'rgb(90, 160, 230)' # Example color
+        ))
+
+        fig.update_layout(
+            title=title,
+            margin=dict(l=10, r=10, t=30, b=20),
+            template=template,
+            font=dict(color=plot_text_color),
+            xaxis=dict(
+                title=x_title,
+                gridcolor="#444444" if dark_mode_enabled else "#e0e0e0",
+                showgrid=True,
+                tickangle=-45 # Angle labels for better readability if many regions
+            ),
+            yaxis=dict(
+                title="Number of Validators",
+                gridcolor="#444444" if dark_mode_enabled else "#e0e0e0",
+                showgrid=True,
+            ),
+            bargap=0.2 # Space between bars
+        )
+        return fig
+
+    # ---------------------------------------------------------
     #  3.  Build the Dash app & layout
     # ---------------------------------------------------------
     app = dash.Dash(__name__, external_stylesheets=["/assets/styles.css"])
@@ -418,6 +456,8 @@ def create_app(
                     html.Div(dcc.Graph(id="attest-line"), className="card"),
                     html.Div(dcc.Graph(id="proposal-time-line"), className="card"),
                     html.Div(dcc.Graph(id="relay-dist-line"), className="card"),
+                    html.Div(dcc.Graph(id="top-regions-line"), className="card"),
+                    html.Div(dcc.Graph(id="top-countries-line"), className="card"),
                 ],
                 style={
                     "display": "grid",
@@ -504,6 +544,8 @@ def create_app(
         Output("attest-line", "figure"),
         Output("proposal-time-line", "figure"),
         Output("relay-dist-line", "figure"),
+        Output("top-regions-line", "figure"),
+        Output("top-countries-line", "figure"),
         Output("slot-info-display", "children"),
         Input("movie-state", "data"),
         Input("theme-state", "data"),  # Add theme state as an input
@@ -582,6 +624,10 @@ def create_app(
             )
         )
 
+        # New: Top Regions Graph
+        fig_top_regions = build_top_regions_fig(validator_agent_regions.get(str(idx), [])[:15], "Top Validator Cloud Regions", "Region", dark_mode_enabled)
+        fig_top_countries = build_top_regions_fig(validator_agent_countries.get(str(idx), [])[:15], "Top Validator Countries", "Country", dark_mode_enabled)
+
         # Info display text color
         info_text_color = "#f0f0f0" if dark_mode_enabled else "black"
 
@@ -644,6 +690,8 @@ def create_app(
             fig_attest,
             fig_proposal_time,
             fig_relay_dist,
+            fig_top_regions,
+            fig_top_countries,
             info,
         )
 
@@ -668,12 +716,26 @@ if __name__ == "__main__":
     mev_series = load_data(f"{dir}/mev_by_slot.json")
     attest_series = load_data(f"{dir}/attest_by_slot.json")
     proposal_time_series = load_data(f"{dir}/proposal_time_by_slot.json")
+    validator_agent_regions = load_data(f"{dir}/region_counter_per_slot.json")
+    validator_agent_countries = {}
+    region_df = pd.read_csv("data/gcp_regions.csv")
+    region_to_country = {}
+    for region, city in zip(region_df["Region"], region_df["location"]):
+        region_to_country[region] = city.split(",")[-1].strip() if "," in city else city.strip()
+    
+    for slot, region_list in validator_agent_regions.items():
+        country_counter = defaultdict(int)
+        for region, count in region_list:
+            country = region_to_country.get(region, "Unknown")
+            country_counter[country] += count
+    
+        validator_agent_countries[slot] = Counter(country_counter).most_common()
 
     if not all_slot_data:
         print("Application cannot start because data is missing.")
         exit(1)
     else:
         app = create_app(
-            all_slot_data, relay_data, mev_series, attest_series, proposal_time_series
+            all_slot_data, relay_data, mev_series, attest_series, proposal_time_series, validator_agent_regions, validator_agent_countries
         )
         app.run(debug=True)

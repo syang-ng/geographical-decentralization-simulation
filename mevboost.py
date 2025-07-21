@@ -31,13 +31,14 @@ class MEVBoostModel(Model):
         location_strategies_pool,
         num_slots,
         proposer_has_optimized_latency,
-        base_mev_amount=0.1,
-        mev_increase_per_second=0.05,
+        validator_cloud_percentage=CLOUD_VALIDATOR_PERCENTAGE,
+        validator_noncompliant_percentage=NON_COMPLIANT_VALIDATOR_PERCENTAGE,
         migration_cooldown_slots=5,
         validators=None,
         gcp_regions=None,
         gcp_latency=None,
         consensus_settings=ConsensusSettings(),
+        relay_profiles=RELAY_PROFILES,
     ):
 
         # Call the base Model constructor
@@ -51,8 +52,6 @@ class MEVBoostModel(Model):
         self.proposer_has_optimized_latency = proposer_has_optimized_latency
 
         # Global time/MEV/network parameters accessible to agents
-        self.base_mev_amount = base_mev_amount
-        self.mev_increase_per_second = mev_increase_per_second
         self.migration_cooldown_slots = migration_cooldown_slots
 
         # Consensus parameters
@@ -84,7 +83,7 @@ class MEVBoostModel(Model):
 
         # --- Initialize Agents ---
         self.relay_agents = self.agents.select(agent_type=RelayAgent)
-        for relay_agent, relay_profile in zip(self.relay_agents, RELAY_PROFILES):
+        for relay_agent, relay_profile in zip(self.relay_agents, relay_profiles):
             relay_agent.initialize_with_profile(relay_profile)
 
         # Initialize the validators list and their positions
@@ -126,10 +125,10 @@ class MEVBoostModel(Model):
         # Note: This is a simple random assignment based on constants.
         self.validators = list(self.validators)  # Convert to list for shuffling
         random.shuffle(self.validators)
-        for validator_agent in self.validators[:int(self.num_validators * CLOUD_VALIDATOR_PERCENTAGE)]:
+        for validator_agent in self.validators[:int(self.num_validators * validator_cloud_percentage)]:
             validator_agent.set_type(ValidatorType.CLOUD)
         random.shuffle(self.validators)
-        for validator_agent in self.validators[int(self.num_validators * NON_COMPLIANT_VALIDATOR_PERCENTAGE):]:
+        for validator_agent in self.validators[:int(self.num_validators * validator_noncompliant_percentage)]:
             validator_agent.set_validator_preference(ValidatorPreference.NONCOMPLIANT)
 
         # Initialize distance matrix now that all validator positions are set
@@ -181,6 +180,7 @@ class MEVBoostModel(Model):
                 "Location_Strategy": lambda v: (
                     v.location_strategy["type"] if v.role == "proposer" else "none"
                 ),
+                "GCP_Region": "gcp_region",
             },
         )
 
@@ -256,18 +256,29 @@ class MEVBoostModel(Model):
                     slot_successful_attestations / len(self.current_attesters)
                 ) * 100
 
-                print(self.current_slot_idx, slot_successful_attestations, required_attesters_for_supermajority)
+                # print(self.current_slot_idx, slot_successful_attestations, required_attesters_for_supermajority)
 
                 if slot_successful_attestations >= required_attesters_for_supermajority:
                     self.current_proposer_agent.mev_captured = (
                         self.current_proposer_agent.mev_captured_potential
                     )
                     self.total_mev_earned += self.current_proposer_agent.mev_captured
+                    self.current_proposer_agent.total_mev_captured += self.current_proposer_agent.mev_captured
                     self.supermajority_met_slots += 1
                 else:
                     self.current_proposer_agent.mev_captured = (
                         0.0  # No reward if supermajority not met
                     )
+
+                # update total MEV captured and consensus rewards
+                for attester in self.current_attesters:
+                    attester.total_consensus_rewards += (
+                        self.consensus_settings.timely_source_reward
+                        + self.consensus_settings.timely_target_reward
+                    )
+                    if (slot_successful_attestations >= required_attesters_for_supermajority and attester.attested_to_proposer_block) \
+                        or (slot_successful_attestations < required_attesters_for_supermajority and not attester.attested_to_proposer_block):
+                        attester.total_consensus_rewards += self.consensus_settings.timely_head_reward
 
                 self.proposed_block_times.append(
                     self.current_proposer_agent.proposed_time_ms
@@ -279,9 +290,6 @@ class MEVBoostModel(Model):
 
             # --- Setup for New Slot ---
             self._setup_new_slot()  # This calls reset_for_new_slot on agents
-            print(
-                f"Slot {self.current_slot_idx} setup complete. Proposer: {self.current_proposer_agent.unique_id if self.current_proposer_agent else 'None'}"
-            )
 
         # --- Agents perform their step actions ---
         self.agents.do("step")

@@ -314,4 +314,7 @@ class LatencyGenerator:
             
         # 3. Generate a single random variate (rvs) from the cached distribution object.
         # This is extremely fast compared to sampling from a large list.
-        return distribution.rvs(size=1)[0]
+        return distribution.rvs(size=1)[0]\
+    
+    def compute_the_delay_from_distribution(self):
+        pass  # Placeholder for potential methods.
