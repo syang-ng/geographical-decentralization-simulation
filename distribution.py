@@ -3,7 +3,8 @@ import numpy as np
 import random
 
 from abc import ABC, abstractmethod
-from scipy.stats import norm, lognorm
+from scipy.stats import norm, lognorm, poisson_binom
+from functools import lru_cache
 
 # --- Spatial Classes ---
 class Space(ABC):
@@ -269,17 +270,16 @@ class LatencyGenerator:
         # The cache will store the calculated distribution objects, not large arrays of samples.
         self.dist_cache = {}
 
-    def get_latency(self, mean_latency, std_dev_ratio=0.1):
+    def inititalize_distribution(self, mean_latency, std_dev_ratio=0.1):
         """
-        Directly generates and returns a single latency sample from a statistical distribution.
-        This method caches the distribution object itself for efficiency, not the sample data.
+        Initializes the distribution object based on the mean latency and standard deviation ratio.
+        This method is called once to set up the distribution for subsequent sampling.
         
         :param mean_latency: The target mean for the latency distribution.
         :param std_dev_ratio: The standard deviation as a fraction of the mean.
-        :return: A single float representing a latency sample.
         """
         if mean_latency <= 0:
-            return 0.0
+            return None
 
         key = (mean_latency, std_dev_ratio)
 
@@ -305,7 +305,24 @@ class LatencyGenerator:
                 
                 # Create a lognormal distribution object.
                 self.dist_cache[key] = lognorm(s=sigma, scale=np.exp(mu))
+            
+
+    def get_latency(self, mean_latency, std_dev_ratio=0.1):
+        """
+        Directly generates and returns a single latency sample from a statistical distribution.
+        This method caches the distribution object itself for efficiency, not the sample data.
         
+        :param mean_latency: The target mean for the latency distribution.
+        :param std_dev_ratio: The standard deviation as a fraction of the mean.
+        :return: A single float representing a latency sample.
+        """
+        if mean_latency <= 0:
+            return 0.0
+
+        # 1. Check if the distribution object is already cached.
+        key = (mean_latency, std_dev_ratio)
+        self.inititalize_distribution(mean_latency, std_dev_ratio)
+        # 2. Retrieve the cached distribution object.
         distribution = self.dist_cache[key]
 
         # If the distribution object is None (because std_dev was 0), return the mean.
@@ -314,7 +331,179 @@ class LatencyGenerator:
             
         # 3. Generate a single random variate (rvs) from the cached distribution object.
         # This is extremely fast compared to sampling from a large list.
-        return distribution.rvs(size=1)[0]\
+        return distribution.rvs(size=1)[0]
+
+    def evaluate_threshold_with_monte_carlo(
+        self,
+        shared_means,
+        shared_stds,
+        broadcast_means,
+        broadcast_stds,
+        threshold,
+        required_attesters,
+        samples=10000
+    ):
+        """
+        Estimate the probability that at least `required_attesters` receive the message
+        within the given latency threshold.
+
+        Parameters:
+        - shared_means: list of means for the first 3 shared segments (A→B→A→B)
+        - shared_stds: list of stddevs for the first 3 shared segments
+        - broadcast_means: list of means for B→attester_i broadcast (per attester)
+        - broadcast_stds: list of stddevs for B→attester_i (per attester)
+        - threshold: latency threshold to compare against (float)
+        - required_attesters: how many attesters must receive below the threshold
+        - samples: number of Monte Carlo samples to use
+
+        Returns:
+        - probability of satisfying the threshold condition
+        """
+
+        # Step 1: Sample the total shared latency (A -> B -> A -> B)
+        shared_latency = np.zeros(samples)
+        for mean, std in zip(shared_means, shared_stds):
+            if std <= 0:
+                shared_latency += mean
+            else:
+                self.inititalize_distribution(mean, std)
+                key = (mean, std)
+                if key not in self.dist_cache:
+                    continue
+                dist = self.dist_cache[key]
+                shared_latency += dist.rvs(size=samples)
+
+        # Step 2: For each attester, add their broadcast delay and compute the success prob
+        success_probs = []
+        for mean, std in zip(broadcast_means, broadcast_stds):
+            if std <= 0:
+                total_latency = shared_latency + mean
+            else:
+                self.inititalize_distribution(mean, std)
+                key = (mean, std)
+                if key not in self.dist_cache:
+                    continue
+                dist = self.dist_cache[key]
+                total_latency = shared_latency + dist.rvs(size=samples)
+            prob = np.mean(total_latency < threshold)
+            success_probs.append(prob)
+
+        # Step 3: Use Poisson Binomial to compute probability of at least `required_attesters` successes
+        pb = poisson_binom(success_probs)
+        return 1 - pb.cdf(required_attesters - 1)
+    
+    # @lru_cache(maxsize=1024)
+    def find_min_threshold_with_monte_carlo(
+        self,
+        shared_means,
+        shared_stds,
+        broadcast_means,
+        broadcast_stds,
+        required_attesters,
+        target_prob=0.95,
+        samples=10000,
+        threshold_low=0.0,
+        threshold_high=4000.0,
+        tolerance=5.0
+    ):
+        """
+        Binary search for the minimum latency threshold such that
+        the success probability is >= target_prob.
+        """
+        print(f"Finding min threshold with Monte Carlo: target_prob={target_prob}, samples={samples}")
+        while threshold_high - threshold_low > tolerance:
+            mid = (threshold_low + threshold_high) / 2
+            prob = self.evaluate_threshold_with_monte_carlo(
+                shared_means,
+                shared_stds,
+                broadcast_means,
+                broadcast_stds,
+                threshold=mid,
+                required_attesters=required_attesters,
+                samples=samples
+            )
+
+            if prob >= target_prob:
+                threshold_high = mid  # try to reduce threshold
+            else:
+                threshold_low = mid  # need more time
+
+        return (threshold_high + threshold_low) / 2  # or threshold_high / threshold_low, depending on preference
+    
+    def evaluate_threshold(
+        self,
+        broadcast_latencies,
+        broadcast_stds,
+        threshold,
+        required_attesters
+    ):
+        """
+        Evaluates the probability that at least one attester receives the broadcast
+        within the given latency threshold.
+
+        Parameters:
+        - broadcast_latencies: list of latencies for each attester's broadcast
+        - broadcast_stds: list of standard deviations for each attester's broadcast
+        - threshold: latency threshold to compare against (float)
+
+        Returns:
+        - probability of at least one attester receiving within the threshold
+        """
+        if not broadcast_latencies or not broadcast_stds:
+            return 0.0
+
+        probabilities = []
+        for latency, std in zip(broadcast_latencies, broadcast_stds):
+            if std <= 0:
+                prob = 1.0 if latency < threshold else 0.0
+            else:
+                self.inititalize_distribution(latency, std)
+                key = (latency, std)
+                if key not in self.dist_cache:
+                    continue
+                dist = self.dist_cache[key]
+                probabilities.append(
+                    dist.cdf(threshold)  # Probability that this attester receives within threshold
+                )
+        
+        pb = poisson_binom(probabilities)
+        return pb.sf(required_attesters - 1)
+
+    # @lru_cache(maxsize=1024)
+    def find_min_threshold(
+        self,
+        braodcast_latencies,
+        broadcast_stds,
+        required_attesters,
+        target_prob=0.95,
+        threshold_low=0.0,
+        threshold_high=4000.0,
+        tolerance=5.0
+    ):
+        while threshold_high - threshold_low > tolerance:
+            mid = (threshold_low + threshold_high) / 2
+            prob = self.evaluate_threshold(
+                braodcast_latencies,
+                broadcast_stds,
+                threshold=mid,
+                required_attesters=required_attesters
+            )
+            if prob >= target_prob:
+                threshold_high = mid
+            else:
+                threshold_low = mid
+            
+            if threshold_high - threshold_low < tolerance:
+                break
+        
+        return (threshold_high + threshold_low) / 2  # or threshold_high / threshold_low, depending on preference
+    
+    def get_search_space(self, T):
+        """
+        Returns the search space for the latency distribution.
+        This is a placeholder method that can be overridden in subclasses.
+        """
+        return None
     
     def compute_the_delay_from_distribution(self):
         pass  # Placeholder for potential methods.

@@ -148,6 +148,7 @@ class MEVBoostModel(Model):
             0  # Total number of attesters in slots where proposer successfully proposed
         )
         self.attestation_rate = 0.0  # Calculated as a percentage
+        self.failed_block_proposals = 0  # Count of failed block proposals
 
         # --- Setup DataCollector ---
         self.datacollector = self._setup_datacollector()
@@ -169,6 +170,7 @@ class MEVBoostModel(Model):
                     if m.current_slot_idx >= 0
                     else 0
                 ),
+                "Failed_Block_Proposals": "failed_block_proposals",
             },
             agent_reporters={
                 "Position": "position",  # Example agent attribute
@@ -204,6 +206,10 @@ class MEVBoostModel(Model):
             self.current_proposer_agent = None  # No proposer this slot
             # print(f"Slot {self.current_slot_idx + 1}: No validators available to propose (all migrating).")
             return
+        
+        # relay updates MEV subsidy
+        for relay_agent in self.relay_agents:
+            relay_agent.update_subsidy()
 
         # Randomly select a Proposer from available validators
         self.current_proposer_agent = random.choice(available_validators)
@@ -269,6 +275,8 @@ class MEVBoostModel(Model):
                     self.current_proposer_agent.mev_captured = (
                         0.0  # No reward if supermajority not met
                     )
+                    
+                    self.failed_block_proposals += 1 # count failed block proposals
 
                 # update total MEV captured and consensus rewards
                 for attester in self.current_attesters:
@@ -298,3 +306,17 @@ class MEVBoostModel(Model):
         # Condition to stop simulation early if all agents are migrating or something goes wrong
         if self.steps * self.consensus_settings.time_granularity_ms > (self.num_slots * self.consensus_settings.slot_duration_ms):
             self.running = False  # Stop the simulation loop
+
+    def get_validator_region_percentage(self, gcp_region):
+        """
+        Returns the percentage of validators in a specific GCP region.
+        """
+        total_validators = len(self.validators)
+        if total_validators == 0:
+            return 0.0
+
+        region_count = sum(
+            1 for v in self.validators if v.gcp_region == gcp_region
+        )
+        return (region_count / total_validators)
+    

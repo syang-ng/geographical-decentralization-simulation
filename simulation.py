@@ -108,12 +108,16 @@ def simulation(
 
     avg_mev_series = model_data["Average_MEV_Earned"].tolist()
     supermaj_series = model_data["Supermajority_Success_Rate"].tolist()
+    failed_block_proposals = model_data["Failed_Block_Proposals"].tolist()
 
     with open(f"{output_folder}/avg_mev.json", "w") as f:
         json.dump(avg_mev_series, f)
 
     with open(f"{output_folder}/supermajority_success.json", "w") as f:
         json.dump(supermaj_series, f)
+    
+    with open(f"{output_folder}/failed_block_proposals.json", "w") as f:
+        json.dump(failed_block_proposals, f)
 
     agent_data = model_standard.datacollector.get_agent_vars_dataframe()
 

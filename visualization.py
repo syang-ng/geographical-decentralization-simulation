@@ -54,7 +54,7 @@ def latlon_to_xyz(lat, lon):
 
 
 def create_app(
-    all_slot_data, relay_data, mev_series, attest_series, proposal_time_series, validator_agent_regions, validator_agent_countries, relay_names
+    all_slot_data, relay_data, mev_series, attest_series, failed_block_proposals, proposal_time_series, validator_agent_regions, validator_agent_countries, relay_names
 ):
     n_slots = len(all_slot_data)
 
@@ -68,7 +68,7 @@ def create_app(
         nni_hist,
         mev_hist,
         attest_hist,
-        proposal_time_hist,
+        proposal_time_hist
     ) = ([], [], [], [], [], [], [])
 
     granularity = 10
@@ -454,6 +454,7 @@ def create_app(
                     html.Div(dcc.Graph(id="nni-line"), className="card"),
                     html.Div(dcc.Graph(id="mev-line"), className="card"),
                     html.Div(dcc.Graph(id="attest-line"), className="card"),
+                    html.Div(dcc.Graph(id="failed-block"), className="card"),
                     html.Div(dcc.Graph(id="proposal-time-line"), className="card"),
                     html.Div(dcc.Graph(id="relay-dist-line"), className="card"),
                     html.Div(dcc.Graph(id="top-regions-line"), className="card"),
@@ -542,6 +543,7 @@ def create_app(
         Output("nni-line", "figure"),
         Output("mev-line", "figure"),
         Output("attest-line", "figure"),
+        Output("failed-block", "figure"),
         Output("proposal-time-line", "figure"),
         Output("relay-dist-line", "figure"),
         Output("top-regions-line", "figure"),
@@ -595,6 +597,9 @@ def create_app(
         fig_n = mkline(nni_hist, "NNI")
         fig_mev = mkline(mev_hist, "MEV Earned")
         fig_attest = mkline(attest_hist, "Attestation Rate %")
+        fig_failed_block = mkline(
+            failed_block_proposals, "Failed Block Proposals"
+        )
         fig_proposal_time = mkline(proposal_time_hist, "Proposal Time (s)")
         
         fig_relay_dist = go.Figure()
@@ -688,6 +693,7 @@ def create_app(
             fig_n,
             fig_mev,
             fig_attest,
+            fig_failed_block,
             fig_proposal_time,
             fig_relay_dist,
             fig_top_regions,
@@ -730,6 +736,7 @@ if __name__ == "__main__":
     relay_data = load_data(f"{args.output_dir}/relay_data.json")
     mev_series = load_data(f"{args.output_dir}/mev_by_slot.json")
     attest_series = load_data(f"{args.output_dir}/attest_by_slot.json")
+    failed_block_proposals = load_data(f"{args.output_dir}/failed_block_proposals.json")
     proposal_time_series = load_data(f"{args.output_dir}/proposal_time_by_slot.json")
     validator_agent_regions = load_data(f"{args.output_dir}/region_counter_per_slot.json")
     validator_agent_countries = {}
@@ -753,6 +760,6 @@ if __name__ == "__main__":
         exit(1)
     else:
         app = create_app(
-            all_slot_data, relay_data, mev_series, attest_series, proposal_time_series, validator_agent_regions, validator_agent_countries, relay_names=relay_names
+            all_slot_data, relay_data, mev_series, attest_series, failed_block_proposals, proposal_time_series, validator_agent_regions, validator_agent_countries, relay_names=relay_names
         )
         app.run(debug=True, port=args.port)

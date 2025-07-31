@@ -58,6 +58,7 @@ class RelayAgent(Agent):
         super().__init__(model)
         self.current_mev_offer = 0.0
         self.type = RelayType.NONCENSORING
+        self.current_subsidy = 0.0
 
     def initialize_with_profile(self, profile):
         """
@@ -75,6 +76,8 @@ class RelayAgent(Agent):
             lambda x: BASE_MEV_AMOUNT + x * MEV_INCREASE_PER_SECOND
         )
         self.type = profile.get("type", RelayType.NONCENSORING)
+        self.subsidy = profile.get("subsidy", 0.0)  # Default subsidy to 0.0 if not provided
+        self.threshold = profile.get("threshold", 0.0)  # Default threshold to
 
     def set_position(self, position):
         """Sets the Relay's position in the space."""
@@ -99,8 +102,19 @@ class RelayAgent(Agent):
 
         # MEV offer is calculated based on the utility function
         self.current_mev_offer = (
-            self.utility_function(time_in_seconds)
+            self.utility_function(time_in_seconds) + self.current_subsidy
         )
+    
+    def update_subsidy(self):
+        """
+        Updates the Relay's subsidy amount.
+        If the Relay's subsidy is greater than 0 and the percentage of validators in its GCP region is below the threshold,
+        it applies the subsidy; otherwise, it sets the subsidy to 0.
+        """
+        if self.subsidy > 0 and self.model.get_validator_region_percentage(self.gcp_region) < self.threshold:
+            self.current_subsidy = self.subsidy
+        else:
+            self.current_subsidy = 0.0
 
     def get_mev_offer(self):
         """Provides the current best MEV offer to a Proposer."""
@@ -112,7 +126,7 @@ class RelayAgent(Agent):
         This is useful for Proposers to query the Relay for MEV offers.
         """
         time_in_seconds = time_ms / 1000
-        return self.utility_function(time_in_seconds)
+        return self.utility_function(time_in_seconds) + self.current_subsidy
 
     def step(self):
         """
@@ -149,6 +163,8 @@ def initialize_relays(relay_profiles_data):
         lon = profile_data.get('lon')
         utility_func_config = profile_data.get('utility_function')
         relay_type_str = profile_data.get('type')
+        subsidy = profile_data.get('subsidy', 0.0)  # Default subsidy to 0.0 if not provided
+        threshold = profile_data.get('threshold', 0.0)  # Default threshold to 0.0 if not provided
 
         if not all([unique_id, gcp_region, lat, lon, utility_func_config, relay_type_str]):
             print(f"⚠️ Warning: Relay profile for '{unique_id}' is missing required fields. Skipping.")
@@ -166,6 +182,8 @@ def initialize_relays(relay_profiles_data):
                 "lon": lon,
                 "utility_function": utility_callable,
                 "type": relay_type,
+                "subsidy": subsidy,
+                "threshold": threshold
             }
             relay_profiles.append(relay_profile)
         except ValueError as e:
