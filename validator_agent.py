@@ -151,26 +151,63 @@ class ValidatorAgent(Agent):
                 self.timing_strategy["max_delay_ms"],
             )
 
-    def calculate_latency_threshold(self):
+    def calculate_latency_threshold(self, target_relay=None, relay_latency=None):
         """Calculates the latency threshold for the Proposer based on its timing strategy."""
         if self.timing_strategy["type"] == "optimal_latency":
             if self.target_relay is None:
                 self.target_relay = list(self.model.relay_agents)[0]  # Default to first relay if none set
+            
+            if target_relay is None:
+                target_relay = self.target_relay
+            
             # Calculate the latency threshold for optimal latency strategy
-            to_relay_latency = self.network_latency_to_target[self.target_relay.unique_id]
-            required_attesters_for_supermajority = math.ceil(
-                (self.model.consensus_settings.attestation_threshold) * len(self.model.current_attesters)
-            ) 
+            to_relay_latency = self.network_latency_to_target[target_relay.unique_id]
+            if relay_latency is not None:
+                to_relay_latency = relay_latency
+
             relay_to_attester_latency = [
-                a.network_latency_to_target[self.target_relay.unique_id] + 3 * to_relay_latency
+                a.network_latency_to_target[target_relay.unique_id]
                 for a in self.model.current_attesters
             ]
-            sorted_latencies = sorted(relay_to_attester_latency)
-            self.latency_threshold = (
-                self.model.consensus_settings.attestation_time_ms
-                - sorted_latencies[required_attesters_for_supermajority]
-                - 50  # 50ms buffer to account for network latency and processing time
+
+            required_attesters_for_supermajority = math.ceil(
+                (self.model.consensus_settings.attestation_threshold) * len(self.model.current_attesters)
             )
+            
+            if to_relay_latency == 0:
+                return self.model.latency_generator.find_min_threshold(
+                    relay_to_attester_latency,
+                    [0.5] * len(self.model.current_attesters),
+                    required_attesters_for_supermajority,
+                    target_prob=0.95,
+                    threshold_low=0.0,
+                    threshold_high=self.model.consensus_settings.attestation_time_ms,
+                    tolerance=5.0,
+                )
+            else:
+                return self.model.latency_generator.find_min_threshold_with_monte_carlo(
+                    [to_relay_latency] * 3,
+                    [0.5] * 3,
+                    relay_to_attester_latency,
+                    [0.5] * len(self.model.current_attesters),
+                    required_attesters_for_supermajority,
+                    target_prob=0.95,
+                    samples=10000,
+                    threshold_low=0.0,
+                    threshold_high=self.model.consensus_settings.attestation_time_ms,
+                    tolerance=5.0,
+                )
+        
+    def set_latency_threshold(self, target_relay=None):
+        """
+        Sets the latency threshold for the Proposer based on its timing strategy.
+        """   
+        latency = self.calculate_latency_threshold(target_relay, 0)
+
+        self.latency_threshold = (
+            self.model.consensus_settings.attestation_time_ms
+            - latency
+        )
 
     def set_attester_role(
         self,
@@ -341,44 +378,37 @@ class ValidatorAgent(Agent):
 
     # --- Migration Methods ---
     def how_to_migrate(self):
-        attesters = self.model.current_attesters
         simulation_results = []
 
         for relay_agent in self.model.relay_agents:
+            # Skip if the relay is not censoring but the validator is compliant
             if relay_agent.type != RelayType.CENSORING and self.preference == ValidatorPreference.COMPLIANT:
                 continue
-            to_relay_latency = self.network_latency_to_target[relay_agent.unique_id]
-            required_attesters_for_supermajority = math.ceil(
-                (self.model.consensus_settings.attestation_threshold) * len(attesters)
-            )
             
-            relay_to_attester_latency = [
-                a.network_latency_to_target[relay_agent.unique_id]
-                for a in self.model.current_attesters
-            ]
-            sorted_latencies = sorted(relay_to_attester_latency)
+            latency = self.calculate_latency_threshold(relay_agent, 0)
             latency_threshold = (
                 self.model.consensus_settings.attestation_time_ms
-                - sorted_latencies[required_attesters_for_supermajority] # proposer knows the avg latency instead of the actual latency
-                # TODO: prop of the attester and aggreagate the prop (instead of the maximal buffer, robust to outliers)
-                - 50 # 50ms buffer to account for network latency and processing time 
+                - latency
             )
             mev_offer = relay_agent.get_mev_offer_at_time(latency_threshold)
             simulation_results.append(
                 {
                     "relay": relay_agent,
                     "latency_threshold": latency_threshold,
-                    "mev_offer": mev_offer,
-                    "to_relay_latency": to_relay_latency,
-                    "relay_to_attester_latency": sorted_latencies[required_attesters_for_supermajority],
+                    "mev_offer": round(mev_offer, 4),
                 }
             )
         # Sort by MEV offer, then by latency threshold
         simulation_results.sort(key=lambda x: (-x["mev_offer"], x["latency_threshold"]))
-        print(f"Validator {self.unique_id} migration simulation results:")
+        best_mev = simulation_results[0]["mev_offer"]
+        returned_relay_list = []
+        # print(f"Validator {self.unique_id} migration simulation results:")
         for res in simulation_results:
+            if res["mev_offer"] == best_mev:
+                returned_relay_list.append(res)
+
             print(f"  Relay {res['relay'].unique_id}: MEV {res['mev_offer']:.4f} ETH, Latency Threshold {res['latency_threshold']} ms")
-        return simulation_results[0]
+        return returned_relay_list
 
 
     def decide_to_migrate(self):
@@ -430,15 +460,24 @@ class ValidatorAgent(Agent):
                 return True
             
         elif self.location_strategy["type"] == "best_relay":
-            simulation_result = self.how_to_migrate()
-            self.target_relay = simulation_result["relay"]
-            target_pos = self.target_relay.position
-            gcp_region = self.target_relay.gcp_region
-            print(f"Validator {self.unique_id} (at {self.gcp_region}) considering migration to Relay {self.target_relay.unique_id} in region {gcp_region} with MEV offer {simulation_result['mev_offer']:.4f} ETH and latency threshold {simulation_result['latency_threshold']} ms")
-            if self.model.space.distance(self.position, target_pos) > 0:
-                print("  Deciding to migrate.")
-                self.do_migration(target_pos, gcp_region)
-                return True
+            simulation_results = self.how_to_migrate()
+            
+            if any([
+                self.model.space.distance(self.position, simulation_result["relay"].position) == 0
+                for simulation_result in simulation_results
+            ]):
+                print(f"Validator {self.unique_id} is already at the best relay, no migration needed.")
+                return False  # No migration needed if already at the best relay
+            else:
+                self.target_relay = simulation_results[0]["relay"]
+                self.set_latency_threshold(self.target_relay)
+                target_pos = self.target_relay.position
+                gcp_region = self.target_relay.gcp_region
+                print(f"Validator {self.unique_id} (at {self.gcp_region}) considering migration to Relay {self.target_relay.unique_id} in region {gcp_region} with MEV offer {simulation_results[0]['mev_offer']:.4f} ETH and latency threshold {simulation_results[0]['latency_threshold']} ms")
+                if self.model.space.distance(self.position, target_pos) > 0:
+                    print(f"  Deciding to migrate ({self.target_relay.unique_id}).")
+                    self.do_migration(target_pos, gcp_region)
+                    return True
 
         return False
 
