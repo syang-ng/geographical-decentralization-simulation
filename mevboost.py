@@ -236,7 +236,6 @@ class MEVBoostModel(Model):
         is_migrated = self.current_proposer_agent.decide_to_migrate()  # Check if proposer should migrate
         self.migration_queue.append(is_migrated)
 
-        self.current_proposer_agent.calculate_latency_threshold()
         # Reset relay's MEV offer for the new slot start
         [relay_agent.update_mev_offer() for relay_agent in self.relay_agents]
 
