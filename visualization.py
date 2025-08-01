@@ -252,7 +252,7 @@ def create_app(
                         symbol="diamond",
                         line=dict(color="black", width=1),
                     ),
-                    text=["Relay"] * len(rx),
+                    text=relay_names,
                     textposition="top center",
                     name="Relay",
                 )

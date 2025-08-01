@@ -1,6 +1,7 @@
 import math
 import random
 
+from collections import deque
 from mesa import Model, DataCollector
 
 from consensus import ConsensusSettings
@@ -39,6 +40,7 @@ class MEVBoostModel(Model):
         gcp_latency=None,
         consensus_settings=ConsensusSettings(),
         relay_profiles=RELAY_PROFILES,
+        time_window=10
     ):
 
         # Call the base Model constructor
@@ -57,6 +59,9 @@ class MEVBoostModel(Model):
         # Consensus parameters
         self.consensus_settings = consensus_settings
 
+        # Set the queue to count the number of validators that have migrated within the last time window
+        self.migration_queue = deque(maxlen=time_window)
+
         # --- Setup the Space (SphericalSpace) ---
         self.space = SphericalSpace()
         self.distance_matrix = (
@@ -74,8 +79,8 @@ class MEVBoostModel(Model):
             n=num_validators,
         )
         
-        if num_relays > 3: # Limit to max 3 relays for now
-            num_relays = 3
+        # if num_relays > 3: # Limit to max 3 relays for now
+        #     num_relays = 3
         RelayAgent.create_agents(
             model=self,
             n=num_relays
@@ -228,7 +233,8 @@ class MEVBoostModel(Model):
         self.current_proposer_agent.set_proposer_role(
             self.gcp_latency
         )
-        self.current_proposer_agent.decide_to_migrate()  # Check if proposer should migrate
+        is_migrated = self.current_proposer_agent.decide_to_migrate()  # Check if proposer should migrate
+        self.migration_queue.append(is_migrated)
 
         self.current_proposer_agent.calculate_latency_threshold()
         # Reset relay's MEV offer for the new slot start
@@ -262,6 +268,10 @@ class MEVBoostModel(Model):
                     slot_successful_attestations / len(self.current_attesters)
                 ) * 100
 
+                # if self.current_proposer_agent.attestation_rate == 0:
+                #     import IPython
+                #     IPython.embed()  # Debugging: Check why no attestations
+
                 # print(self.current_slot_idx, slot_successful_attestations, required_attesters_for_supermajority)
 
                 if slot_successful_attestations >= required_attesters_for_supermajority:
@@ -293,8 +303,8 @@ class MEVBoostModel(Model):
                 )
                 self.total_successful_attestations += slot_successful_attestations
 
-                # Collect data after all agents have acted in this step
-                self.datacollector.collect(self)
+            # Collect data after all agents have acted in this step
+            self.datacollector.collect(self)
 
             # --- Setup for New Slot ---
             self._setup_new_slot()  # This calls reset_for_new_slot on agents
@@ -303,8 +313,11 @@ class MEVBoostModel(Model):
         self.agents.do("step")
         self.agents.do("advance")
 
-        # Condition to stop simulation early if all agents are migrating or something goes wrong
-        if self.steps * self.consensus_settings.time_granularity_ms > (self.num_slots * self.consensus_settings.slot_duration_ms):
+        # Condition to stop simulation if no validators are migrating within the time window
+        if len(self.migration_queue) == self.migration_queue.maxlen and not any(self.migration_queue):
+            self.running = False
+
+        if (self.steps * self.consensus_settings.time_granularity_ms) > (self.num_slots * self.consensus_settings.slot_duration_ms):
             self.running = False  # Stop the simulation loop
 
     def get_validator_region_percentage(self, gcp_region):

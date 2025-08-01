@@ -48,6 +48,7 @@ def simulation(
     location_strategies,# Pass the list of location strategies
     simulation_name,    # Simulation name from YAML
     output_folder,      # Output folder
+    time_window,        # Time window for migration checks
 ):
     # --- Simulation Execution ---
     random.seed(0x06511)  # For reproducibility
@@ -75,6 +76,7 @@ def simulation(
         "gcp_latency": gcp_latency,
         "consensus_settings": consensus_settings, # Pass the ConsensusSettings object to the model
         "relay_profiles": relay_profiles, # Pass the Relay profiles to the model
+        "time_window": time_window,  # Time window for migration checks
     }
 
     # --- Create and Run the Model ---
@@ -220,6 +222,9 @@ if __name__ == "__main__":
         consensus_parameters = config.get('consensus_settings', {})
         consensus_settings = ConsensusSettings(**consensus_parameters)
 
+        # Time window for migration checks
+        time_window = config.get('time_window', 10)  # Default to 10
+
         # Initialize Relays
         relay_profiles_data = config.get('relay_profiles', [])
         relay_profiles = initialize_relays(relay_profiles_data)
@@ -261,6 +266,7 @@ if __name__ == "__main__":
             location_strategies=location_strategies,
             simulation_name=simulation_name,
             output_folder=output_folder, # Pass output_folder for consistent sub-directory creation
+            time_window=time_window,
         )
 
     except (FileNotFoundError, ValueError, RuntimeError) as e:

@@ -151,7 +151,7 @@ class ValidatorAgent(Agent):
                 self.timing_strategy["max_delay_ms"],
             )
 
-    def calculate_latency_threshold(self, target_relay=None, relay_latency=None):
+    def calculate_minimal_needed_time(self, target_relay=None, relay_latency=None):
         """Calculates the latency threshold for the Proposer based on its timing strategy."""
         if self.timing_strategy["type"] == "optimal_latency":
             if self.target_relay is None:
@@ -198,15 +198,15 @@ class ValidatorAgent(Agent):
                     tolerance=5.0,
                 )
         
-    def set_latency_threshold(self, target_relay=None):
+    def set_latency_threshold(self, target_relay=None, to_relay_latency=0):
         """
         Sets the latency threshold for the Proposer based on its timing strategy.
         """   
-        latency = self.calculate_latency_threshold(target_relay, 0)
+        minimal_needed_time = self.calculate_minimal_needed_time(target_relay, to_relay_latency)
 
         self.latency_threshold = (
             self.model.consensus_settings.attestation_time_ms
-            - latency
+            - minimal_needed_time
         )
 
     def set_attester_role(
@@ -314,16 +314,22 @@ class ValidatorAgent(Agent):
         elif (
             self.timing_strategy["type"] == "optimal_latency"
         ):  # The proposer knows its latency is optimized
+            if self.latency_threshold == -1:
+                # Calculate the latency threshold for optimal latency strategy
+                to_relay_latency = self.model.space.get_latency(
+                    self.gcp_region, self.target_relay.gcp_region, self.model.gcp_latency
+                )
+                self.set_latency_threshold(self.target_relay, to_relay_latency)
             if (
                 current_slot_time_ms_inner <= self.latency_threshold
                 and current_slot_time_ms_inner + self.model.consensus_settings.time_granularity_ms
                 > self.latency_threshold
             ):
                 # TODO: This should be the mev of latency_threshold + 1 x network latency to relay (ie proposer querying the relay for header)
-                mev_offer, relay_id = self.get_best_mev_offer_from_relays(
-                    self.latency_threshold,
-                    relay_agents
+                mev_offer = self.target_relay.get_mev_offer_at_time(
+                    self.latency_threshold
                 )
+                relay_id = self.target_relay.unique_id
                 return True, mev_offer, relay_id, self.latency_threshold
 
         return False, 0.0, None, 0
@@ -376,28 +382,53 @@ class ValidatorAgent(Agent):
                 self.attested_to_proposer_block = False
             self.has_attested = True
 
-    # --- Migration Methods ---
-    def how_to_migrate(self):
-        simulation_results = []
 
+    def simulation_with_relay(self, gcp_region=None):
+        simulation_results = []
         for relay_agent in self.model.relay_agents:
             # Skip if the relay is not censoring but the validator is compliant
             if relay_agent.type != RelayType.CENSORING and self.preference == ValidatorPreference.COMPLIANT:
                 continue
+
+            if gcp_region is None:
+                to_relay_latency = 0
+            else:
+                to_relay_latency = self.model.space.get_latency(
+                    gcp_region, relay_agent.gcp_region, self.model.gcp_latency
+                )
             
-            latency = self.calculate_latency_threshold(relay_agent, 0)
+            minimal_needed_time = self.calculate_minimal_needed_time(relay_agent, to_relay_latency)
             latency_threshold = (
                 self.model.consensus_settings.attestation_time_ms
-                - latency
+                -  minimal_needed_time
             )
             mev_offer = relay_agent.get_mev_offer_at_time(latency_threshold)
             simulation_results.append(
-                {
+                {   
+                    "gcp_region": gcp_region if gcp_region else relay_agent.gcp_region,
                     "relay": relay_agent,
                     "latency_threshold": latency_threshold,
                     "mev_offer": round(mev_offer, 4),
                 }
             )
+        return simulation_results
+
+    # --- Migration Methods ---
+    def how_to_migrate(self):
+        # simulation_results = []
+        # relay_gcp_regions = set([relay_agent.gcp_region for relay_agent in self.model.relay_agents])
+        # other_gcp_regions = set([
+        #     region for region in self.model.gcp_regions["Region"].values if region not in relay_gcp_regions
+        # ])
+
+        # if the validator co-locates with a relay
+        simulation_results = self.simulation_with_relay()
+        # if the validator moves to a different GCP region
+        # for gcp_region in other_gcp_regions:
+        #     simulation_results.extend(
+        #         self.simulation_with_relay(gcp_region=gcp_region)
+        #     )
+
         # Sort by MEV offer, then by latency threshold
         simulation_results.sort(key=lambda x: (-x["mev_offer"], x["latency_threshold"]))
         best_mev = simulation_results[0]["mev_offer"]
@@ -461,22 +492,30 @@ class ValidatorAgent(Agent):
             
         elif self.location_strategy["type"] == "best_relay":
             simulation_results = self.how_to_migrate()
-            
+            # No migration needed if already at the best relay
             if any([
-                self.model.space.distance(self.position, simulation_result["relay"].position) == 0
+                self.gcp_region == simulation_result["gcp_region"]
                 for simulation_result in simulation_results
             ]):
-                print(f"Validator {self.unique_id} is already at the best relay, no migration needed.")
-                return False  # No migration needed if already at the best relay
+                print(f"Validator {self.unique_id} is already at the best position, no migration needed.")
+                return False 
             else:
+                target_gcp_region = simulation_results[0]["gcp_region"]
                 self.target_relay = simulation_results[0]["relay"]
-                self.set_latency_threshold(self.target_relay)
-                target_pos = self.target_relay.position
-                gcp_region = self.target_relay.gcp_region
-                print(f"Validator {self.unique_id} (at {self.gcp_region}) considering migration to Relay {self.target_relay.unique_id} in region {gcp_region} with MEV offer {simulation_results[0]['mev_offer']:.4f} ETH and latency threshold {simulation_results[0]['latency_threshold']} ms")
-                if self.model.space.distance(self.position, target_pos) > 0:
+
+                if self.target_relay.gcp_region != target_gcp_region:
+                    row = self.model.gcp_regions[["Region"] == target_gcp_region].iloc[0]
+                    target_pos = self.model.space.get_coordinate_from_lat_lon(
+                        row["lat"], row["lon"]
+                    )
+                else:
+                    target_pos = self.target_relay.position
+
+                print(f"Validator {self.unique_id} (at {self.gcp_region}) considering migration to Relay {self.target_relay.unique_id}  with MEV offer {simulation_results[0]['mev_offer']:.4f} ETH and latency threshold {simulation_results[0]['latency_threshold']} ms")
+                if self.gcp_region != target_gcp_region:
+                # if self.model.space.distance(self.position, target_pos) > 0:
                     print(f"  Deciding to migrate ({self.target_relay.unique_id}).")
-                    self.do_migration(target_pos, gcp_region)
+                    self.do_migration(target_pos, target_gcp_region)
                     return True
 
         return False
