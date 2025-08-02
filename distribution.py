@@ -86,6 +86,13 @@ class SphericalSpace(Space):
         y = math.cos(phi) * math.sin(theta)
         z = math.sin(phi)
         return (x, y, z)
+    
+    def set_gcp_latency_regions(self, gcp_latency, gcp_regions):
+        """
+        Sets the GCP latency
+        """
+        self.gcp_latency = gcp_latency
+        self.gcp_regions = gcp_regions
 
     def get_nearest_gcp_region(self, position, gcp_regions):
         """
@@ -104,11 +111,14 @@ class SphericalSpace(Space):
                 nearest_zone = row["Region Name"]
         return nearest_zone if nearest_zone else None
 
-    def get_latency(self, gcp1, gcp2, gcp_latency):
+    @lru_cache(maxsize=1024)
+    def get_latency(self, gcp1, gcp2):
         """
         Returns the avg latency between two GCP regions according GCP latency data.
         Assumes gcp_latency is a DataFrame with columns 'sending_region', 'receiving_region', and 'milliseconds'.
         """
+        gcp_latency = self.gcp_latency
+
         if gcp1 == gcp2:
             return 0.0
         latency_row = gcp_latency[
@@ -121,10 +131,14 @@ class SphericalSpace(Space):
 
         return gcp_latency["milliseconds"].max() / 2
     
-    def get_best_region_to_targets(self, targets, gcp_latency, gcp_regions):
+    @lru_cache(maxsize=1024)
+    def get_best_region_to_targets(self, targets):
         """
         Given a list of target GCP regions, finds the one with the lowest average latency to all targets.
         """
+        gcp_latency = self.gcp_latency
+        gcp_regions = self.gcp_regions
+
         subset = gcp_latency[
             (gcp_latency["sending_region"].isin(targets))
             & (gcp_latency["receiving_region"].isin(targets))
@@ -469,7 +483,7 @@ class LatencyGenerator:
         pb = poisson_binom(probabilities)
         return pb.sf(required_attesters - 1)
 
-    # @lru_cache(maxsize=1024)
+    @lru_cache(maxsize=1024)
     def find_min_threshold(
         self,
         braodcast_latencies,

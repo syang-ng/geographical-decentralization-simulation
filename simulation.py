@@ -5,6 +5,7 @@ import os
 import pandas as pd
 import random
 import time
+import traceback
 import yaml # Import yaml library
 from collections import defaultdict, Counter
 
@@ -272,4 +273,6 @@ if __name__ == "__main__":
     except (FileNotFoundError, ValueError, RuntimeError) as e:
         print(f"\n❌ Fatal error during simulation setup or execution: {e}")
     except Exception as e:
+        traceback.print_exc()
         print(f"\n❌ An unexpected error occurred: {e}")
+

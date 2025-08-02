@@ -64,6 +64,9 @@ class MEVBoostModel(Model):
 
         # --- Setup the Space (SphericalSpace) ---
         self.space = SphericalSpace()
+        self.space.set_gcp_latency_regions(
+            gcp_latency, gcp_regions
+        )  # Set GCP latency and regions if provided
         self.distance_matrix = (
             None  # Will be initialized after validator positions are set
         )

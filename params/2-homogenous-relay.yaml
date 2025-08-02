@@ -1,10 +1,11 @@
 simulation_name: two-homogenous-relay
 model: mevboost
-iterations: 1000
+iterations: 10000
 time_granularity_ms: 100
 validators: 1000
 input_folder: data
 output_folder: two-homogenuous
+time_window: 10
 
 cloud: 0.9
 noncompliant: 1
@@ -28,8 +29,10 @@ relay_profiles:
       type: linear_mev
       base_mev: 0.2
       mev_increase: 0.08
-      multiplier: 0.95
-    type: CENSORING
+      multiplier: 1.0
+    subsidy: 0
+    threshold: 0
+    type: NONCENSORING
   - unique_id: UltraSound EU
     gcp_region: europe-west1
     lat: 50.4577
@@ -39,4 +42,6 @@ relay_profiles:
       base_mev: 0.2
       mev_increase: 0.08
       multiplier: 1.0
+    subsidy: 0
+    threshold: 0
     type: NONCENSORING

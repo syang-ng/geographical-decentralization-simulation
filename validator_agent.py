@@ -98,7 +98,7 @@ class ValidatorAgent(Agent):
         self.random_propose_time = -1  # Reset for next potential proposer role
         self.latency_threshold = -1  # Reset for next potential proposer role
         self.relay_id = None  # Reset relay ID for attesters
-        self.target_relay = None  # Reset target relay for migration decisions
+        # self.target_relay = None  # Reset target relay for migration decisions
         
 
     def set_type(self, validator_type):
@@ -141,7 +141,7 @@ class ValidatorAgent(Agent):
         self.network_latency_to_target = {}
         for relay_agent in self.model.relay_agents:
             self.network_latency_to_target[relay_agent.unique_id] = self.model.space.get_latency(
-                self.gcp_region, relay_agent.gcp_region, gcp_latency
+                self.gcp_region, relay_agent.gcp_region
             )
 
         # Set random propose time if using random strategy
@@ -176,8 +176,8 @@ class ValidatorAgent(Agent):
             
             if to_relay_latency == 0:
                 return self.model.latency_generator.find_min_threshold(
-                    relay_to_attester_latency,
-                    [0.5] * len(self.model.current_attesters),
+                    tuple(relay_to_attester_latency),
+                    tuple([0.5] * len(self.model.current_attesters)),
                     required_attesters_for_supermajority,
                     target_prob=0.95,
                     threshold_low=0.0,
@@ -225,7 +225,7 @@ class ValidatorAgent(Agent):
         else:
             for relay_agent in self.model.relay_agents:
                 self.network_latency_to_target[relay_agent.unique_id] = self.model.space.get_latency(
-                    self.gcp_region, relay_agent.gcp_region, gcp_latency
+                    self.gcp_region, relay_agent.gcp_region
                 )
 
     def get_mev_offer_from_relays(
@@ -317,7 +317,7 @@ class ValidatorAgent(Agent):
             if self.latency_threshold == -1:
                 # Calculate the latency threshold for optimal latency strategy
                 to_relay_latency = self.model.space.get_latency(
-                    self.gcp_region, self.target_relay.gcp_region, self.model.gcp_latency
+                    self.gcp_region, self.target_relay.gcp_region
                 )
                 self.set_latency_threshold(self.target_relay, to_relay_latency)
             if (
@@ -371,8 +371,6 @@ class ValidatorAgent(Agent):
                 + relay_to_attester_latency
             )
 
-            # print(block_proposed_time_ms, block_arrival_at_this_attester_ms, self.model.consensus_settings.attestation_time_ms)
-
             if (
                 block_proposed_time_ms != -1
                 and block_arrival_at_this_attester_ms <= self.model.consensus_settings.attestation_time_ms
@@ -394,7 +392,7 @@ class ValidatorAgent(Agent):
                 to_relay_latency = 0
             else:
                 to_relay_latency = self.model.space.get_latency(
-                    gcp_region, relay_agent.gcp_region, self.model.gcp_latency
+                    gcp_region, relay_agent.gcp_region
                 )
             
             minimal_needed_time = self.calculate_minimal_needed_time(relay_agent, to_relay_latency)
@@ -497,6 +495,11 @@ class ValidatorAgent(Agent):
                 self.gcp_region == simulation_result["gcp_region"]
                 for simulation_result in simulation_results
             ]):
+                for simulation_result in simulation_results:
+                    if self.gcp_region == simulation_result["gcp_region"]:
+                        self.target_relay = simulation_result["relay"]
+                        break
+                
                 print(f"Validator {self.unique_id} is already at the best position, no migration needed.")
                 return False 
             else:
@@ -544,7 +547,7 @@ class ValidatorAgent(Agent):
         self.network_latency_to_target = {}
         for relay_agent in self.model.relay_agents:
             self.network_latency_to_target[relay_agent.unique_id] = self.model.space.get_latency(
-                self.gcp_region, relay_agent.gcp_region, self.model.gcp_latency
+                self.gcp_region, relay_agent.gcp_region
             )
 
     # dummy method for now, we complete migration immediately
