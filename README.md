@@ -11,9 +11,9 @@ pip install -r requirements.txt
 
 ```shell
 # run the simulation, and the output is the locations of nodes in each slot (data.json)
-python3 simulation_mesa.py
+python3 simulation.py --config params/world-relay.yaml
 # run the visualization based on the output file
-python3 visualization.py
+python3 visualization.py --output world-relay
 ```
 
 When running `visualization.py`, a Flask app will open at `http://127.0.0.1:8050/` for visualization.
@@ -54,7 +54,7 @@ Note: In the current version, there is a single relay, and the nodes (proposers)
 - `constants.py`: Constants.
 - `distribution.py`: The code to generate the distribution of nodes. The current version is based on Quintus's [code](https://github.com/quintuskilbourn/geoDecSim/).
 - `measure.py`: The measure of geographical decentralization.
-- `simulation_mesa.py`: Simulation code.
+- `simulation.py`: Simulation code.
 - `visualization.py`: Visualization code.
 
 ## Workflow
