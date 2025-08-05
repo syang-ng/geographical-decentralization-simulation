@@ -1,0 +1,47 @@
+simulation_name: two-homogeneous-relay
+model: mevboost
+iterations: 1000
+time_granularity_ms: 100
+validators: 1000
+input_folder: data
+output_folder: two-homogeneous
+time_window: 10
+
+cloud: 0.9
+noncompliant: 1
+
+consensus_settings:
+  slot_duration_ms: 12000
+  attestation_time_ms: 4000 
+  attestation_threshold: 0.6667
+  timely_head_reward: 0.0790425
+  timely_source_reward: 0.147825
+  timely_target_reward: 0.12852
+  proposer_reward: 0.2
+  sync_committee_reward: 0.2
+
+relay_profiles:
+  - unique_id: Flashbots
+    gcp_region: us-east4
+    lat: 39.0437
+    lon: -77.4874
+    utility_function:
+      type: linear_mev
+      base_mev: 0.2
+      mev_increase: 0.08
+      multiplier: 1.0
+    subsidy: 0
+    threshold: 0
+    type: NONCENSORING
+  - unique_id: UltraSound EU
+    gcp_region: europe-west1
+    lat: 50.4577
+    lon: 3.8643
+    utility_function:
+      type: linear_mev
+      base_mev: 0.2
+      mev_increase: 0.08
+      multiplier: 1.0
+    subsidy: 0
+    threshold: 0
+    type: NONCENSORING

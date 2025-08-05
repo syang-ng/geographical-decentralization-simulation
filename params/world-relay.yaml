@@ -1,6 +1,6 @@
 simulation_name: world-relay
 model: mevboost
-iterations: 10000
+iterations: 1000
 time_granularity_ms: 100
 validators: 1000
 input_folder: data
