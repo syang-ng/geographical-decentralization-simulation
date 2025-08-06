@@ -320,7 +320,7 @@ class LatencyGenerator:
                 # Create a lognormal distribution object.
                 self.dist_cache[key] = lognorm(s=sigma, scale=np.exp(mu))
             
-
+    #FAST: return the mean latency directly
     def get_latency(self, mean_latency, std_dev_ratio=0.1):
         """
         Directly generates and returns a single latency sample from a statistical distribution.
@@ -330,22 +330,8 @@ class LatencyGenerator:
         :param std_dev_ratio: The standard deviation as a fraction of the mean.
         :return: A single float representing a latency sample.
         """
-        if mean_latency <= 0:
-            return 0.0
+        return mean_latency
 
-        # 1. Check if the distribution object is already cached.
-        key = (mean_latency, std_dev_ratio)
-        self.inititalize_distribution(mean_latency, std_dev_ratio)
-        # 2. Retrieve the cached distribution object.
-        distribution = self.dist_cache[key]
-
-        # If the distribution object is None (because std_dev was 0), return the mean.
-        if distribution is None:
-            return mean_latency
-            
-        # 3. Generate a single random variate (rvs) from the cached distribution object.
-        # This is extremely fast compared to sampling from a large list.
-        return distribution.rvs(size=1)[0]
 
     def evaluate_threshold_with_monte_carlo(
         self,

@@ -196,8 +196,8 @@ if __name__ == "__main__":
     parser.add_argument(
         "--config",
         type=str,
-        default="simulation_config.yaml",
-        help="Path to the simulation configuration YAML file (default: 'simulation_config.yaml')",
+        default="params/simulation_config.yaml",
+        help="Path to the simulation configuration YAML file (default: 'params/simulation_config.yaml')",
     )
     parser.add_argument(
         "--input_dir",
