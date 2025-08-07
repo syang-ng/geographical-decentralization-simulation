@@ -40,7 +40,8 @@ class MEVBoostModel(Model):
         gcp_latency=None,
         consensus_settings=ConsensusSettings(),
         relay_profiles=RELAY_PROFILES,
-        time_window=10
+        time_window=10,
+        fast_mode=False,
     ):
 
         # Call the base Model constructor
@@ -70,7 +71,9 @@ class MEVBoostModel(Model):
         self.distance_matrix = (
             None  # Will be initialized after validator positions are set
         )
-        self.latency_generator = LatencyGenerator()
+        # Set latency generator fast mode
+        self.fast_mode = fast_mode
+        self.latency_generator = LatencyGenerator(self.fast_mode)
 
         # Set GCP latency if provided
         self.gcp_latency = gcp_latency

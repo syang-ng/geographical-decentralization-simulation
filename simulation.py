@@ -50,6 +50,7 @@ def simulation(
     simulation_name,    # Simulation name from YAML
     output_folder,      # Output folder
     time_window,        # Time window for migration checks
+    fast_mode=False,     # Fast mode for latency computation
 ):
     # --- Simulation Execution ---
     random.seed(0x06511)  # For reproducibility
@@ -78,6 +79,7 @@ def simulation(
         "consensus_settings": consensus_settings, # Pass the ConsensusSettings object to the model
         "relay_profiles": relay_profiles, # Pass the Relay profiles to the model
         "time_window": time_window,  # Time window for migration checks
+        "fast_mode": fast_mode,  # Fast mode for latency computation
     }
 
     # --- Create and Run the Model ---
@@ -205,6 +207,13 @@ if __name__ == "__main__":
         default="data",
         help="Directory to read input data (default: 'data')",
     )
+    parser.add_argument(
+        "--fast",
+        type=bool,
+        default=False,
+        action=argparse.BooleanOptionalAction,
+        help="Enable fast mode for latency computation (default: False)",
+    )
     args = parser.parse_args()
 
     try:
@@ -225,6 +234,9 @@ if __name__ == "__main__":
 
         # Time window for migration checks
         time_window = config.get('time_window', 10)  # Default to 10
+
+        # fast mode
+        fast_mode = args.fast
 
         # Initialize Relays
         relay_profiles_data = config.get('relay_profiles', [])
@@ -268,6 +280,7 @@ if __name__ == "__main__":
             simulation_name=simulation_name,
             output_folder=output_folder, # Pass output_folder for consistent sub-directory creation
             time_window=time_window,
+            fast_mode=fast_mode,
         )
 
     except (FileNotFoundError, ValueError, RuntimeError) as e:
