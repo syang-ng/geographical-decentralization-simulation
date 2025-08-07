@@ -12,6 +12,8 @@ pip install -r requirements.txt
 ```shell
 # run the simulation, and the output is the locations of nodes in each slot (data.json)
 python3 simulation.py --config params/world-relay.yaml
+# run the simulation in a fast mode (skip distribution and related computation)
+python3 simulation.py --config params/world-relay.yaml --fast
 # run the visualization based on the output file
 python3 visualization.py --output world-relay
 ```
