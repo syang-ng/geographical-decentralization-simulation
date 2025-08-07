@@ -186,12 +186,36 @@ class ValidatorAgent(Agent):
                 * len(self.model.current_attesters)
             )
 
-            latency_threshold = (
-                relay_to_attester_latency[required_attesters_for_supermajority]
-                + to_relay_latency * 3
-            )
-
-            return latency_threshold
+            # In fast mode, return a simplified estimate
+            if self.model.fast_mode:
+                return (
+                    relay_to_attester_latency[required_attesters_for_supermajority]
+                    + to_relay_latency * 3
+                )
+            else:
+                if to_relay_latency == 0:
+                    return self.model.latency_generator.find_min_threshold(
+                        tuple(relay_to_attester_latency),
+                        tuple([0.5] * len(self.model.current_attesters)),
+                        required_attesters_for_supermajority,
+                        target_prob=0.95,
+                        threshold_low=0.0,
+                        threshold_high=self.model.consensus_settings.attestation_time_ms,
+                        tolerance=5.0,
+                    )
+                else:
+                    return self.model.latency_generator.find_min_threshold_with_monte_carlo(
+                        [to_relay_latency] * 3,
+                        [0.5] * 3,
+                        relay_to_attester_latency,
+                        [0.5] * len(self.model.current_attesters),
+                        required_attesters_for_supermajority,
+                        target_prob=0.95,
+                        samples=10000,
+                        threshold_low=0.0,
+                        threshold_high=self.model.consensus_settings.attestation_time_ms,
+                        tolerance=5.0,
+                    )
 
         
     def set_latency_threshold(self, target_relay=None, to_relay_latency=0):
