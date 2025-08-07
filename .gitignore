@@ -209,3 +209,6 @@ __marimo__/
 # Data
 *.json
 *.csv
+buckets/*.png
+
+.DS_Store
