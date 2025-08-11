@@ -44,6 +44,7 @@ class ValidatorAgent(Agent):
         self.migration_cooldown = 0  # In slots
         self.is_migrating = False
         self.migration_end_time_ms = -1
+        self.migration_cost = 0.0
 
         # Proposer specific attributes
         self.timing_strategy = None  # Assigned when chosen as proposer for a slot
@@ -58,6 +59,7 @@ class ValidatorAgent(Agent):
             False  # True if this validator has attested in the current slot
         )
         self.proposed_time_ms = -1
+        self.estimated_profit = 0.0
         self.mev_captured = 0.0  # Actual MEV earned after supermajority check
         self.mev_captured_potential = 0.0  # Potential MEV before supermajority check
         self.total_mev_captured = 0.0  # Total MEV captured over the simulation
@@ -96,6 +98,7 @@ class ValidatorAgent(Agent):
         self.network_latency_to_target = {}
         self.has_proposed_block = False
         self.proposed_time_ms = -1
+        self.estimated_profit = 0.0
         self.mev_captured = 0.0
         self.mev_captured_potential = 0.0
         self.attestation_rate = 0.0  # Reset for new slot
@@ -382,7 +385,7 @@ class ValidatorAgent(Agent):
         # i.e., an attester should not attest if it knows that the block is not getting enough attestations
         if (
             current_slot_time_ms_inner
-            >= self.model.consensus_settings.attestation_time_ms
+            > self.model.consensus_settings.attestation_time_ms
         ):
             # According to the current MEV-Boost auctions, the relay broadcasts the block
             # TODO: the proposer also broadcasts its block, which might be closer to some validators
@@ -568,6 +571,12 @@ class ValidatorAgent(Agent):
                     return True
 
         return False
+    
+    def estimate_profit(self):
+        simulation_results = self.simulation_with_relay(self.gcp_region)
+        simulation_results.sort(key=lambda x: (-x["mev_offer"], x["latency_threshold"]))
+        best_mev = simulation_results[0]["mev_offer"]
+        self.estimated_profit = best_mev
 
     def do_migration(self, new_position_coords, new_gcp_region):
         """Completes the migration process."""
