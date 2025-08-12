@@ -364,7 +364,7 @@ class ValidatorAgent(Agent):
         # )
         self.proposed_time_ms = proposed_time
         self.mev_captured_potential = (
-            mev_offer  # Store potential MEV before supermajority check
+            round(mev_offer, 6)  # Store potential MEV before supermajority check
         )
         self.relay_id = relay_id  # Store the relay ID for attesters
 
@@ -434,7 +434,7 @@ class ValidatorAgent(Agent):
                     "gcp_region": gcp_region if gcp_region else relay_agent.gcp_region,
                     "relay": relay_agent,
                     "latency_threshold": latency_threshold,
-                    "mev_offer": round(mev_offer, 4),
+                    "mev_offer": round(mev_offer, 6),
                 }
             )
         return simulation_results
@@ -458,6 +458,7 @@ class ValidatorAgent(Agent):
         # Sort by MEV offer, then by latency threshold
         simulation_results.sort(key=lambda x: (-x["mev_offer"], x["latency_threshold"]))
         best_mev = simulation_results[0]["mev_offer"]
+
         returned_relay_list = []
         # print(f"Validator {self.unique_id} migration simulation results:")
         for res in simulation_results:
@@ -550,6 +551,14 @@ class ValidatorAgent(Agent):
             else:
                 target_gcp_region = simulation_results[0]["gcp_region"]
                 self.target_relay = simulation_results[0]["relay"]
+
+                # Check if migration cost is acceptable
+                if self.migration_cost >= (simulation_results[0]["mev_offer"] - self.estimated_profit):
+                    return False
+                else:
+                    print(
+                        f"Migration cost {self.migration_cost:.4f} ETH is acceptable for MEV offer {simulation_results[0]['mev_offer']:.4f} - {self.estimated_profit} ETH"
+                    )
 
                 if self.target_relay.gcp_region != target_gcp_region:
                     row = self.model.gcp_regions[["Region"] == target_gcp_region].iloc[

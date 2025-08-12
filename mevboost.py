@@ -42,6 +42,7 @@ class MEVBoostModel(Model):
         relay_profiles=RELAY_PROFILES,
         time_window=10,
         fast_mode=False,
+        cost=0.0001,
     ):
 
         # Call the base Model constructor
@@ -138,6 +139,7 @@ class MEVBoostModel(Model):
         random.shuffle(self.validators)
         for validator_agent in self.validators[:int(self.num_validators * validator_cloud_percentage)]:
             validator_agent.set_type(ValidatorType.CLOUD)
+            validator_agent.migration_cost = cost
         random.shuffle(self.validators)
         for validator_agent in self.validators[:int(self.num_validators * validator_noncompliant_percentage)]:
             validator_agent.set_validator_preference(ValidatorPreference.NONCOMPLIANT)
@@ -188,6 +190,7 @@ class MEVBoostModel(Model):
                 "Role": "role",
                 "Slot": "current_slot_idx",
                 "MEV_Captured_Slot": "mev_captured",  # MEV actually earned in the last slot
+                "Estimated_Profit": "estimated_profit",  # Estimated profit before migration
                 "Attestation_Rate": "attestation_rate",  # Percentage of successful attestations
                 "Proposal Time": "proposed_time_ms",  # Time when the block was proposed,
                 "Location_Strategy": lambda v: (
@@ -239,6 +242,7 @@ class MEVBoostModel(Model):
         self.current_proposer_agent.set_proposer_role(
             self.gcp_latency
         )
+        self.current_proposer_agent.estimate_profit()
         is_migrated = self.current_proposer_agent.decide_to_migrate()  # Check if proposer should migrate
         self.migration_queue.append(is_migrated)
 
@@ -273,12 +277,6 @@ class MEVBoostModel(Model):
                     slot_successful_attestations / len(self.current_attesters)
                 ) * 100
 
-                # if self.current_proposer_agent.attestation_rate == 0:
-                #     import IPython
-                #     IPython.embed()  # Debugging: Check why no attestations
-
-                # print(self.current_slot_idx, slot_successful_attestations, required_attesters_for_supermajority)
-
                 if slot_successful_attestations >= required_attesters_for_supermajority:
                     self.current_proposer_agent.mev_captured = (
                         self.current_proposer_agent.mev_captured_potential
@@ -286,6 +284,13 @@ class MEVBoostModel(Model):
                     self.total_mev_earned += self.current_proposer_agent.mev_captured
                     self.current_proposer_agent.total_mev_captured += self.current_proposer_agent.mev_captured
                     self.supermajority_met_slots += 1
+
+                    if self.current_proposer_agent.mev_captured < self.current_proposer_agent.estimated_profit:
+                        self.current_proposer_agent.target_relay.get_mev_offer_at_time(
+                            self.current_proposer_agent.latency_threshold
+                        )
+                        import IPython
+                        IPython.embed(colors="neutral")
                 else:
                     self.current_proposer_agent.mev_captured = (
                         0.0  # No reward if supermajority not met

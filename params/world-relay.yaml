@@ -6,6 +6,7 @@ validators: 1000
 input_folder: data
 output_folder: world-relay
 time_window: 10
+cost: 0.0001
 
 cloud: 0.9
 noncompliant: 1

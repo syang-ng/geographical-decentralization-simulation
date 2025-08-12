@@ -51,6 +51,7 @@ def simulation(
     output_folder,      # Output folder
     time_window,        # Time window for migration checks
     fast_mode=False,     # Fast mode for latency computation
+    cost=0.0001,  # Cost for migration, default to 0.0001
 ):
     # --- Simulation Execution ---
     random.seed(0x06511)  # For reproducibility
@@ -80,6 +81,7 @@ def simulation(
         "relay_profiles": relay_profiles, # Pass the Relay profiles to the model
         "time_window": time_window,  # Time window for migration checks
         "fast_mode": fast_mode,  # Fast mode for latency computation
+        "cost": cost,  # Cost for migration
     }
 
     # --- Create and Run the Model ---
@@ -88,6 +90,9 @@ def simulation(
     model_standard = MEVBoostModel(**model_params_standard_nomig)
     for i in range(TOTAL_TIME_STEPS):
         model_standard.step()
+        if not model_standard.running:
+            print(f"Simulation stopped at step {i}.")
+            break
     end_time = time.time()
     print(f"Simulation completed in {end_time - start_time:.2f} seconds.")
 
@@ -145,6 +150,7 @@ def simulation(
     nested_array = positions_by_slot["Position"].tolist()
     # Group by slot and collect lists of per-agent values:
     mev_by_slot = validator_agent_data.groupby("Slot")["MEV_Captured_Slot"].apply(list).tolist()
+    estimated_mev_by_slot = validator_agent_data.groupby("Slot")["Estimated_Profit"].apply(list).tolist()
     attest_by_slot = validator_agent_data.groupby("Slot")["Attestation_Rate"].apply(list).tolist()
     proposal_time_by_slot = (
         validator_agent_data.groupby("Slot")["Proposal Time"].apply(list).tolist()
@@ -175,6 +181,8 @@ def simulation(
         json.dump(nested_array, f)
     with open(f"{output_folder}/mev_by_slot.json", "w") as f:
         json.dump(mev_by_slot, f)
+    with open(f"{output_folder}/estimated_mev_by_slot.json", "w") as f:
+        json.dump(estimated_mev_by_slot, f)
     with open(f"{output_folder}/attest_by_slot.json", "w") as f:
         json.dump(attest_by_slot, f)
     with open(f"{output_folder}/proposal_time_by_slot.json", "w") as f:
@@ -238,6 +246,9 @@ if __name__ == "__main__":
         # fast mode
         fast_mode = args.fast
 
+        # cost for migration
+        cost = config.get('cost', 0.0001)  # Default to
+
         # Initialize Relays
         relay_profiles_data = config.get('relay_profiles', [])
         relay_profiles = initialize_relays(relay_profiles_data)
@@ -281,6 +292,7 @@ if __name__ == "__main__":
             output_folder=output_folder, # Pass output_folder for consistent sub-directory creation
             time_window=time_window,
             fast_mode=fast_mode,
+            cost=cost,
         )
 
     except (FileNotFoundError, ValueError, RuntimeError) as e:
