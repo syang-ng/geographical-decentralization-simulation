@@ -460,14 +460,11 @@ class ValidatorAgent(Agent):
         best_mev = simulation_results[0]["mev_offer"]
 
         returned_relay_list = []
-        # print(f"Validator {self.unique_id} migration simulation results:")
+
         for res in simulation_results:
             if res["mev_offer"] == best_mev:
                 returned_relay_list.append(res)
 
-            print(
-                f"  Relay {res['relay'].unique_id}: MEV {res['mev_offer']:.4f} ETH, Latency Threshold {res['latency_threshold']} ms"
-            )
         return returned_relay_list
 
     def decide_to_migrate(self):
@@ -544,9 +541,6 @@ class ValidatorAgent(Agent):
                         self.target_relay = simulation_result["relay"]
                         break
 
-                print(
-                    f"Validator {self.unique_id} is already at the best position, no migration needed."
-                )
                 return False
             else:
                 target_gcp_region = simulation_results[0]["gcp_region"]
@@ -555,10 +549,6 @@ class ValidatorAgent(Agent):
                 # Check if migration cost is acceptable
                 if self.migration_cost >= (simulation_results[0]["mev_offer"] - self.estimated_profit):
                     return False
-                else:
-                    print(
-                        f"Migration cost {self.migration_cost:.4f} ETH is acceptable for MEV offer {simulation_results[0]['mev_offer']:.4f} - {self.estimated_profit} ETH"
-                    )
 
                 if self.target_relay.gcp_region != target_gcp_region:
                     row = self.model.gcp_regions[["Region"] == target_gcp_region].iloc[
