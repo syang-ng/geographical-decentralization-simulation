@@ -241,6 +241,12 @@ if __name__ == "__main__":
         help="Cost for migration (default: 0.0001)",
     )
     parser.add_argument(
+        "--time_window",
+        type=int,
+        default=10,
+        help="Time window for migration checks (default: 10)",
+    )
+    parser.add_argument(
         "--fast",
         type=bool,
         default=False,
@@ -267,7 +273,7 @@ if __name__ == "__main__":
         consensus_settings = ConsensusSettings(**consensus_parameters)
 
         # Time window for migration checks
-        time_window = config.get('time_window', 10)  # Default to 10
+        time_window = args.time_window if args.time_window else config.get('time_window', 10)  # Default to 10
 
         # fast mode
         fast_mode = args.fast
