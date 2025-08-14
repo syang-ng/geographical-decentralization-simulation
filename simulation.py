@@ -91,9 +91,12 @@ def simulation(
     for i in range(TOTAL_TIME_STEPS):
         model_standard.step()
         if not model_standard.running:
-            print(f"Simulation stopped at step {i}.")
+            print(f"Stopping simulation as no validators moved within the time window ({time_window}).")
             break
     end_time = time.time()
+    if model_standard.running:
+        print(f"Stopping simulation after reaching the maximum time steps: {TOTAL_TIME_STEPS}.")
+
     print(f"Simulation completed in {end_time - start_time:.2f} seconds.")
 
     # --- Final Analysis & Plotting ---
@@ -128,6 +131,10 @@ def simulation(
     
     with open(f"{output_folder}/failed_block_proposals.json", "w") as f:
         json.dump(failed_block_proposals, f)
+
+    action_reasons = model_standard.action_reasons
+    with open(f"{output_folder}/action_reasons.json", "w") as f:
+        json.dump(action_reasons, f)
 
     agent_data = model_standard.datacollector.get_agent_vars_dataframe()
 

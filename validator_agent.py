@@ -476,12 +476,14 @@ class ValidatorAgent(Agent):
         if (
             self.is_migrating
             or self.migration_cooldown > 0
-            or self.type == ValidatorType.HOME
         ):
-            return False
+            return False, "migrating_or_on_cooldown"
+
+        if self.type == ValidatorType.HOME:
+            return False, "home_staker"
 
         if self.location_strategy["type"] == "never_migrate":
-            return False
+            return False, "never_migrate_strategy"
 
         elif self.location_strategy["type"] == "random_relay":
             self.target_relay = random.choice(self.model.relay_agents)
@@ -490,7 +492,7 @@ class ValidatorAgent(Agent):
                 target_pos, self.model.gcp_regions
             )
             self.do_migration(target_pos, gcp_region)
-            return True
+            return True, "random_relay_strategy"
 
         elif self.location_strategy["type"] == "target_relay":
             for relay_agent in self.model.relay_agents:
@@ -504,9 +506,9 @@ class ValidatorAgent(Agent):
             )
             if self.model.space.distance(self.position, target_pos) > 0:
                 self.do_migration(target_pos, gcp_region)
-                return True
+                return True, "target_relay_strategy"
             else:
-                return False
+                return False, "already_at_target_relay"
 
         elif self.location_strategy["type"] == "optimize_to_center":
             target_region, target_pos = self.model.space.get_best_region_to_targets(
@@ -525,7 +527,7 @@ class ValidatorAgent(Agent):
                 and self.model.space.distance(self.position, target_pos) > 0
             ):
                 self.do_migration(target_pos, target_region)
-                return True
+                return True, "optimize_to_center_strategy"
 
         elif self.location_strategy["type"] == "best_relay":
             simulation_results = self.how_to_migrate()
@@ -541,14 +543,16 @@ class ValidatorAgent(Agent):
                         self.target_relay = simulation_result["relay"]
                         break
 
-                return False
+                return False, "utility_not_improved"
             else:
                 target_gcp_region = simulation_results[0]["gcp_region"]
                 self.target_relay = simulation_results[0]["relay"]
 
                 # Check if migration cost is acceptable
+                # simulation_results[0]["mev_offer"] is the best MEV offer after migration
+                # self.estimated_profit is the estimated profit before migration
                 if self.migration_cost >= (simulation_results[0]["mev_offer"] - self.estimated_profit):
-                    return False
+                    return False, "migration_cost_high (utility_not_improved)"
 
                 if self.target_relay.gcp_region != target_gcp_region:
                     row = self.model.gcp_regions[["Region"] == target_gcp_region].iloc[
@@ -567,9 +571,9 @@ class ValidatorAgent(Agent):
                     # if self.model.space.distance(self.position, target_pos) > 0:
                     print(f"  Deciding to migrate ({self.target_relay.unique_id}).")
                     self.do_migration(target_pos, target_gcp_region)
-                    return True
+                    return True, "utility_improved"
 
-        return False
+        return False, "no_applicable_strategy"
     
     def estimate_profit(self):
         simulation_results = self.simulation_with_relay(self.gcp_region)

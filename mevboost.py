@@ -63,6 +63,7 @@ class MEVBoostModel(Model):
 
         # Set the queue to count the number of validators that have migrated within the last time window
         self.migration_queue = deque(maxlen=time_window)
+        self.action_reasons = []
 
         # --- Setup the Space (SphericalSpace) ---
         self.space = SphericalSpace()
@@ -243,8 +244,9 @@ class MEVBoostModel(Model):
             self.gcp_latency
         )
         self.current_proposer_agent.estimate_profit()
-        is_migrated = self.current_proposer_agent.decide_to_migrate()  # Check if proposer should migrate
+        is_migrated, action_reason = self.current_proposer_agent.decide_to_migrate()  # Check if proposer should migrate
         self.migration_queue.append(is_migrated)
+        self.action_reasons.append(action_reason)
 
         # Reset relay's MEV offer for the new slot start
         [relay_agent.update_mev_offer() for relay_agent in self.relay_agents]
@@ -327,8 +329,8 @@ class MEVBoostModel(Model):
         if len(self.migration_queue) == self.migration_queue.maxlen and not any(self.migration_queue):
             self.running = False
 
-        if (self.steps * self.consensus_settings.time_granularity_ms) > (self.num_slots * self.consensus_settings.slot_duration_ms):
-            self.running = False  # Stop the simulation loop
+        # if (self.steps * self.consensus_settings.time_granularity_ms) > (self.num_slots * self.consensus_settings.slot_duration_ms):
+        #     self.running = False  # Stop the simulation loop
 
     def get_validator_region_percentage(self, gcp_region):
         """
