@@ -223,12 +223,31 @@ if __name__ == "__main__":
         help="Directory to read input data (default: 'data')",
     )
     parser.add_argument(
+        "--validators",
+        type=int,
+        default=1000,
+        help="Number of validators to simulate (default: 1000)",
+    )
+    parser.add_argument(
+        "--slots",
+        type=int,
+        default=1000,
+        help="Number of slots to simulate (default: 1000)",
+    )
+    parser.add_argument(
+        "--cost",
+        type=float,
+        default=0.0001,
+        help="Cost for migration (default: 0.0001)",
+    )
+    parser.add_argument(
         "--fast",
         type=bool,
         default=False,
         action=argparse.BooleanOptionalAction,
         help="Enable fast mode for latency computation (default: False)",
     )
+
     args = parser.parse_args()
 
     try:
@@ -238,8 +257,8 @@ if __name__ == "__main__":
         # Extract top-level simulation parameters from config
         simulation_name = config.get('simulation_name', 'Default Simulation')
         # Use 'iterations' from YAML as num_slots
-        num_slots = config.get('iterations', )
-        num_validators_from_config = config.get('validators', 1000)
+        num_slots = args.slots if args.slots else config.get('iterations', 1000)
+        num_validators = args.validators if args.validators else config.get('num_validators', 1000)
         input_folder = config.get('input_folder', args.input_dir)
         output_folder = config.get('output_folder', 'output')
 
@@ -254,7 +273,7 @@ if __name__ == "__main__":
         fast_mode = args.fast
 
         # cost for migration
-        cost = config.get('cost', 0.0001)  # Default to
+        cost = args.cost if args.cost else config.get('migration_cost', 0.0001)
 
         # Initialize Relays
         relay_profiles_data = config.get('relay_profiles', [])
@@ -276,10 +295,10 @@ if __name__ == "__main__":
         # Input data (validators, gcp_regions, gcp_latency) are still from CSVs
         validators = pd.read_csv(os.path.join(input_folder, "validators.csv"))
         # Sample validators if the CSV has more than the configured number
-        if len(validators) > num_validators_from_config:
-            validators = validators.sample(n=num_validators_from_config, random_state=42)
+        if len(validators) > num_validators:
+            validators = validators.sample(n=num_validators, random_state=42)
         else:
-            print(f"Using all {len(validators)} validators from CSV as it's less than configured {num_validators_from_config}.")
+            print(f"Using all {len(validators)} validators from CSV as it's less than configured {num_validators}.")
 
         gcp_regions = pd.read_csv(os.path.join(input_folder, "gcp_regions.csv"))
         gcp_latency = pd.read_csv(os.path.join(input_folder, "gcp_latency.csv"))
