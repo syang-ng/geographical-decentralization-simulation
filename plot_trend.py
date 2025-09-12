@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 
 
 region_maps = {
-    'australia': 'AU',
+    'australia': 'OC',
     'asia': 'AS',
     'africa': 'AF',
     'europe': 'EU',
@@ -14,7 +14,22 @@ region_maps = {
     'southamerica': 'SA',
     'us': 'US',
     'me': 'ME',
+    "Asia": "AS",
+    "Europe": "EU",
+    "Africa": "AF",
+    "North America": "NA",
+    "South America": "SA",
+    "Oceania": "OC",
+    "Middle East": "ME",
+    "asia": "AS",
+    "europe": "EU",
+    "africa": "AF",
+    "north america": "NA",
+    "south america": "SA",
+    "oceania": "OC",
+    "middle east": "ME",
 }
+
 
 sns.set_theme(style="whitegrid")
 def load_folder(folder_path):
@@ -31,6 +46,9 @@ def load_folder(folder_path):
         for region, count in region_counts:
             big_region = region.split('-')[0].lower()
             big_region = region_maps.get(big_region, 'Other')
+
+            if big_region == 'Other':
+                print(region, region.split('-')[0].lower())
             big_region_count[big_region] += count
 
             p = 100 * count / total_validators
@@ -54,9 +72,8 @@ def load_folder(folder_path):
 
     region_df = pd.DataFrame(region_data)
 
-    import IPython; IPython.embed(colors="neutral")  # noqa: E402
 
-    hue_order = ['US', 'EU', 'AS', 'AU', 'NA', 'SA', 'AF', 'ME']
+    hue_order = ['NA', 'EU', 'AS', 'OC','SA', 'AF', 'ME']
     plt.figure(figsize=(16, 7), dpi=100)
     sns.set_style("whitegrid")
     ax = sns.lineplot(data=big_region_df, x='slot', y='percentage', hue='region', lw=5.0, hue_order=hue_order)
