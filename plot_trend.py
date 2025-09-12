@@ -47,8 +47,6 @@ def load_folder(folder_path):
             big_region = region.split('-')[0].lower()
             big_region = region_maps.get(big_region, 'Other')
 
-            if big_region == 'Other':
-                print(region, region.split('-')[0].lower())
             big_region_count[big_region] += count
 
             p = 100 * count / total_validators
