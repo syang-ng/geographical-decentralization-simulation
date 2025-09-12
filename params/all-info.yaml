@@ -334,18 +334,6 @@ info_profiles:
     type: NONCENSORING
 
 
-  - unique_id: me-central2-info
-    gcp_region: me-central2
-    lat: 26.4207
-    lon: 50.0888
-    utility_function:
-      type: linear_mev
-      base_mev: 0.01
-      mev_increase: 0.001
-      multiplier: 1.0
-    type: NONCENSORING
-
-
   - unique_id: me-west1-info
     gcp_region: me-west1
     lat: 32.0853
@@ -380,19 +368,6 @@ info_profiles:
       mev_increase: 0.001
       multiplier: 1.0
     type: NONCENSORING
-
-
-  - unique_id: northamerica-south1-info
-    gcp_region: northamerica-south1
-    lat: 20.5888
-    lon: -100.3899
-    utility_function:
-      type: linear_mev
-      base_mev: 0.01
-      mev_increase: 0.001
-      multiplier: 1.0
-    type: NONCENSORING
-
 
   - unique_id: southamerica-east1-info
     gcp_region: southamerica-east1

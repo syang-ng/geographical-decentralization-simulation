@@ -1,10 +1,85 @@
 import math
 import numpy as np
+import pandas as pd
 import random
+import re
 
 from abc import ABC, abstractmethod
 from scipy.stats import norm, lognorm, poisson_binom
 from functools import lru_cache
+
+
+_CONTINENT_RULES = [
+    (r"^us-|^northamerica-", "North America"),
+    (r"^southamerica-",      "South America"),
+    (r"^europe-",            "Europe"),
+    (r"^asia-",              "Asia"),
+    (r"^australia-",         "Oceania"),
+    (r"^me-",                "Middle East"),
+    (r"^africa-",            "Africa"),
+]
+
+
+def to_continent(region: str) -> str:
+    for pat, name in _CONTINENT_RULES:
+        if re.match(pat, region):
+            return name
+    return "Other"
+
+def convert_to_marco_regions(
+    regions,
+    latency
+):
+    reg_ids = set(regions["Region"])
+    latency = latency[
+        latency["sending_region"].isin(reg_ids) &
+        latency["receiving_region"].isin(reg_ids)
+    ].copy()
+
+    regions["Continent"] = regions["Region"].map(to_continent)
+    cont_map = dict(zip(regions["Region"], regions["Continent"]))
+    latency["from_c"] = latency["sending_region"].map(cont_map)
+    latency["to_c"]   = latency["receiving_region"].map(cont_map)
+
+    # Undirected mean per continent pair
+    latency["pair"] = latency.apply(
+        lambda r: tuple(sorted([r["from_c"], r["to_c"]])), axis=1
+    )
+    c_lat = latency.groupby("pair")["milliseconds"].median().reset_index()
+
+    # Build symmetric matrix
+    mat = {}
+
+    for _, row in c_lat.iterrows():
+        a, b = row["pair"]; ms = row["milliseconds"]
+        mat[(a, b)] = ms
+        mat[(b, a)] = ms
+
+    regions = (
+        regions.groupby("Continent")[["Nearest City Longitude", "Nearest City Latitude"]]
+        .mean()
+        .rename(columns={"Nearest City Longitude": "lon", "Nearest City Latitude": "lat"})
+    )
+
+    regions["Nearest City Longitude"] = regions["lon"]
+    regions["Nearest City Latitude"] = regions["lat"]
+    regions["gcp_region"] = regions.index
+    regions["Region"] = regions.index
+    regions["Region Name"] = regions.index
+
+    return regions, mat
+
+
+def parse_gcp_latency(latency_df):
+    latency_dict = {}
+    for _, row in latency_df.iterrows():
+        key1 = (row["sending_region"], row["receiving_region"])
+        latency_dict[key1] = row["milliseconds"]
+        key2 = (row["receiving_region"], row["sending_region"])
+        latency_dict[key2] = row["milliseconds"]
+
+    return latency_dict
+
 
 # --- Spatial Classes ---
 class Space(ABC):
@@ -111,98 +186,23 @@ class SphericalSpace(Space):
                 nearest_zone = row["Region Name"]
         return nearest_zone if nearest_zone else None
 
+
     @lru_cache(maxsize=1024)
     def get_latency(self, gcp1, gcp2):
         """
         Returns the avg latency between two GCP regions according GCP latency data.
         Assumes gcp_latency is a DataFrame with columns 'sending_region', 'receiving_region', and 'milliseconds'.
         """
-        gcp_latency = self.gcp_latency
 
         if gcp1 == gcp2:
             return 0.0
-        latency_row = gcp_latency[
-            (gcp_latency["sending_region"] == gcp1)
-            & (gcp_latency["receiving_region"] == gcp2)
-        ]
-        if not latency_row.empty:
-            return latency_row["milliseconds"].values[0] / 2 # Convert to one-way latency
-        # If no direct latency data is found, return the max latency for the pair
-
-        return gcp_latency["milliseconds"].max() / 2
-    
-    @lru_cache(maxsize=1024)
-    def get_best_region_to_targets(self, targets):
-        """
-        Given a list of target GCP regions, finds the one with the lowest average latency to all targets.
-        """
-        gcp_latency = self.gcp_latency
-        gcp_regions = self.gcp_regions
-
-        subset = gcp_latency[
-            (gcp_latency["sending_region"].isin(targets))
-            & (gcp_latency["receiving_region"].isin(targets))
-        ]
-        if subset.empty:
-            return None, (0, 0)
         
-        region_to_target = {}
-        for sending_region, receiving_region, latency in subset[["sending_region", "receiving_region", "milliseconds"]].values:
-            latency = latency / 2 # Convert to one-way latency
-            region_to_target[(sending_region, receiving_region)] = latency
-            region_to_target[(receiving_region, sending_region)] = latency
-        
-        candidates = set(subset["sending_region"].unique()).union(
-            set(subset["receiving_region"].unique())
-        )
-
-        candidates_avg_latency = [
-            (
-                candidate,
-                sum(
-                    region_to_target.get((candidate, target), float("inf"))
-                    for target in targets
-                )
-                / len(targets),
-            )
-            for candidate in candidates
-        ]
-
-        candidates_avg_latency.sort(key=lambda x: x[1])
-        region = candidates_avg_latency[0][0]
-        row = gcp_regions[gcp_regions["Region Name"] == region]
-        location = (
-            row["Nearest City Latitude"].values[0],
-            row["Nearest City Longitude"].values[0]
-        )
-        return region, location
-
-    def calculate_geometric_center_of_nodes(self, nodes):
-        """
-        Calculates the geometric center of a set of nodes in the spherical space.
-        Returns a point on the unit sphere that is the average of the node positions.
-        """
-        if not nodes:
-            return None
-
-        sum_x = sum(n.position[0] for n in nodes)
-        sum_y = sum(n.position[1] for n in nodes)
-        sum_z = sum(n.position[2] for n in nodes)
-
-        avg_x = sum_x / len(nodes)
-        avg_y = sum_y / len(nodes)
-        avg_z = sum_z / len(nodes)
-
-        temp_center = (avg_x, avg_y, avg_z)
-
-        magnitude = math.sqrt(
-            temp_center[0] ** 2 + temp_center[1] ** 2 + temp_center[2] ** 2
-        )
-        if magnitude < 1e-12:
-            return self.sample_point()
-
-        scale = 1.0 / magnitude
-        return (temp_center[0] * scale, temp_center[1] * scale, temp_center[2] * scale)
+        if (gcp1, gcp2) in self.gcp_latency:
+            return self.gcp_latency[(gcp1, gcp2)] / 2
+        elif (gcp2, gcp1) in self.gcp_latency:
+            return self.gcp_latency[(gcp2, gcp1)] / 2
+        else:
+            return max(self.gcp_latency.values()) / 2
 
 
 def init_distance_matrix(positions, space):

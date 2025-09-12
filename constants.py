@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 # Constants
 SLOT_DURATION_MS = 12000  # Duration of an Ethereum slot in milliseconds
 TIME_GRANULARITY_MS = 100  # Simulation time step in milliseconds
@@ -31,3 +32,13 @@ SYNC_COMMITTEE_REWARD = 2
 CLOUD_VALIDATOR_PERCENTAGE = 1
 # Percentage of validators that are non-compliant (i.e., willing to use noncensoring relay)
 NON_COMPLIANT_VALIDATOR_PERCENTAGE = 1
+
+
+@dataclass(frozen=True)
+class LinearMEVUtility:
+    base_mev: float
+    mev_increase: float
+    multiplier: float = 1.0
+
+    def __call__(self, x: float) -> float:
+        return (self.base_mev * self.multiplier) + (x * self.mev_increase * self.multiplier)

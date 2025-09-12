@@ -9,11 +9,13 @@ import traceback
 import yaml  # Import yaml library
 from collections import defaultdict, Counter
 
+from constants import LinearMEVUtility
 from consensus import ConsensusSettings
+from distribution import convert_to_marco_regions, parse_gcp_latency
 from measure import *  # Assuming measure.py contains necessary measurement functions
 from models import MEVBoostModel, EthereumWithoutMEVBoostModel
-from relay_agent import initialize_relays, get_random_relay_profile
-from info_agent import initialize_infos, get_random_info_profile
+from relay_agent import initialize_relays, get_evenly_distributed_relay_profiles
+from info_agent import initialize_infos, get_evenly_distributed_info_profiles
 
 
 # --- Simulation Initialization Functions ---
@@ -57,29 +59,61 @@ def evenly_distribute_validators(gcp_regions, number_of_validators):
 
     return pd.DataFrame(validators, columns=["gcp_region", "latitude", "longitude"])
 
-def big_region_evenly_distribute_validators(gcp_regions, number_of_validators):
+def macro_region_evenly_distribute_validators(gcp_regions, number_of_validators):
     """Generates a list of validators evenly distributed across major GCP regions."""
     gcp_data = [(region["gcp_region"].split("-")[0], region["gcp_region"], region["lat"], region["lon"]) for _, region in gcp_regions.iterrows()]
-    greater_regions = {}
+    macro_regions = {}
     for region in gcp_data:
-        greater_region = region[0]
-        if greater_region not in greater_regions:
-            greater_regions[greater_region] = []
-        greater_regions[greater_region].append(region[1:])  # Store (gcp_region, lat, lon)
+        macro_region = region[0]
+        if macro_region == 'us':
+            macro_region = 'northamerica'
 
-    greater_region_list = list(greater_regions.keys())
-    number_of_greater_regions = len(greater_region_list)
-    greater_region_selected_counts = {region: 0 for region in greater_region_list}
+        if macro_region not in macro_regions:
+            macro_regions[macro_region] = []
+        macro_regions[macro_region].append(region[1:])  # Store (gcp_region, lat, lon)
+
+    macro_region_list = list(macro_regions.keys())
+    number_of_macro_regions = len(macro_region_list)
+    macro_region_selected_counts = {region: 0 for region in macro_region_list}
     validators = []
     for i in range(number_of_validators):
-        selected_greater_region = greater_region_list[i % number_of_greater_regions]
-        region_options = greater_regions[selected_greater_region]
-        selected_count = greater_region_selected_counts[selected_greater_region]
+        selected_macro_region = macro_region_list[i % number_of_macro_regions]
+        region_options = macro_regions[selected_macro_region]
+        selected_count = macro_region_selected_counts[selected_macro_region]
         selected_region = region_options[selected_count % len(region_options)]
         validators.append(selected_region)
-        greater_region_selected_counts[selected_greater_region] += 1
+        macro_region_selected_counts[selected_macro_region] += 1
     
     return pd.DataFrame(validators, columns=["gcp_region", "latitude", "longitude"])
+
+
+def evenly_distribute_info_profiles(gcp_regions):
+    gcp_data = [(region["gcp_region"].split("-")[0], region["gcp_region"], region["lat"], region["lon"]) for _, region in gcp_regions.iterrows()]
+    macro_regions = {}
+    for region in gcp_data:
+        macro_region = region[0]
+        if macro_region == 'us':
+            macro_region = 'northamerica'
+
+        if macro_region not in macro_regions:
+            macro_regions[macro_region] = []
+        macro_regions[macro_region].append(region[1:])  # Store (gcp_region, lat, lon)
+
+    info_profiles = []
+    for macro_region, sub_regions in macro_regions.items():
+        factor = len(macro_regions) * len(sub_regions)
+        for i, sub_region in enumerate(sub_regions):
+            profile = {
+                "unique_id": f"info-{macro_region}-{i}",
+                "gcp_region": sub_region[0],
+                "lat": sub_region[1],
+                "lon": sub_region[2],
+                "utility_function": LinearMEVUtility(0.4/factor, 0.04/factor, 1.0),
+            }
+            info_profiles.append(profile)
+        
+    return info_profiles
+
 
 def simulation(
     model,
@@ -361,7 +395,7 @@ if __name__ == "__main__":
         "--distribution",
         type=str,
         default="even",
-        choices=["even", "macro-region-even", "random", "real-world"],
+        choices=["even", "macro-region-even", "macro-region-even-v0", "random", "real-world"],
         help="Assign validators / information sources to GCP regions (default: False)"
     )
 
@@ -418,37 +452,35 @@ if __name__ == "__main__":
                 f"Using all {len(validators)} validators from CSV as it's less than configured {num_validators}."
             )
 
+        if args.distribution == "macro-region-even":
+            gcp_regions, gcp_latency = convert_to_marco_regions(gcp_regions, gcp_latency)
+
+            number_of_relays = number_of_infos = gcp_regions.shape[0]
+            info_profiles = get_evenly_distributed_info_profiles(gcp_regions, number_of_infos)
+            relay_profiles = get_evenly_distributed_relay_profiles(gcp_regions, number_of_relays)
+        else:
+            gcp_latency = parse_gcp_latency(gcp_latency)
+
+            relay_profiles_data = config.get("relay_profiles", [])
+            relay_profiles = initialize_relays(relay_profiles_data)
+            number_of_relays = len(relay_profiles)
+
+            info_profiles_data = config.get("info_profiles", [])
+            info_profiles = initialize_infos(info_profiles_data)
+            number_of_infos = len(info_profiles)
+
         # Initialize Relays/Info
         if args.distribution == "even":
             validators = evenly_distribute_validators(gcp_regions, num_validators)
         elif args.distribution == "macro-region-even":
-            validators = big_region_evenly_distribute_validators(gcp_regions, num_validators)
+            validators = evenly_distribute_validators(gcp_regions, num_validators)
+        elif args.distribution == "macro-region-even-v0":
+            validators = macro_region_evenly_distribute_validators(gcp_regions, num_validators)
+            # info_profiles = evenly_distribute_info_profiles(gcp_regions)
         elif args.distribution == "random":
             validators = random_validators(gcp_regions, num_validators)
         elif args.distribution == "real-world":
-            pass  # Use validators as loaded from CSV
-            # number_of_infos = random.randint(3, 10)
-            # number_of_relays = random.randint(3, 10)
-            # relay_profiles = get_random_relay_profile(gcp_regions, number_of_relays)
-            # info_profiles = get_random_info_profile(gcp_regions, number_of_infos)
-        relay_profiles_data = config.get("relay_profiles", [])
-        relay_profiles = initialize_relays(relay_profiles_data)
-        number_of_relays = len(relay_profiles)
-
-        info_profiles_data = config.get("info_profiles", [])
-        info_profiles = initialize_infos(info_profiles_data)
-        number_of_infos = len(info_profiles)
-        #     # validators = None # Validators will be randomly assigned in the model
-        #     validators = random_validators(gcp_regions, num_validators)
-        # else:
-        #     relay_profiles_data = config.get("relay_profiles", [])
-        #     relay_profiles = initialize_relays(relay_profiles_data)
-        #     # Get actual count of initialized relays
-        #     number_of_relays = len(relay_profiles)
-
-        #     info_profiles_data = config.get("info_profiles", [])
-        #     info_profiles = initialize_infos(info_profiles_data)
-        #     number_of_infos = len(info_profiles)
+            pass
 
         # Get Proposer Timing Strategies
         timing_strategies = config.get(

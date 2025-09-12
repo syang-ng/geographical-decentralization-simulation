@@ -28,8 +28,8 @@ relay_profiles:
     lon: 28.0473
     utility_function:
       type: linear_mev
-      base_mev: 0.42
-      mev_increase: 0.042
+      base_mev: 0.40
+      mev_increase: 0.04
       multiplier: 1.0
     type: NONCENSORING
 
@@ -40,8 +40,8 @@ relay_profiles:
     lon: 120.536
     utility_function:
       type: linear_mev
-      base_mev: 0.42
-      mev_increase: 0.042
+      base_mev: 0.40
+      mev_increase: 0.04
       multiplier: 1.0
     type: NONCENSORING
 
@@ -52,8 +52,8 @@ relay_profiles:
     lon: 114.1095
     utility_function:
       type: linear_mev
-      base_mev: 0.42
-      mev_increase: 0.042
+      base_mev: 0.40
+      mev_increase: 0.04
       multiplier: 1.0
     type: NONCENSORING
 
@@ -64,8 +64,8 @@ relay_profiles:
     lon: 139.6917
     utility_function:
       type: linear_mev
-      base_mev: 0.42
-      mev_increase: 0.042
+      base_mev: 0.40
+      mev_increase: 0.04
       multiplier: 1.0
     type: NONCENSORING
 
@@ -76,8 +76,8 @@ relay_profiles:
     lon: 135.5023
     utility_function:
       type: linear_mev
-      base_mev: 0.42
-      mev_increase: 0.042
+      base_mev: 0.40
+      mev_increase: 0.04
       multiplier: 1.0
     type: NONCENSORING
 
@@ -88,8 +88,8 @@ relay_profiles:
     lon: 126.978
     utility_function:
       type: linear_mev
-      base_mev: 0.42
-      mev_increase: 0.042
+      base_mev: 0.40
+      mev_increase: 0.04
       multiplier: 1.0
     type: NONCENSORING
 
@@ -100,8 +100,8 @@ relay_profiles:
     lon: 72.8777
     utility_function:
       type: linear_mev
-      base_mev: 0.42
-      mev_increase: 0.042
+      base_mev: 0.40
+      mev_increase: 0.04
       multiplier: 1.0
     type: NONCENSORING
 
@@ -112,8 +112,8 @@ relay_profiles:
     lon: 77.1025
     utility_function:
       type: linear_mev
-      base_mev: 0.42
-      mev_increase: 0.042
+      base_mev: 0.40
+      mev_increase: 0.04
       multiplier: 1.0
     type: NONCENSORING
 
@@ -124,8 +124,8 @@ relay_profiles:
     lon: 103.8198
     utility_function:
       type: linear_mev
-      base_mev: 0.42
-      mev_increase: 0.042
+      base_mev: 0.40
+      mev_increase: 0.04
       multiplier: 1.0
     type: NONCENSORING
 
@@ -136,8 +136,8 @@ relay_profiles:
     lon: 106.8456
     utility_function:
       type: linear_mev
-      base_mev: 0.42
-      mev_increase: 0.042
+      base_mev: 0.40
+      mev_increase: 0.04
       multiplier: 1.0
     type: NONCENSORING
 
@@ -148,8 +148,8 @@ relay_profiles:
     lon: 151.2093
     utility_function:
       type: linear_mev
-      base_mev: 0.42
-      mev_increase: 0.042
+      base_mev: 0.40
+      mev_increase: 0.04
       multiplier: 1.0
     type: NONCENSORING
 
@@ -160,8 +160,8 @@ relay_profiles:
     lon: 144.9631
     utility_function:
       type: linear_mev
-      base_mev: 0.42
-      mev_increase: 0.042
+      base_mev: 0.40
+      mev_increase: 0.04
       multiplier: 1.0
     type: NONCENSORING
 
@@ -172,8 +172,8 @@ relay_profiles:
     lon: 21.0122
     utility_function:
       type: linear_mev
-      base_mev: 0.42
-      mev_increase: 0.042
+      base_mev: 0.40
+      mev_increase: 0.04
       multiplier: 1.0
     type: NONCENSORING
 
@@ -184,8 +184,8 @@ relay_profiles:
     lon: 24.9414
     utility_function:
       type: linear_mev
-      base_mev: 0.42
-      mev_increase: 0.042
+      base_mev: 0.40
+      mev_increase: 0.04
       multiplier: 1.0
     type: NONCENSORING
 
@@ -196,8 +196,8 @@ relay_profiles:
     lon: 18.0686
     utility_function:
       type: linear_mev
-      base_mev: 0.42
-      mev_increase: 0.042
+      base_mev: 0.40
+      mev_increase: 0.04
       multiplier: 1.0
     type: NONCENSORING
 
@@ -208,8 +208,8 @@ relay_profiles:
     lon: -3.7038
     utility_function:
       type: linear_mev
-      base_mev: 0.42
-      mev_increase: 0.042
+      base_mev: 0.40
+      mev_increase: 0.04
       multiplier: 1.0
     type: NONCENSORING
 
@@ -220,8 +220,8 @@ relay_profiles:
     lon: 4.4699
     utility_function:
       type: linear_mev
-      base_mev: 0.42
-      mev_increase: 0.042
+      base_mev: 0.40
+      mev_increase: 0.04
       multiplier: 1.0
     type: NONCENSORING
 
@@ -232,8 +232,8 @@ relay_profiles:
     lon: -0.1278
     utility_function:
       type: linear_mev
-      base_mev: 0.42
-      mev_increase: 0.042
+      base_mev: 0.40
+      mev_increase: 0.04
       multiplier: 1.0
     type: NONCENSORING
 
@@ -244,8 +244,8 @@ relay_profiles:
     lon: 8.6821
     utility_function:
       type: linear_mev
-      base_mev: 0.42
-      mev_increase: 0.042
+      base_mev: 0.40
+      mev_increase: 0.04
       multiplier: 1.0
     type: NONCENSORING
 
@@ -256,8 +256,8 @@ relay_profiles:
     lon: 6.2603
     utility_function:
       type: linear_mev
-      base_mev: 0.42
-      mev_increase: 0.042
+      base_mev: 0.40
+      mev_increase: 0.04
       multiplier: 1.0
     type: NONCENSORING
 
@@ -268,8 +268,8 @@ relay_profiles:
     lon: 8.5417
     utility_function:
       type: linear_mev
-      base_mev: 0.42
-      mev_increase: 0.042
+      base_mev: 0.40
+      mev_increase: 0.04
       multiplier: 1.0
     type: NONCENSORING
 
@@ -280,8 +280,8 @@ relay_profiles:
     lon: 9.19
     utility_function:
       type: linear_mev
-      base_mev: 0.42
-      mev_increase: 0.042
+      base_mev: 0.40
+      mev_increase: 0.04
       multiplier: 1.0
     type: NONCENSORING
 
@@ -292,8 +292,8 @@ relay_profiles:
     lon: 2.3522
     utility_function:
       type: linear_mev
-      base_mev: 0.42
-      mev_increase: 0.042
+      base_mev: 0.40
+      mev_increase: 0.04
       multiplier: 1.0
     type: NONCENSORING
 
@@ -304,8 +304,8 @@ relay_profiles:
     lon: 13.405
     utility_function:
       type: linear_mev
-      base_mev: 0.42
-      mev_increase: 0.042
+      base_mev: 0.40
+      mev_increase: 0.04
       multiplier: 1.0
     type: NONCENSORING
 
@@ -316,8 +316,8 @@ relay_profiles:
     lon: 7.6869
     utility_function:
       type: linear_mev
-      base_mev: 0.42
-      mev_increase: 0.042
+      base_mev: 0.40
+      mev_increase: 0.04
       multiplier: 1.0
     type: NONCENSORING
 
@@ -328,20 +328,8 @@ relay_profiles:
     lon: 51.531
     utility_function:
       type: linear_mev
-      base_mev: 0.42
-      mev_increase: 0.042
-      multiplier: 1.0
-    type: NONCENSORING
-
-
-  - unique_id: me-central2-relay
-    gcp_region: me-central2
-    lat: 26.4207
-    lon: 50.0888
-    utility_function:
-      type: linear_mev
-      base_mev: 0.42
-      mev_increase: 0.042
+      base_mev: 0.40
+      mev_increase: 0.04
       multiplier: 1.0
     type: NONCENSORING
 
@@ -352,8 +340,8 @@ relay_profiles:
     lon: 34.7818
     utility_function:
       type: linear_mev
-      base_mev: 0.42
-      mev_increase: 0.042
+      base_mev: 0.40
+      mev_increase: 0.04
       multiplier: 1.0
     type: NONCENSORING
 
@@ -364,8 +352,8 @@ relay_profiles:
     lon: -73.5673
     utility_function:
       type: linear_mev
-      base_mev: 0.42
-      mev_increase: 0.042
+      base_mev: 0.40
+      mev_increase: 0.04
       multiplier: 1.0
     type: NONCENSORING
 
@@ -376,20 +364,8 @@ relay_profiles:
     lon: -79.347
     utility_function:
       type: linear_mev
-      base_mev: 0.42
-      mev_increase: 0.042
-      multiplier: 1.0
-    type: NONCENSORING
-
-
-  - unique_id: northamerica-south1-relay
-    gcp_region: northamerica-south1
-    lat: 20.5888
-    lon: -100.3899
-    utility_function:
-      type: linear_mev
-      base_mev: 0.42
-      mev_increase: 0.042
+      base_mev: 0.40
+      mev_increase: 0.04
       multiplier: 1.0
     type: NONCENSORING
 
@@ -400,8 +376,8 @@ relay_profiles:
     lon: -46.6333
     utility_function:
       type: linear_mev
-      base_mev: 0.42
-      mev_increase: 0.042
+      base_mev: 0.40
+      mev_increase: 0.04
       multiplier: 1.0
     type: NONCENSORING
 
@@ -412,8 +388,8 @@ relay_profiles:
     lon: -70.6693
     utility_function:
       type: linear_mev
-      base_mev: 0.42
-      mev_increase: 0.042
+      base_mev: 0.40
+      mev_increase: 0.04
       multiplier: 1.0
     type: NONCENSORING
 
@@ -424,8 +400,8 @@ relay_profiles:
     lon: -95.9345
     utility_function:
       type: linear_mev
-      base_mev: 0.42
-      mev_increase: 0.042
+      base_mev: 0.40
+      mev_increase: 0.04
       multiplier: 1.0
     type: NONCENSORING
 
@@ -436,8 +412,8 @@ relay_profiles:
     lon: -79.9311
     utility_function:
       type: linear_mev
-      base_mev: 0.42
-      mev_increase: 0.042
+      base_mev: 0.40
+      mev_increase: 0.04
       multiplier: 1.0
     type: NONCENSORING
 
@@ -448,8 +424,8 @@ relay_profiles:
     lon: -77.0364
     utility_function:
       type: linear_mev
-      base_mev: 0.42
-      mev_increase: 0.042
+      base_mev: 0.40
+      mev_increase: 0.04
       multiplier: 1.0
     type: NONCENSORING
 
@@ -460,8 +436,8 @@ relay_profiles:
     lon: -82.9988
     utility_function:
       type: linear_mev
-      base_mev: 0.42
-      mev_increase: 0.042
+      base_mev: 0.40
+      mev_increase: 0.04
       multiplier: 1.0
     type: NONCENSORING
 
@@ -472,8 +448,8 @@ relay_profiles:
     lon: -96.797
     utility_function:
       type: linear_mev
-      base_mev: 0.42
-      mev_increase: 0.042
+      base_mev: 0.40
+      mev_increase: 0.04
       multiplier: 1.0
     type: NONCENSORING
 
@@ -484,8 +460,8 @@ relay_profiles:
     lon: -121.1794
     utility_function:
       type: linear_mev
-      base_mev: 0.42
-      mev_increase: 0.042
+      base_mev: 0.40
+      mev_increase: 0.04
       multiplier: 1.0
     type: NONCENSORING
 
@@ -496,8 +472,8 @@ relay_profiles:
     lon: -118.2437
     utility_function:
       type: linear_mev
-      base_mev: 0.42
-      mev_increase: 0.042
+      base_mev: 0.40
+      mev_increase: 0.04
       multiplier: 1.0
     type: NONCENSORING
 
@@ -508,8 +484,8 @@ relay_profiles:
     lon: -111.891
     utility_function:
       type: linear_mev
-      base_mev: 0.42
-      mev_increase: 0.042
+      base_mev: 0.40
+      mev_increase: 0.04
       multiplier: 1.0
     type: NONCENSORING
 
@@ -520,7 +496,7 @@ relay_profiles:
     lon: -115.1398
     utility_function:
       type: linear_mev
-      base_mev: 0.42
-      mev_increase: 0.042
+      base_mev: 0.40
+      mev_increase: 0.04
       multiplier: 1.0
     type: NONCENSORING

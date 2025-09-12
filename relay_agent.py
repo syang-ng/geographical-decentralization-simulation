@@ -5,7 +5,8 @@ from mesa import Agent
 
 from constants import (
     BASE_MEV_AMOUNT,
-    MEV_INCREASE_PER_SECOND
+    MEV_INCREASE_PER_SECOND,
+    LinearMEVUtility
 )
 
 # --- Relay Types ---
@@ -212,3 +213,27 @@ def get_random_relay_profile(gcp_data_df, num):
         }
         relay_profiles.append(profile)
     return random.choices(relay_profiles, k=num)
+
+
+def get_evenly_distributed_relay_profiles(gcp_data_df, num):
+    relay_profiles = []
+    for i, row in gcp_data_df.iterrows():
+        profile = {
+            "unique_id": f"relay-{i}",
+            "gcp_region": row['gcp_region'],
+            "lat": row['lat'],
+            "lon": row['lon'],
+            "utility_function": LinearMEVUtility(0.4, 0.04, 1.0),
+            "type": RelayType.NONCENSORING,
+            "subsidy": 0.0,
+            "threshold": 0.0
+        }
+        relay_profiles.append(profile)
+
+    if num <= len(relay_profiles):
+        return random.sample(relay_profiles, k=num)
+    else:
+        # If more relays are requested than available regions, allow duplicates
+        repeats = num // len(relay_profiles)
+        remainder = num % len(relay_profiles)
+        return relay_profiles * repeats + random.sample(relay_profiles, k=remainder)

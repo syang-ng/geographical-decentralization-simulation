@@ -1,22 +1,12 @@
-from dataclasses import dataclass
 import random
 
 from mesa import Agent
 
 from constants import (
     BASE_MEV_AMOUNT,
-    MEV_INCREASE_PER_SECOND
+    MEV_INCREASE_PER_SECOND,
+    LinearMEVUtility
 )
-
-
-@dataclass(frozen=True)
-class LinearMEVUtility:
-    base_mev: float
-    mev_increase: float
-    multiplier: float = 1.0
-
-    def __call__(self, x: float) -> float:
-        return (self.base_mev * self.multiplier) + (x * self.mev_increase * self.multiplier)
 
 
 INFO_PROFILES = [
@@ -178,3 +168,23 @@ def get_random_info_profile(gcp_data_df, num):
 
     return random.choices(info_profiles, k=num)
     
+
+def get_evenly_distributed_info_profiles(gcp_data_df, num):
+    info_profiles = []
+    for i, row in gcp_data_df.iterrows():
+        profile = {
+            "unique_id": f"info-{i}",
+            "gcp_region": row['gcp_region'],
+            "lat": row['lat'],
+            "lon": row['lon'],
+            "utility_function": LinearMEVUtility(0.01*40/num, 0.001*40/num, 1.0),
+        }
+        info_profiles.append(profile)
+
+    if num <= len(info_profiles):
+        return info_profiles[:num]
+    else:
+        # If more profiles are needed than available, repeat the list
+        repeats = num // len(info_profiles)
+        remainder = num % len(info_profiles)
+        return info_profiles * repeats + info_profiles[:remainder]
