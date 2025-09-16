@@ -378,8 +378,7 @@ class ValidatorWithoutMEVBoost(RawValidatorAgent):
                         self.gcp_region, info_agent.gcp_region
                     )
                     latency_threshold = (
-                        self.model.consensus_settings.attestation_time_ms
-                        - required_time
+                        required_time
                         - to_info_latency
                     )
                     info_source_value = info_agent.get_mev_offer_at_time(latency_threshold)
