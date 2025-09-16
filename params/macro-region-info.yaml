@@ -1,0 +1,502 @@
+simulation_name: all-info
+model: ethereum-raw
+iterations: 1000
+time_granularity_ms: 50
+validators: 1000
+input_folder: data
+output_folder: all-info-macro-region-even-v0
+time_window: 1000
+cost: 0.0001
+
+cloud: 1
+noncompliant: 1
+
+consensus_settings:
+  slot_duration_ms: 6000
+  attestation_time_ms: 3000 
+  attestation_threshold: 0.6667
+  timely_head_reward: 0.0790425
+  timely_source_reward: 0.147825
+  timely_target_reward: 0.12852
+  proposer_reward: 0.2
+  sync_committee_reward: 0.2
+
+info_profiles:
+  - unique_id: africa-south1-info
+    gcp_region: africa-south1
+    lat: -26.2041
+    lon: 28.0473
+    utility_function:
+      type: linear_mev
+      base_mev: 0.01
+      mev_increase: 0.001
+      multiplier: 1.0
+    type: NONCENSORING
+
+
+  - unique_id: asia-east1-info
+    gcp_region: asia-east1
+    lat: 23.9575
+    lon: 120.536
+    utility_function:
+      type: linear_mev
+      base_mev: 0.01
+      mev_increase: 0.001
+      multiplier: 1.0
+    type: NONCENSORING
+
+
+  - unique_id: asia-east2-info
+    gcp_region: asia-east2
+    lat: 22.3964
+    lon: 114.1095
+    utility_function:
+      type: linear_mev
+      base_mev: 0.01
+      mev_increase: 0.001
+      multiplier: 1.0
+    type: NONCENSORING
+
+
+  - unique_id: asia-northeast1-info
+    gcp_region: asia-northeast1
+    lat: 35.6895
+    lon: 139.6917
+    utility_function:
+      type: linear_mev
+      base_mev: 0.01
+      mev_increase: 0.001
+      multiplier: 1.0
+    type: NONCENSORING
+
+
+  - unique_id: asia-northeast2-info
+    gcp_region: asia-northeast2
+    lat: 34.6937
+    lon: 135.5023
+    utility_function:
+      type: linear_mev
+      base_mev: 0.01
+      mev_increase: 0.001
+      multiplier: 1.0
+    type: NONCENSORING
+
+
+  - unique_id: asia-northeast3-info
+    gcp_region: asia-northeast3
+    lat: 37.5665
+    lon: 126.978
+    utility_function:
+      type: linear_mev
+      base_mev: 0.01
+      mev_increase: 0.001
+      multiplier: 1.0
+    type: NONCENSORING
+
+
+  - unique_id: asia-south1-info
+    gcp_region: asia-south1
+    lat: 19.076
+    lon: 72.8777
+    utility_function:
+      type: linear_mev
+      base_mev: 0.01
+      mev_increase: 0.001
+      multiplier: 1.0
+    type: NONCENSORING
+
+
+  - unique_id: asia-south2-info
+    gcp_region: asia-south2
+    lat: 28.7041
+    lon: 77.1025
+    utility_function:
+      type: linear_mev
+      base_mev: 0.01
+      mev_increase: 0.001
+      multiplier: 1.0
+    type: NONCENSORING
+
+
+  - unique_id: asia-southeast1-info
+    gcp_region: asia-southeast1
+    lat: 1.3521
+    lon: 103.8198
+    utility_function:
+      type: linear_mev
+      base_mev: 0.01
+      mev_increase: 0.001
+      multiplier: 1.0
+    type: NONCENSORING
+
+
+  - unique_id: asia-southeast2-info
+    gcp_region: asia-southeast2
+    lat: -6.2088
+    lon: 106.8456
+    utility_function:
+      type: linear_mev
+      base_mev: 0.01
+      mev_increase: 0.001
+      multiplier: 1.0
+    type: NONCENSORING
+
+
+  - unique_id: australia-southeast1-info
+    gcp_region: australia-southeast1
+    lat: -33.8688
+    lon: 151.2093
+    utility_function:
+      type: linear_mev
+      base_mev: 0.01
+      mev_increase: 0.001
+      multiplier: 1.0
+    type: NONCENSORING
+
+
+  - unique_id: australia-southeast2-info
+    gcp_region: australia-southeast2
+    lat: -37.8136
+    lon: 144.9631
+    utility_function:
+      type: linear_mev
+      base_mev: 0.01
+      mev_increase: 0.001
+      multiplier: 1.0
+    type: NONCENSORING
+
+
+  - unique_id: europe-central2-info
+    gcp_region: europe-central2
+    lat: 52.2297
+    lon: 21.0122
+    utility_function:
+      type: linear_mev
+      base_mev: 0.01
+      mev_increase: 0.001
+      multiplier: 1.0
+    type: NONCENSORING
+
+
+  - unique_id: europe-north1-info
+    gcp_region: europe-north1
+    lat: 60.1719
+    lon: 24.9414
+    utility_function:
+      type: linear_mev
+      base_mev: 0.01
+      mev_increase: 0.001
+      multiplier: 1.0
+    type: NONCENSORING
+
+
+  - unique_id: europe-north2-info
+    gcp_region: europe-north2
+    lat: 59.3293
+    lon: 18.0686
+    utility_function:
+      type: linear_mev
+      base_mev: 0.01
+      mev_increase: 0.001
+      multiplier: 1.0
+    type: NONCENSORING
+
+
+  - unique_id: europe-southwest1-info
+    gcp_region: europe-southwest1
+    lat: 40.4168
+    lon: -3.7038
+    utility_function:
+      type: linear_mev
+      base_mev: 0.01
+      mev_increase: 0.001
+      multiplier: 1.0
+    type: NONCENSORING
+
+
+  - unique_id: europe-west1-info
+    gcp_region: europe-west1
+    lat: 50.5039
+    lon: 4.4699
+    utility_function:
+      type: linear_mev
+      base_mev: 0.01
+      mev_increase: 0.001
+      multiplier: 1.0
+    type: NONCENSORING
+
+
+  - unique_id: europe-west2-info
+    gcp_region: europe-west2
+    lat: 51.5074
+    lon: -0.1278
+    utility_function:
+      type: linear_mev
+      base_mev: 0.01
+      mev_increase: 0.001
+      multiplier: 1.0
+    type: NONCENSORING
+
+
+  - unique_id: europe-west3-info
+    gcp_region: europe-west3
+    lat: 50.1109
+    lon: 8.6821
+    utility_function:
+      type: linear_mev
+      base_mev: 0.01
+      mev_increase: 0.001
+      multiplier: 1.0
+    type: NONCENSORING
+
+
+  - unique_id: europe-west4-info
+    gcp_region: europe-west4
+    lat: 53.3487
+    lon: 6.2603
+    utility_function:
+      type: linear_mev
+      base_mev: 0.01
+      mev_increase: 0.001
+      multiplier: 1.0
+    type: NONCENSORING
+
+
+  - unique_id: europe-west6-info
+    gcp_region: europe-west6
+    lat: 47.3769
+    lon: 8.5417
+    utility_function:
+      type: linear_mev
+      base_mev: 0.01
+      mev_increase: 0.001
+      multiplier: 1.0
+    type: NONCENSORING
+
+
+  - unique_id: europe-west8-info
+    gcp_region: europe-west8
+    lat: 45.4642
+    lon: 9.19
+    utility_function:
+      type: linear_mev
+      base_mev: 0.01
+      mev_increase: 0.001
+      multiplier: 1.0
+    type: NONCENSORING
+
+
+  - unique_id: europe-west9-info
+    gcp_region: europe-west9
+    lat: 48.8566
+    lon: 2.3522
+    utility_function:
+      type: linear_mev
+      base_mev: 0.01
+      mev_increase: 0.001
+      multiplier: 1.0
+    type: NONCENSORING
+
+
+  - unique_id: europe-west10-info
+    gcp_region: europe-west10
+    lat: 52.52
+    lon: 13.405
+    utility_function:
+      type: linear_mev
+      base_mev: 0.01
+      mev_increase: 0.001
+      multiplier: 1.0
+    type: NONCENSORING
+
+
+  - unique_id: europe-west12-info
+    gcp_region: europe-west12
+    lat: 45.0703
+    lon: 7.6869
+    utility_function:
+      type: linear_mev
+      base_mev: 0.01
+      mev_increase: 0.001
+      multiplier: 1.0
+    type: NONCENSORING
+
+
+  - unique_id: me-central1-info
+    gcp_region: me-central1
+    lat: 25.2854
+    lon: 51.531
+    utility_function:
+      type: linear_mev
+      base_mev: 0.01
+      mev_increase: 0.001
+      multiplier: 1.0
+    type: NONCENSORING
+
+
+  - unique_id: me-west1-info
+    gcp_region: me-west1
+    lat: 32.0853
+    lon: 34.7818
+    utility_function:
+      type: linear_mev
+      base_mev: 0.01
+      mev_increase: 0.001
+      multiplier: 1.0
+    type: NONCENSORING
+
+
+  - unique_id: northamerica-northeast1-info
+    gcp_region: northamerica-northeast1
+    lat: 45.5017
+    lon: -73.5673
+    utility_function:
+      type: linear_mev
+      base_mev: 0.01
+      mev_increase: 0.001
+      multiplier: 1.0
+    type: NONCENSORING
+
+
+  - unique_id: northamerica-northeast2-info
+    gcp_region: northamerica-northeast2
+    lat: 43.6511
+    lon: -79.347
+    utility_function:
+      type: linear_mev
+      base_mev: 0.01
+      mev_increase: 0.001
+      multiplier: 1.0
+    type: NONCENSORING
+
+
+  - unique_id: southamerica-east1-info
+    gcp_region: southamerica-east1
+    lat: -23.5505
+    lon: -46.6333
+    utility_function:
+      type: linear_mev
+      base_mev: 0.01
+      mev_increase: 0.001
+      multiplier: 1.0
+    type: NONCENSORING
+
+
+  - unique_id: southamerica-west1-info
+    gcp_region: southamerica-west1
+    lat: -33.4489
+    lon: -70.6693
+    utility_function:
+      type: linear_mev
+      base_mev: 0.01
+      mev_increase: 0.001
+      multiplier: 1.0
+    type: NONCENSORING
+
+
+  - unique_id: us-central1-info
+    gcp_region: us-central1
+    lat: 41.2565
+    lon: -95.9345
+    utility_function:
+      type: linear_mev
+      base_mev: 0.01
+      mev_increase: 0.001
+      multiplier: 1.0
+    type: NONCENSORING
+
+
+  - unique_id: us-east1-info
+    gcp_region: us-east1
+    lat: 32.7767
+    lon: -79.9311
+    utility_function:
+      type: linear_mev
+      base_mev: 0.01
+      mev_increase: 0.001
+      multiplier: 1.0
+    type: NONCENSORING
+
+
+  - unique_id: us-east4-info
+    gcp_region: us-east4
+    lat: 38.8951
+    lon: -77.0364
+    utility_function:
+      type: linear_mev
+      base_mev: 0.01
+      mev_increase: 0.001
+      multiplier: 1.0
+    type: NONCENSORING
+
+
+  - unique_id: us-east5-info
+    gcp_region: us-east5
+    lat: 39.9612
+    lon: -82.9988
+    utility_function:
+      type: linear_mev
+      base_mev: 0.01
+      mev_increase: 0.001
+      multiplier: 1.0
+    type: NONCENSORING
+
+
+  - unique_id: us-south1-info
+    gcp_region: us-south1
+    lat: 32.7767
+    lon: -96.797
+    utility_function:
+      type: linear_mev
+      base_mev: 0.01
+      mev_increase: 0.001
+      multiplier: 1.0
+    type: NONCENSORING
+
+
+  - unique_id: us-west1-info
+    gcp_region: us-west1
+    lat: 45.6066
+    lon: -121.1794
+    utility_function:
+      type: linear_mev
+      base_mev: 0.01
+      mev_increase: 0.001
+      multiplier: 1.0
+    type: NONCENSORING
+
+
+  - unique_id: us-west2-info
+    gcp_region: us-west2
+    lat: 34.0522
+    lon: -118.2437
+    utility_function:
+      type: linear_mev
+      base_mev: 0.01
+      mev_increase: 0.001
+      multiplier: 1.0
+    type: NONCENSORING
+
+
+  - unique_id: us-west3-info
+    gcp_region: us-west3
+    lat: 40.7608
+    lon: -111.891
+    utility_function:
+      type: linear_mev
+      base_mev: 0.01
+      mev_increase: 0.001
+      multiplier: 1.0
+    type: NONCENSORING
+
+
+  - unique_id: us-west4-info
+    gcp_region: us-west4
+    lat: 36.1699
+    lon: -115.1398
+    utility_function:
+      type: linear_mev
+      base_mev: 0.01
+      mev_increase: 0.001
+      multiplier: 1.0
+    type: NONCENSORING

@@ -12,7 +12,7 @@ region_maps = {
     'europe': 'EU',
     'northamerica': 'NA',
     'southamerica': 'SA',
-    'us': 'US',
+    'us': 'NA',
     'me': 'ME',
     "Asia": "AS",
     "Europe": "EU",
