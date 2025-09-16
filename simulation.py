@@ -428,7 +428,7 @@ if __name__ == "__main__":
         fast_mode = args.fast
 
         # cost for migration
-        cost = args.cost if args.cost else config.get("migration_cost", 0.0001)
+        cost = args.cost if args.cost is not None else config.get("migration_cost", 0.0001)
 
         output_folder = os.path.join(
             output_folder,
@@ -476,7 +476,7 @@ if __name__ == "__main__":
             validators = evenly_distribute_validators(gcp_regions, num_validators)
         elif args.distribution == "macro-region-even-v0":
             validators = macro_region_evenly_distribute_validators(gcp_regions, num_validators)
-            # info_profiles = evenly_distribute_info_profiles(gcp_regions)
+            info_profiles = evenly_distribute_info_profiles(gcp_regions)
         elif args.distribution == "random":
             validators = random_validators(gcp_regions, num_validators)
         elif args.distribution == "real-world":

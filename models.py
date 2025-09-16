@@ -116,6 +116,11 @@ class EthereumRawModel(Model):
                     else 0
                 ),
                 "Failed_Block_Proposals": "failed_block_proposals",
+                "Utility_Increase": lambda m: (
+                    m.current_proposer_agent.estimated_profit_increase
+                    if m.current_proposer_agent
+                    else 0.0
+                ),
             },
             agent_reporters={
                 "Position": "position",  # Example agent attribute

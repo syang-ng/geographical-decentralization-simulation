@@ -1,5 +1,5 @@
 simulation_name: all-relay
-model: ethereum-raw
+model: mevboost
 iterations: 1000
 time_granularity_ms: 50
 validators: 1000

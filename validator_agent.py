@@ -56,6 +56,7 @@ class RawValidatorAgent(Agent):
         )
         self.proposed_time_ms = -1
         self.estimated_profit = 0.0
+        self.estimated_profit_increase = 0.0
         self.mev_captured = 0.0  # Actual MEV earned after supermajority check
         self.mev_captured_potential = 0.0  # Potential MEV before supermajority check
         self.total_mev_captured = 0.0  # Total MEV captured over the simulation
@@ -94,6 +95,7 @@ class RawValidatorAgent(Agent):
         self.has_proposed_block = False
         self.proposed_time_ms = -1
         self.estimated_profit = 0.0
+        self.estimated_profit_increase = 0.0
         self.mev_captured = 0.0
         self.mev_captured_potential = 0.0
         self.attestation_rate = 0.0  # Reset for new slot
@@ -333,6 +335,7 @@ class ValidatorWithoutMEVBoost(RawValidatorAgent):
             if simulation_result["gcp_region"] == self.gcp_region:
                 return False, "utility_not_improved"
             else:
+                self.estimated_profit_increase = simulation_result["mev_offer"] - self.estimated_profit
                 target_gcp_region = simulation_result["gcp_region"]
 
                 if self.migration_cost >= (simulation_result["mev_offer"] - self.estimated_profit):
@@ -660,6 +663,7 @@ class ValidatorWithMEVBoost(RawValidatorAgent):
             if simulation_result["gcp_region"] == self.gcp_region:
                 return False, "utility_not_improved"
             else:
+                self.estimated_profit_increase = simulation_result["mev_offer"] - self.estimated_profit
                 # Check if migration cost is acceptable
                 # simulation_results[0]["mev_offer"] is the best MEV offer after migration
                 # self.estimated_profit is the estimated profit before migration
