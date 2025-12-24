@@ -2,8 +2,8 @@ import math
 
 from enum import Enum
 from mesa import Agent
-from multiprocessing import cpu_count, Pool
-from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
+from multiprocessing import cpu_count
+from concurrent.futures import ProcessPoolExecutor
 import time
 
 from constants import (
@@ -18,17 +18,6 @@ _G_REGION_DATA = None
 def _init_worker(region_data):
     global _G_REGION_DATA
     _G_REGION_DATA = region_data
-
-def _run_batch(idxs):
-    out = []
-    for i in idxs:
-        out.append(_run_find_min_threshold(_G_REGION_DATA[i]))
-    return out
-
-def _chunk_indices(n, batch_size):
-    for start in range(0, n, batch_size):
-        yield list(range(start, min(n, start + batch_size)))
-
 
 def _run_find_min_threshold(args):
     # return find_min_threshold_fast(*args)
