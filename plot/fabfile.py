@@ -243,7 +243,8 @@ def single_line(ax: plt.Axes, data_df: pd.DataFrame, x_col: str, y_col: str, hue
     )
     ax.set_xlabel(xlabel, fontsize=40)
     ax.set_ylabel(ylabel, fontsize=40)
-    ax.set_xlim(0, data_df[x_col].max()+1)
+    if xlabel == "Slot":
+        ax.set_xlim(0, data_df[x_col].max()+1)
     if xlabel is not None:
         ax.tick_params(axis="x", labelsize=36)
     else:
@@ -251,7 +252,7 @@ def single_line(ax: plt.Axes, data_df: pd.DataFrame, x_col: str, y_col: str, hue
     ax.tick_params(axis="y", labelsize=36)
 
 
-def plot_comparision(folder_paths, names, output_path):
+def plot_comparision(folder_paths, names, output_path, normalized=False):
     total_metrcis = []
     total_profits = []
 
@@ -268,11 +269,17 @@ def plot_comparision(folder_paths, names, output_path):
         continent_metrics["name"] = name
         profits_df["name"] = name
 
+        continent_metrics["normalized_slots"] = continent_metrics["slot"] / continent_metrics["slot"].max() if normalized else continent_metrics["slot"]
+        profits_df["normalized_slots"] = profits_df["slot"] / profits_df["slot"].max() if normalized else profits_df["slot"]
+
         total_metrcis.append(continent_metrics)
         total_profits.append(profits_df)
 
     total_metrics_df = pd.concat(total_metrcis, ignore_index=True)
     total_profits_df = pd.concat(total_profits, ignore_index=True)
+    
+    import IPython
+    IPython.embed(colors="neutral")
 
     sns.set_style("whitegrid")
     fig, axes = plt.subplots(2,2, figsize=(25, 12), sharey=False, sharex=True, dpi=300)
@@ -281,24 +288,24 @@ def plot_comparision(folder_paths, names, output_path):
         single_line(
             axes[idx],
             total_metrics_df,
-            "slot",
+            "slot" if not normalized else "normalized_slots",
             y,
             "name",
             y_label,
             False,
-            "Slot" if idx == 2 else None
+            ("Slot" if not normalized else "Relative Progress") if idx == 2 else None
         )
 
     # cv    
     single_line(
         axes[-1],
         total_profits_df,
-        "slot",
+        "slot" if not normalized else "normalized_slots",
         "cv",
         "name",
         "CV$_{g}$",
         True,
-        "Slot"
+        "Slot" if not normalized else "Relative Progress"
     )
 
     plt.subplots_adjust(hspace=0.1, wspace=0.3)
@@ -340,6 +347,33 @@ def plot_baseline(c):
     plot_comparision(folder_paths, names, continent_comparision_output_path)
     plot_continent_distribution(folder_paths, xlabels, ylabels, continent_distribution_output_path)
     
+
+@task
+def plot_different_scale(c):
+    """Generate different scale plots."""
+
+    folder_paths = [
+        os.path.join("/home/senyang/geographical-decentralization-simulation", "baseline", "SSP", "validators_100_slots_1000_cost_0.0"),
+        os.path.join("/home/senyang/geographical-decentralization-simulation/output2", "baseline", "SSP", "validators_1000_slots_10000_cost_0.0"),
+        os.path.join("/home/senyang/geographical-decentralization-simulation", "baseline", "SSP", "validators_10000_slots_100000_cost_0.0"),
+        os.path.join("/home/senyang/geographical-decentralization-simulation", "baseline", "MSP", "validators_100_slots_1000_cost_0.0"),
+        os.path.join("/home/senyang/geographical-decentralization-simulation/output2", "baseline", "MSP", "validators_1000_slots_10000_cost_0.0"),
+        os.path.join("/home/senyang/geographical-decentralization-simulation", "baseline", "MSP", "validators_10000_slots_100000_cost_0.0"),
+    ]
+
+    names = [
+        r"$|\mathcal{V}| = 100$ (SSP)",
+        r"$|\mathcal{V}| = 1,000$ (SSP)",
+        r"$|\mathcal{V}| = 10,000$ (SSP)",
+        r"$|\mathcal{V}| = 100$ (MSP)",
+        r"$|\mathcal{V}| = 1,000$ (MSP)",
+        r"$|\mathcal{V}| = 10,000$ (MSP)",
+    ]
+
+    continent_comparision_output_path = os.path.join(FIGURE_DIR, "continent_comparision_different_scale.pdf")
+
+    plot_comparision(folder_paths, names, continent_comparision_output_path, normalized=True)
+
 
 @task
 def plot_cost(c):

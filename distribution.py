@@ -272,3 +272,105 @@ def find_min_threshold_fast(
                 threshold_low = mid
         
         return (threshold_high + threshold_low) / 2
+
+
+class ThresholdEvaluatorApprox:
+    def __init__(self, broadcast_latencies, broadcast_stds):
+        # Convert inputs to numpy arrays
+        lat = np.asarray(broadcast_latencies, dtype=np.float64)
+        stdr = np.asarray(broadcast_stds, dtype=np.float64)
+
+        self.lat = lat
+        self.stdr = stdr
+
+        # Masks for different cases
+        self.zero_latency_mask = (lat <= 0)
+        self.zero_std_mask = (stdr <= 0) & ~self.zero_latency_mask
+        self.valid_mask = ~self.zero_latency_mask & ~self.zero_std_mask
+
+        # Extract valid entries
+        vlat = lat[self.valid_mask]
+        vstdr = stdr[self.valid_mask]
+
+        # Convert (mean, std) to lognormal parameters
+        std_dev = vlat * vstdr
+        mean_sq = vlat**2
+        std_dev_sq = std_dev**2
+
+        mu = np.log(mean_sq / np.sqrt(mean_sq + std_dev_sq))
+        sigma = np.sqrt(np.log(1.0 + (std_dev_sq / mean_sq)))
+
+        # Store lognormal parameters
+        self._ln_sigma = sigma
+        self._ln_scale = np.exp(mu)
+
+        # Reusable buffer to avoid allocating a new array for each call
+        self._p = np.empty_like(lat, dtype=np.float64)
+
+    def survival_ge_k(self, threshold, k):
+        """
+        Approximate P(S >= k), where S is the sum of independent Bernoulli
+        variables with success probabilities determined by `threshold`.
+        The approximation uses a normal distribution with continuity correction.
+        """
+        p = self._p
+
+        # Case 1: latency <= 0 -> success probability is 1
+        p[self.zero_latency_mask] = 1.0
+
+        # Case 2: std <= 0 and latency > 0 -> deterministic comparison
+        if np.any(self.zero_std_mask):
+            lat_zs = self.lat[self.zero_std_mask]
+            p[self.zero_std_mask] = (lat_zs < threshold).astype(np.float64)
+
+        # Case 3: regular case, modeled by a lognormal CDF
+        if np.any(self.valid_mask):
+            p[self.valid_mask] = lognorm.cdf(
+                threshold,
+                s=self._ln_sigma,
+                scale=self._ln_scale
+            )
+
+        # Mean and variance of the Poisson-Binomial sum
+        mu = p.sum()
+        var = np.sum(p * (1.0 - p))
+
+        # Degenerate case: variance is zero
+        if var <= 0.0:
+            return 1.0 if mu >= k else 0.0
+
+        std = np.sqrt(var)
+
+        # Fast pruning when far from the boundary
+        if mu + 8.0 * std < k:
+            return 0.0
+        if mu - 8.0 * std >= k:
+            return 1.0
+
+        # Normal approximation with continuity correction
+        z = ((k - 0.5) - mu) / std
+        return norm.sf(z)
+
+
+def find_min_threshold_approx(
+    evaluator: ThresholdEvaluatorApprox,
+    required_attesters,
+    target_prob=0.99,
+    threshold_low=0.0,
+    threshold_high=4000.0,
+    tolerance=1.0
+):
+    lo, hi = threshold_low, threshold_high
+    while hi - lo > tolerance:
+        mid = (lo + hi) / 2.0
+        if mid <= 0:
+            lo = tolerance
+            continue
+
+        prob = evaluator.survival_ge_k(mid, required_attesters)
+        if prob >= target_prob:
+            hi = mid
+        else:
+            lo = mid
+
+    return (hi + lo) / 2.0

@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 from enum import Enum
 from mesa import Agent
 
@@ -181,6 +182,16 @@ class RelayAgent(SourceAgent):
         self.threshold = profile.get("threshold", 0.0)  # Default threshold to  
 
 
+@dataclass(frozen=True)
+class LinearMEVUtility:
+    base_mev: float
+    mev_increase: float
+    multiplier: float = 1.0
+
+    def __call__(self, x: float) -> float:
+        return (self.base_mev * self.multiplier) + (x * self.mev_increase * self.multiplier)
+
+
 # ---  Utility Function Factory ---
 def create_utility_function(config_data):
     """
@@ -193,7 +204,7 @@ def create_utility_function(config_data):
         mev_increase = config_data.get('mev_increase', MEV_INCREASE_PER_SECOND) # Get MEV increase per second, default to constant
         multiplier = config_data.get('multiplier', 1.0) # Get the multiplier, default to 1.0
         # Return a lambda function that calculates MEV utility
-        return lambda x: (base_mev * multiplier) + (x * mev_increase * multiplier)
+        return LinearMEVUtility(base_mev, mev_increase, multiplier)
     # Add more utility function types here if needed
     else:
         raise ValueError(f"Unknown or unsupported Relay utility function type: {func_type}")

@@ -256,51 +256,61 @@ def simulation(
     )
     action_reasons_df.to_csv(f"{output_folder}/action_reasons.csv", index=False)
 
-    agent_data = model_standard.datacollector.get_agent_vars_dataframe()
+    # agent_data = model_standard.datacollector.get_agent_vars_dataframe()
 
-    print("\n--- Agent Data Collected ---")
-    print("DataFrame Head:")
-    print(agent_data.head())
+    # print("\n--- Agent Data Collected ---")
+    # print("DataFrame Head:")
+    # print(agent_data.head())
 
-    print("\nDataFrame Tail:")
-    print(agent_data.tail())
+    # print("\nDataFrame Tail:")
+    # print(agent_data.tail())
 
-    print("\nDataFrame Info:")
-    agent_data.info()
-    if isinstance(agent_data.index, pd.MultiIndex):
-        agent_data = agent_data.reset_index()
+    # print("\nDataFrame Info:")
+    # agent_data.info()
+    # if isinstance(agent_data.index, pd.MultiIndex):
+    #     agent_data = agent_data.reset_index()
 
-    validator_agent_data = agent_data[(agent_data["Role"] != "relay_agent") & (agent_data["Role"] != "signal_agent")].reindex()
+    # validator_agent_data = agent_data[(agent_data["Role"] != "relay_agent") & (agent_data["Role"] != "signal_agent")].reindex()
     
     # Group by slot and collect lists of per-agent values:
-    mev_by_slot = (
-        validator_agent_data.groupby("Slot")["MEV_Captured_Slot"].apply(list).tolist()
-    )
-    estimated_mev_by_slot = (
-        validator_agent_data.groupby("Slot")["Estimated_Profit"].apply(list).tolist()
-    )
-    attest_by_slot = (
-        validator_agent_data.groupby("Slot")["Attestation_Rate"].apply(list).tolist()
-    )
-    proposal_time_by_slot = (
-        validator_agent_data.groupby("Slot")["Proposal Time"].apply(list).tolist()
-    )
+    # mev_by_slot = (
+    #     validator_agent_data.groupby("Slot")["MEV_Captured_Slot"].apply(list).tolist()
+    # )
 
-    latest_steps = (
-        validator_agent_data.sort_values("Step")
-        .groupby(["Slot", "AgentID"], as_index=False)
-        .last()
-    )
-    region_counter_per_slot = defaultdict(list)
-    for slot, slot_df in latest_steps.groupby("Slot"):
-        region_counts = Counter(slot_df["GCP_Region"])
-        region_counter_per_slot[int(slot)] = region_counts.most_common()
+    mev_by_slot = model_data["MEV_Captured_Slot"].tolist()
+    estimated_mev_by_slot = model_data["Estimated_Profit"].tolist()
+    attest_by_slot = model_data["Attestation_Rate"].tolist()
+    proposal_time_by_slot = model_data["Proposal Time"].tolist()
+
+    region_counter_per_slot = {}
+    for slot, counter in model_data[["Slot", "GCP_Region_Distribution"]].itertuples(index=False):
+        region_counter_per_slot[int(slot)] = counter
+
+    # estimated_mev_by_slot = (
+    #     validator_agent_data.groupby("Slot")["Estimated_Profit"].apply(list).tolist()
+    # )
+    # attest_by_slot = (
+    #     validator_agent_data.groupby("Slot")["Attestation_Rate"].apply(list).tolist()
+    # )
+    # proposal_time_by_slot = (
+    #     validator_agent_data.groupby("Slot")["Proposal Time"].apply(list).tolist()
+    # )
+
+    # latest_steps = (
+    #     validator_agent_data.sort_values("Step")
+    #     .groupby(["Slot", "AgentID"], as_index=False)
+    #     .last()
+    # )
+    # region_counter_per_slot = defaultdict(list)
+    # for slot, slot_df in latest_steps.groupby("Slot"):
+    #     region_counts = Counter(slot_df["GCP_Region"])
+    #     region_counter_per_slot[int(slot)] = region_counts.most_common()
 
     # Proposer data
-    proposer_data = agent_data[agent_data["Role"] == "proposer"]
-    proposer_strategy_and_mev = proposer_data[
-        ["Slot", "Location_Strategy", "MEV_Captured_Slot"]
-    ].to_dict(orient="records")
+    # proposer_data = agent_data[agent_data["Role"] == "proposer"]
+    # proposer_strategy_and_mev = proposer_data[
+    #     ["Slot", "Location_Strategy", "MEV_Captured_Slot"]
+    # ].to_dict(orient="records")
 
     with open(f"{output_folder}/mev_by_slot.json", "w") as f:
         json.dump(mev_by_slot, f)
@@ -310,8 +320,8 @@ def simulation(
         json.dump(attest_by_slot, f)
     with open(f"{output_folder}/proposal_time_by_slot.json", "w") as f:
         json.dump(proposal_time_by_slot, f)
-    with open(f"{output_folder}/proposer_strategy_and_mev.json", "w") as f:
-        json.dump(proposer_strategy_and_mev, f)
+    # with open(f"{output_folder}/proposer_strategy_and_mev.json", "w") as f:
+        # json.dump(proposer_strategy_and_mev, f)
     with open(f"{output_folder}/region_counter_per_slot.json", "w") as f:
         json.dump(region_counter_per_slot, f)
 

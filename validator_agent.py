@@ -2,14 +2,45 @@ import math
 
 from enum import Enum
 from mesa import Agent
-from multiprocessing import cpu_count
-from concurrent.futures import ThreadPoolExecutor
+from multiprocessing import cpu_count, Pool
+from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
+import time
 
 from constants import (
     BASE_NETWORK_LATENCY_MS,
 )
-from distribution import find_min_threshold_fast
+from distribution import find_min_threshold_fast, find_min_threshold_approx, ThresholdEvaluatorApprox
 from source_agent import RelayType
+
+
+_G_REGION_DATA = None
+
+def _init_worker(region_data):
+    global _G_REGION_DATA
+    _G_REGION_DATA = region_data
+
+def _run_batch(idxs):
+    out = []
+    for i in idxs:
+        out.append(_run_find_min_threshold(_G_REGION_DATA[i]))
+    return out
+
+def _chunk_indices(n, batch_size):
+    for start in range(0, n, batch_size):
+        yield list(range(start, min(n, start + batch_size)))
+
+
+def _run_find_min_threshold(args):
+    # return find_min_threshold_fast(*args)
+    lat_tup, std_tup, required_attesters, target_prob, threshold_low, threshold_high, tolerance = args
+    return find_min_threshold_approx(
+        ThresholdEvaluatorApprox(lat_tup, std_tup),
+        required_attesters,
+        target_prob=target_prob,
+        threshold_low=threshold_low,
+        threshold_high=threshold_high,
+        tolerance=tolerance
+    )
 
 # --- Validator Agent Class Definition ---
 
@@ -237,6 +268,8 @@ class RawValidatorAgent(Agent):
             # Attesters need to know the proposer's block proposed time and their latency to the relay
             self.make_attestation(current_slot_time_ms_inner)
 
+def _run_by_idx(i: int):
+    return _run_find_min_threshold(_G_REGION_DATA[i])
 
 class MSPValidator(RawValidatorAgent):
     def __init__(self, model):
@@ -246,17 +279,48 @@ class MSPValidator(RawValidatorAgent):
     def simulation_with_signals(self):
         simulation_results = []
         time_simulations = []
+        t1 = time.perf_counter()
         region_data = [self.calculate_minimal_needed_time_params(gcp_region) for gcp_region in self.model.gcp_latency_model.gcp_regions["Region"].values]
+        print(f"    prepare region data time: {(time.perf_counter() - t1):.3f} s")
+        t2 = time.perf_counter()
         if self.model.fast_mode:
             for gcp_region, params in zip(self.model.gcp_latency_model.gcp_regions["Region"].values, region_data):
                 to_attester_latency, required_attesters_for_supermajority = params
                 time_simulations.append((gcp_region, to_attester_latency[required_attesters_for_supermajority],))
         else:
-            thread_number = min(10, cpu_count(), len(self.model.gcp_latency_model.gcp_regions))
-            with ThreadPoolExecutor(max_workers=thread_number) as ex:
-                time_simulations = list(ex.map(lambda p: find_min_threshold_fast(*p), region_data))
-            time_simulations = list(zip(self.model.gcp_latency_model.gcp_regions["Region"].values, time_simulations))
+            # process_number = min(2, cpu_count(), len(self.model.gcp_latency_model.gcp_regions))
+            # with ProcessPoolExecutor(
+            #     max_workers=process_number,
+            #     initializer=_init_worker,
+            #     initargs=(region_data,),
+            # ) as ex:
+            #     time_simulations = list(ex.map(_run_by_idx, range(len(region_data))))
+            # batch_size = 4
 
+            # with ProcessPoolExecutor(
+            #     max_workers=process_number,
+            #     initializer=_init_worker,
+            #     initargs=(region_data,),
+            # ) as ex:
+            #     nested = list(ex.map(_run_batch, _chunk_indices(len(region_data), batch_size)))
+            # time_simulations = [x for batch in nested for x in batch]
+            # with ProcessPoolExecutor(
+            #     max_workers=process_number,
+            #     initializer=_init_worker,
+            #     initargs=(region_data,),
+            # ) as ex:
+            #     time_simulations = list(ex.map(_run_by_idx, range(len(region_data))))
+            # with ProcessPoolExecutor(max_workers=process_number) as ex:
+            # with ProcessPoolExecutor(max_workers=process_number) as ex:
+            # with ThreadPoolExecutor(max_workers=process_number) as ex:
+                # time_simulations = list(ex.map(_run_find_min_threshold, region_data))
+            # with Pool(processes=min(40, cpu_count(), len(self.model.gcp_latency_model.gcp_regions))) as p:
+            #     time_simulations = p.map(_run_find_min_threshold, region_data)
+            # time_simulations = list(zip(self.model.gcp_latency_model.gcp_regions["Region"].values, time_simulations))
+            for gcp_region, params in zip(self.model.gcp_latency_model.gcp_regions["Region"].values, region_data):
+                simulation = _run_find_min_threshold(params)
+                time_simulations.append((gcp_region, simulation,))
+        # print(f"    compute minimal needed time time: {(time.perf_counter() - t2):.3f} s")
         for gcp_region, required_time in time_simulations:
             base_threshold = self.model.consensus_settings.attestation_time_ms - required_time
 
@@ -283,7 +347,10 @@ class MSPValidator(RawValidatorAgent):
 
 
     def how_to_migrate(self):
+        t1 = time.perf_counter()
         simulation_results = self.simulation_with_signals()
+        t2 = time.perf_counter()
+        print(f"  simulation time: {(t2 - t1):.3f} s")
 
         simulation_results.sort(key=lambda x: (
             -x["mev_offer"],
@@ -529,10 +596,14 @@ class SSPValidator(RawValidatorAgent):
                 to_attester_latency, required_attesters_for_supermajority = params
                 time_simulations.append((target_relay, to_attester_latency[required_attesters_for_supermajority],))
         else:
-            thread_number = min(10, cpu_count(), len(self.model.gcp_latency_model.gcp_regions))
-            with ThreadPoolExecutor(max_workers=thread_number) as ex:
-                time_simulations = list(ex.map(lambda p: find_min_threshold_fast(*p), region_data))
-            time_simulations = list(zip(target_relays, time_simulations)) 
+            for target_relay, params in zip(target_relays, region_data):
+                simulation = _run_find_min_threshold(params)
+                time_simulations.append((target_relay, simulation,))
+
+            # process_number = min(20, cpu_count(), len(self.model.gcp_latency_model.gcp_regions))
+            # with ProcessPoolExecutor(max_workers=process_number) as ex:
+            #     time_simulations = list(ex.map(_run_find_min_threshold, region_data))
+            # time_simulations = list(zip(target_relays, time_simulations)) 
 
         for target_relay, minimal_needed_time in time_simulations:
             latency_threshold = (
@@ -572,7 +643,10 @@ class SSPValidator(RawValidatorAgent):
     # --- Migration Methods ---
     def how_to_migrate(self):
         # if the validator co-locates with a relay
+        t1 = time.perf_counter()
         simulation_results = self.simulation_with_relays()
+        t2 = time.perf_counter()
+        print(f"  simulation time: {(t2 - t1):.3f} s")
 
         # Sort by MEV offer, then by latency threshold
         simulation_results.sort(key=lambda x: (

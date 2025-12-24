@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 # Constants
 SLOT_DURATION_MS = 12000  # Duration of an Ethereum slot in milliseconds
-TIME_GRANULARITY_MS = 100  # Simulation time step in milliseconds
+TIME_GRANULARITY_MS = 50  # Simulation time step in milliseconds
 ATTESTATION_TIME_MS = (
     4000  # Default time for Attesters to attest (can be varied per Attester)
 )

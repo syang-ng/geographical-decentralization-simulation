@@ -2,7 +2,7 @@ import inspect
 import math
 import random
 
-from collections import deque
+from collections import deque, Counter
 from mesa import Model, DataCollector
 
 from consensus import ConsensusSettings
@@ -92,10 +92,11 @@ class EthereumRawModel(Model):
         """Configures and returns a Mesa DataCollector."""
         return DataCollector(
             model_reporters={
+                "Slot": "current_slot_idx",
                 "Average_MEV_Earned": lambda m: (
                     m.total_mev_earned / (m.current_slot_idx + 1)
                     if m.current_slot_idx >= 0
-                    else 0
+                    else 0.0
                 ),
                 "Supermajority_Success_Rate": lambda m: (
                     (m.supermajority_met_slots / (m.current_slot_idx + 1)) * 100
@@ -108,19 +109,44 @@ class EthereumRawModel(Model):
                     if m.current_proposer_agent
                     else 0.0
                 ),
+                "GCP_Region_Distribution": lambda m: (
+                    Counter([v.gcp_region for v in m.validators]).most_common()
+                ),
+                "MEV_Captured_Slot": lambda m: (
+                    m.current_proposer_agent.mev_captured
+                    if m.current_proposer_agent
+                    else 0.0
+                ),
+                "Estimated_Profit": lambda m: (
+                    m.current_proposer_agent.estimated_profit
+                    if m.current_proposer_agent
+                    else 0.0
+                ),
+                "Attestation_Rate": lambda m: (
+                    m.attestation_rate
+                    if m.current_proposer_agent
+                    else 0.0
+                ),
+                "Proposal Time": lambda m: (
+                    m.current_proposer_agent.proposed_time_ms
+                    if m.current_proposer_agent
+                    else 0.0
+                ),
             },
             agent_reporters={
-                "Role": "role",
-                "Slot": "current_slot_idx",
-                "MEV_Captured_Slot": "mev_captured",  # MEV actually earned in the last slot
-                "Estimated_Profit": "estimated_profit",  # Estimated profit before migration
-                "Attestation_Rate": "attestation_rate",  # Percentage of successful attestations
-                "Proposal Time": "proposed_time_ms",  # Time when the block was proposed,
-                "Location_Strategy": lambda v: (
-                    v.location_strategy["type"] if v.role == "proposer" else "none"
-                ),
-                "GCP_Region": "gcp_region",
             },
+            # agent_reporters={
+            #     "Role": "role",
+            #     "Slot": "current_slot_idx",
+            #     "MEV_Captured_Slot": "mev_captured",  # MEV actually earned in the last slot
+            #     "Estimated_Profit": "estimated_profit",  # Estimated profit before migration
+            #     "Attestation_Rate": "attestation_rate",  # Percentage of successful attestations
+            #     "Proposal Time": "proposed_time_ms",  # Time when the block was proposed,
+            #     # "Location_Strategy": lambda v: (
+            #     #     v.location_strategy["type"] if v.role == "proposer" else "none"
+            #     # ),
+            #     # "GCP_Region": "gcp_region",
+            # },
         )
 
 
@@ -174,7 +200,6 @@ class EthereumRawModel(Model):
         """
         # Determine if we are at the start of a new logical slot
         is_new_slot_start = (self.steps * self.consensus_settings.time_granularity_ms) % self.consensus_settings.slot_duration_ms == 0
-
         if is_new_slot_start and self.steps > 0:  # Avoid re-setup for time 0
             print(f"--- Slot {self.current_slot_idx + 1} Summary ---")
             # --- End of Previous Slot Logic & Rewards ---
@@ -229,12 +254,25 @@ class EthereumRawModel(Model):
             # --- Setup for New Slot ---
             self._setup_new_slot()  # This calls reset_for_new_slot on agents
 
+        passed_attestation_deadline = ((self.steps * self.consensus_settings.time_granularity_ms) % self.consensus_settings.slot_duration_ms) >= (self.consensus_settings.attestation_time_ms + self.consensus_settings.time_granularity_ms * 2)  
+        if passed_attestation_deadline:
+            self.steps += (self.consensus_settings.slot_duration_ms - ((self.steps * self.consensus_settings.time_granularity_ms) % self.consensus_settings.slot_duration_ms)) // self.consensus_settings.time_granularity_ms - 1
+            return  # No further actions this step after attestation deadline
+
+        before_attestation_deadline = ((self.steps * self.consensus_settings.time_granularity_ms) % self.consensus_settings.slot_duration_ms) < (self.consensus_settings.attestation_time_ms - self.consensus_settings.time_granularity_ms * 2)
+        if before_attestation_deadline:
+            self.steps += (self.consensus_settings.attestation_time_ms - ((self.steps * self.consensus_settings.time_granularity_ms) % self.consensus_settings.slot_duration_ms)) // self.consensus_settings.time_granularity_ms
+            return  # No further actions this step before attestation period
+
         # --- Agents perform their step actions ---
         self.agents.do("step")
         self.agents.do("advance")
 
         # Condition to stop simulation if no validators are migrating within the time window
         if len(self.migration_queue) == self.migration_queue.maxlen and not any(self.migration_queue):
+            self.running = False
+
+        if self.current_slot_idx > self.num_slots:
             self.running = False
 
 
@@ -333,6 +371,7 @@ class MultiSourceParadigm(EthereumRawModel):
 
     def _setup_new_slot(self):
         super()._setup_new_slot()
+        print(f"--- Slot {self.current_slot_idx} Setup ---")
 
         # moving decision logic here to ensure it happens after proposer is selected
         prev_gcp_region = self.current_proposer_agent.gcp_region
@@ -343,6 +382,8 @@ class MultiSourceParadigm(EthereumRawModel):
         self.action_reasons.append((action_reason, prev_gcp_region, new_gcp_region))
 
         [signal_agent.update_mev_offer() for signal_agent in self.signal_agents]
+        print(f"--- Slot {self.current_slot_idx} Setup Done ---")
+
     
 
 
@@ -379,6 +420,7 @@ class SingleSourceParadigm(EthereumRawModel):
 
     def _setup_new_slot(self):
         super()._setup_new_slot()
+        print(f"--- Slot {self.current_slot_idx} Setup ---")
 
         prev_gcp_region = self.current_proposer_agent.gcp_region
         is_migrated, action_reason = self.current_proposer_agent.decide_to_migrate()  # Check if proposer should migrate
@@ -389,3 +431,6 @@ class SingleSourceParadigm(EthereumRawModel):
 
         # Reset relay's MEV offer for the new slot start
         [relay_agent.update_mev_offer() for relay_agent in self.relay_agents]
+
+        print(f"--- Slot {self.current_slot_idx} Setup Done ---")
+
