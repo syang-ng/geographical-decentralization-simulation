@@ -20,7 +20,6 @@ def _init_worker(region_data):
     _G_REGION_DATA = region_data
 
 def _run_find_min_threshold(args):
-    # return find_min_threshold_fast(*args)
     lat_tup, std_tup, required_attesters, target_prob, threshold_low, threshold_high, tolerance = args
     return find_min_threshold_approx(
         ThresholdEvaluatorApprox(lat_tup, std_tup),
