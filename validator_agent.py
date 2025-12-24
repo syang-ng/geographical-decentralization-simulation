@@ -288,39 +288,15 @@ class MSPValidator(RawValidatorAgent):
                 to_attester_latency, required_attesters_for_supermajority = params
                 time_simulations.append((gcp_region, to_attester_latency[required_attesters_for_supermajority],))
         else:
-            # process_number = min(2, cpu_count(), len(self.model.gcp_latency_model.gcp_regions))
-            # with ProcessPoolExecutor(
-            #     max_workers=process_number,
-            #     initializer=_init_worker,
-            #     initargs=(region_data,),
-            # ) as ex:
-            #     time_simulations = list(ex.map(_run_by_idx, range(len(region_data))))
-            # batch_size = 4
-
-            # with ProcessPoolExecutor(
-            #     max_workers=process_number,
-            #     initializer=_init_worker,
-            #     initargs=(region_data,),
-            # ) as ex:
-            #     nested = list(ex.map(_run_batch, _chunk_indices(len(region_data), batch_size)))
-            # time_simulations = [x for batch in nested for x in batch]
-            # with ProcessPoolExecutor(
-            #     max_workers=process_number,
-            #     initializer=_init_worker,
-            #     initargs=(region_data,),
-            # ) as ex:
-            #     time_simulations = list(ex.map(_run_by_idx, range(len(region_data))))
-            # with ProcessPoolExecutor(max_workers=process_number) as ex:
-            # with ProcessPoolExecutor(max_workers=process_number) as ex:
-            # with ThreadPoolExecutor(max_workers=process_number) as ex:
-                # time_simulations = list(ex.map(_run_find_min_threshold, region_data))
-            # with Pool(processes=min(40, cpu_count(), len(self.model.gcp_latency_model.gcp_regions))) as p:
-            #     time_simulations = p.map(_run_find_min_threshold, region_data)
-            # time_simulations = list(zip(self.model.gcp_latency_model.gcp_regions["Region"].values, time_simulations))
-            for gcp_region, params in zip(self.model.gcp_latency_model.gcp_regions["Region"].values, region_data):
-                simulation = _run_find_min_threshold(params)
-                time_simulations.append((gcp_region, simulation,))
-        # print(f"    compute minimal needed time time: {(time.perf_counter() - t2):.3f} s")
+            # Use parallel processing for non-fast mode
+            process_number = min(cpu_count(), len(self.model.gcp_latency_model.gcp_regions))
+            with ProcessPoolExecutor(
+                max_workers=process_number,
+                initializer=_init_worker,
+                initargs=(region_data,),
+            ) as ex:
+                results = list(ex.map(_run_by_idx, range(len(region_data))))
+            time_simulations = list(zip(self.model.gcp_latency_model.gcp_regions["Region"].values, results))
         for gcp_region, required_time in time_simulations:
             base_threshold = self.model.consensus_settings.attestation_time_ms - required_time
 
@@ -596,14 +572,17 @@ class SSPValidator(RawValidatorAgent):
                 to_attester_latency, required_attesters_for_supermajority = params
                 time_simulations.append((target_relay, to_attester_latency[required_attesters_for_supermajority],))
         else:
-            for target_relay, params in zip(target_relays, region_data):
-                simulation = _run_find_min_threshold(params)
-                time_simulations.append((target_relay, simulation,))
-
-            # process_number = min(20, cpu_count(), len(self.model.gcp_latency_model.gcp_regions))
-            # with ProcessPoolExecutor(max_workers=process_number) as ex:
-            #     time_simulations = list(ex.map(_run_find_min_threshold, region_data))
-            # time_simulations = list(zip(target_relays, time_simulations)) 
+            # Use parallel processing for non-fast mode
+            process_number = min(cpu_count(), len(region_data))
+            if process_number > 1 and len(region_data) > 1:
+                with ProcessPoolExecutor(max_workers=process_number) as ex:
+                    results = list(ex.map(_run_find_min_threshold, region_data))
+                time_simulations = list(zip(target_relays, results))
+            else:
+                # Fall back to sequential processing if only one worker or one item
+                for target_relay, params in zip(target_relays, region_data):
+                    simulation = _run_find_min_threshold(params)
+                    time_simulations.append((target_relay, simulation,)) 
 
         for target_relay, minimal_needed_time in time_simulations:
             latency_threshold = (
