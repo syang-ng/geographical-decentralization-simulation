@@ -21,7 +21,7 @@ consensus_settings:
   sync_committee_reward: 0.2
 
 relay_profiles:
-  - unique_id: Flashbots
+  - unique_id: us-east4-supplier
     gcp_region: us-east4
     lat: 39.0437
     lon: -77.4874
@@ -33,7 +33,7 @@ relay_profiles:
     subsidy: 0
     threshold: 0
     type: NONCENSORING
-  - unique_id: UltraSound EU
+  - unique_id: europe-west1-supplier
     gcp_region: europe-west1
     lat: 50.4577
     lon: 3.8643
@@ -45,7 +45,7 @@ relay_profiles:
     subsidy: 0
     threshold: 0
     type: NONCENSORING
-  - unique_id: Asia Relay
+  - unique_id: asia-northeast1-supplier
     gcp_region: asia-northeast1
     lat: 35.6895
     lon: 139.6917

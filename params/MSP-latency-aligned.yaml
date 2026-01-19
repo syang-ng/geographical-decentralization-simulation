@@ -22,7 +22,7 @@ consensus_settings:
   sync_committee_reward: 0.2
 
 signal_profiles:
-  - unique_id: us-info
+  - unique_id: us-east4-signal
     gcp_region: us-east4
     lat: 39.0437
     lon: -77.4874
@@ -32,7 +32,7 @@ signal_profiles:
       mev_increase: 0.0133333
       multiplier: 1.0
     type: NONCENSORING
-  - unique_id: eu-info
+  - unique_id: europe-west1-signal
     gcp_region: europe-west1
     lat: 50.4577
     lon: 3.8643
@@ -42,7 +42,7 @@ signal_profiles:
       mev_increase: 0.0133333
       multiplier: 1.0
     type: NONCENSORING
-  - unique_id: as-info
+  - unique_id: asia-northeast1-signal
     gcp_region: asia-northeast1
     lat: 35.6895
     lon: 139.6917

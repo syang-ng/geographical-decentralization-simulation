@@ -22,7 +22,7 @@ consensus_settings:
   sync_committee_reward: 0.2
 
 relay_profiles:
-  - unique_id: africa-south1-relay
+  - unique_id: africa-south1-supplier
     gcp_region: africa-south1
     lat: -26.2041
     lon: 28.0473
@@ -34,7 +34,7 @@ relay_profiles:
     type: NONCENSORING
 
 
-  - unique_id: asia-east1-relay
+  - unique_id: asia-east1-supplier
     gcp_region: asia-east1
     lat: 23.9575
     lon: 120.536
@@ -46,7 +46,7 @@ relay_profiles:
     type: NONCENSORING
 
 
-  - unique_id: asia-east2-relay
+  - unique_id: asia-east2-supplier
     gcp_region: asia-east2
     lat: 22.3964
     lon: 114.1095
@@ -58,7 +58,7 @@ relay_profiles:
     type: NONCENSORING
 
 
-  - unique_id: asia-northeast1-relay
+  - unique_id: asia-northeast1-supplier
     gcp_region: asia-northeast1
     lat: 35.6895
     lon: 139.6917
@@ -70,7 +70,7 @@ relay_profiles:
     type: NONCENSORING
 
 
-  - unique_id: asia-northeast2-relay
+  - unique_id: asia-northeast2-supplier
     gcp_region: asia-northeast2
     lat: 34.6937
     lon: 135.5023
@@ -82,7 +82,7 @@ relay_profiles:
     type: NONCENSORING
 
 
-  - unique_id: asia-northeast3-relay
+  - unique_id: asia-northeast3-supplier
     gcp_region: asia-northeast3
     lat: 37.5665
     lon: 126.978
@@ -94,7 +94,7 @@ relay_profiles:
     type: NONCENSORING
 
 
-  - unique_id: asia-south1-relay
+  - unique_id: asia-south1-supplier
     gcp_region: asia-south1
     lat: 19.076
     lon: 72.8777
@@ -106,7 +106,7 @@ relay_profiles:
     type: NONCENSORING
 
 
-  - unique_id: asia-south2-relay
+  - unique_id: asia-south2-supplier
     gcp_region: asia-south2
     lat: 28.7041
     lon: 77.1025
@@ -118,7 +118,7 @@ relay_profiles:
     type: NONCENSORING
 
 
-  - unique_id: asia-southeast1-relay
+  - unique_id: asia-southeast1-supplier
     gcp_region: asia-southeast1
     lat: 1.3521
     lon: 103.8198
@@ -130,7 +130,7 @@ relay_profiles:
     type: NONCENSORING
 
 
-  - unique_id: asia-southeast2-relay
+  - unique_id: asia-southeast2-supplier
     gcp_region: asia-southeast2
     lat: -6.2088
     lon: 106.8456
@@ -142,7 +142,7 @@ relay_profiles:
     type: NONCENSORING
 
 
-  - unique_id: australia-southeast1-relay
+  - unique_id: australia-southeast1-supplier
     gcp_region: australia-southeast1
     lat: -33.8688
     lon: 151.2093
@@ -154,7 +154,7 @@ relay_profiles:
     type: NONCENSORING
 
 
-  - unique_id: australia-southeast2-relay
+  - unique_id: australia-southeast2-supplier
     gcp_region: australia-southeast2
     lat: -37.8136
     lon: 144.9631
@@ -166,7 +166,7 @@ relay_profiles:
     type: NONCENSORING
 
 
-  - unique_id: europe-central2-relay
+  - unique_id: europe-central2-supplier
     gcp_region: europe-central2
     lat: 52.2297
     lon: 21.0122
@@ -178,7 +178,7 @@ relay_profiles:
     type: NONCENSORING
 
 
-  - unique_id: europe-north1-relay
+  - unique_id: europe-north1-supplier
     gcp_region: europe-north1
     lat: 60.1719
     lon: 24.9414
@@ -190,7 +190,7 @@ relay_profiles:
     type: NONCENSORING
 
 
-  - unique_id: europe-north2-relay
+  - unique_id: europe-north2-supplier
     gcp_region: europe-north2
     lat: 59.3293
     lon: 18.0686
@@ -202,7 +202,7 @@ relay_profiles:
     type: NONCENSORING
 
 
-  - unique_id: europe-southwest1-relay
+  - unique_id: europe-southwest1-supplier
     gcp_region: europe-southwest1
     lat: 40.4168
     lon: -3.7038
@@ -214,7 +214,7 @@ relay_profiles:
     type: NONCENSORING
 
 
-  - unique_id: europe-west1-relay
+  - unique_id: europe-west1-supplier
     gcp_region: europe-west1
     lat: 50.5039
     lon: 4.4699
@@ -226,7 +226,7 @@ relay_profiles:
     type: NONCENSORING
 
 
-  - unique_id: europe-west2-relay
+  - unique_id: europe-west2-supplier
     gcp_region: europe-west2
     lat: 51.5074
     lon: -0.1278
@@ -238,7 +238,7 @@ relay_profiles:
     type: NONCENSORING
 
 
-  - unique_id: europe-west3-relay
+  - unique_id: europe-west3-supplier
     gcp_region: europe-west3
     lat: 50.1109
     lon: 8.6821
@@ -250,7 +250,7 @@ relay_profiles:
     type: NONCENSORING
 
 
-  - unique_id: europe-west4-relay
+  - unique_id: europe-west4-supplier
     gcp_region: europe-west4
     lat: 53.3487
     lon: 6.2603
@@ -262,7 +262,7 @@ relay_profiles:
     type: NONCENSORING
 
 
-  - unique_id: europe-west6-relay
+  - unique_id: europe-west6-supplier
     gcp_region: europe-west6
     lat: 47.3769
     lon: 8.5417
@@ -274,7 +274,7 @@ relay_profiles:
     type: NONCENSORING
 
 
-  - unique_id: europe-west8-relay
+  - unique_id: europe-west8-supplier
     gcp_region: europe-west8
     lat: 45.4642
     lon: 9.19
@@ -286,7 +286,7 @@ relay_profiles:
     type: NONCENSORING
 
 
-  - unique_id: europe-west9-relay
+  - unique_id: europe-west9-supplier
     gcp_region: europe-west9
     lat: 48.8566
     lon: 2.3522
@@ -298,7 +298,7 @@ relay_profiles:
     type: NONCENSORING
 
 
-  - unique_id: europe-west10-relay
+  - unique_id: europe-west10-supplier
     gcp_region: europe-west10
     lat: 52.52
     lon: 13.405
@@ -310,7 +310,7 @@ relay_profiles:
     type: NONCENSORING
 
 
-  - unique_id: europe-west12-relay
+  - unique_id: europe-west12-supplier
     gcp_region: europe-west12
     lat: 45.0703
     lon: 7.6869
@@ -322,7 +322,7 @@ relay_profiles:
     type: NONCENSORING
 
 
-  - unique_id: me-central1-relay
+  - unique_id: me-central1-supplier
     gcp_region: me-central1
     lat: 25.2854
     lon: 51.531
@@ -334,7 +334,7 @@ relay_profiles:
     type: NONCENSORING
 
 
-  - unique_id: me-west1-relay
+  - unique_id: me-west1-supplier
     gcp_region: me-west1
     lat: 32.0853
     lon: 34.7818
@@ -346,7 +346,7 @@ relay_profiles:
     type: NONCENSORING
 
 
-  - unique_id: northamerica-northeast1-relay
+  - unique_id: northamerica-northeast1-supplier
     gcp_region: northamerica-northeast1
     lat: 45.5017
     lon: -73.5673
@@ -358,7 +358,7 @@ relay_profiles:
     type: NONCENSORING
 
 
-  - unique_id: northamerica-northeast2-relay
+  - unique_id: northamerica-northeast2-supplier
     gcp_region: northamerica-northeast2
     lat: 43.6511
     lon: -79.347
@@ -370,7 +370,7 @@ relay_profiles:
     type: NONCENSORING
 
 
-  - unique_id: southamerica-east1-relay
+  - unique_id: southamerica-east1-supplier
     gcp_region: southamerica-east1
     lat: -23.5505
     lon: -46.6333
@@ -382,7 +382,7 @@ relay_profiles:
     type: NONCENSORING
 
 
-  - unique_id: southamerica-west1-relay
+  - unique_id: southamerica-west1-supplier
     gcp_region: southamerica-west1
     lat: -33.4489
     lon: -70.6693
@@ -394,7 +394,7 @@ relay_profiles:
     type: NONCENSORING
 
 
-  - unique_id: us-central1-relay
+  - unique_id: us-central1-supplier
     gcp_region: us-central1
     lat: 41.2565
     lon: -95.9345
@@ -406,7 +406,7 @@ relay_profiles:
     type: NONCENSORING
 
 
-  - unique_id: us-east1-relay
+  - unique_id: us-east1-supplier
     gcp_region: us-east1
     lat: 32.7767
     lon: -79.9311
@@ -418,7 +418,7 @@ relay_profiles:
     type: NONCENSORING
 
 
-  - unique_id: us-east4-relay
+  - unique_id: us-east4-supplier
     gcp_region: us-east4
     lat: 38.8951
     lon: -77.0364
@@ -430,7 +430,7 @@ relay_profiles:
     type: NONCENSORING
 
 
-  - unique_id: us-east5-relay
+  - unique_id: us-east5-supplier
     gcp_region: us-east5
     lat: 39.9612
     lon: -82.9988
@@ -442,7 +442,7 @@ relay_profiles:
     type: NONCENSORING
 
 
-  - unique_id: us-south1-relay
+  - unique_id: us-south1-supplier
     gcp_region: us-south1
     lat: 32.7767
     lon: -96.797
@@ -454,7 +454,7 @@ relay_profiles:
     type: NONCENSORING
 
 
-  - unique_id: us-west1-relay
+  - unique_id: us-west1-supplier
     gcp_region: us-west1
     lat: 45.6066
     lon: -121.1794
@@ -466,7 +466,7 @@ relay_profiles:
     type: NONCENSORING
 
 
-  - unique_id: us-west2-relay
+  - unique_id: us-west2-supplier
     gcp_region: us-west2
     lat: 34.0522
     lon: -118.2437
@@ -478,7 +478,7 @@ relay_profiles:
     type: NONCENSORING
 
 
-  - unique_id: us-west3-relay
+  - unique_id: us-west3-supplier
     gcp_region: us-west3
     lat: 40.7608
     lon: -111.891
@@ -490,7 +490,7 @@ relay_profiles:
     type: NONCENSORING
 
 
-  - unique_id: us-west4-relay
+  - unique_id: us-west4-supplier
     gcp_region: us-west4
     lat: 36.1699
     lon: -115.1398

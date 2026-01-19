@@ -1,9 +1,14 @@
+cartopy
 dash
 fabric
+geopandas
+geographiclib
 mesa
 numpy
 pandas
 plotly
+pycountry
+seaborn
 scikit-learn
 scipy
 PyYAML

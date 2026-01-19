@@ -21,7 +21,7 @@ consensus_settings:
   sync_committee_reward: 0.2
 
 relay_profiles:
-  - unique_id: South America
+  - unique_id: southamerica-east1-supplier
     gcp_region: southamerica-east1
     lat: -23.5505
     lon: -46.6333
@@ -33,7 +33,7 @@ relay_profiles:
     subsidy: 0
     threshold: 0
     type: NONCENSORING
-  - unique_id: Africa
+  - unique_id: africa-south1-supplier
     gcp_region: africa-south1
     lat: -26.2041
     lon: 28.0473
@@ -45,7 +45,7 @@ relay_profiles:
     subsidy: 0
     threshold: 0
     type: NONCENSORING
-  - unique_id: Oceania
+  - unique_id: australia-southeast1-supplier
     gcp_region: australia-southeast1
     lat: -33.8688
     lon: 151.2093
