@@ -143,6 +143,7 @@ def simulation(
     time_window,  # Time window for migration checks
     fast_mode=False,  # Fast mode for latency computation
     cost=0.0001,  # Cost for migration, default to 0.0001
+    num_proposers_per_slot=1  # Number of proposers per slot
 ):
     # --- Simulation Execution ---
     random.seed(0x06511)  # For reproducibility
@@ -180,6 +181,7 @@ def simulation(
         "time_window": time_window,  # Time window for migration checks
         "fast_mode": fast_mode,  # Fast mode for latency computation
         "cost": cost,  # Cost for migration
+        "num_proposers_per_slot": num_proposers_per_slot
     }
 
     # --- Create and Run the Model ---
@@ -417,6 +419,12 @@ if __name__ == "__main__":
         default=4000,
         help="Cutoff time for attestations in milliseconds (default: 4000)",
     )
+    parser.add_argument(
+        "--num_proposers_per_slot",
+        type=int,
+        default=None,
+        help="Number of proposers per slot (default: 1)",
+    )
 
     args = parser.parse_args()
 
@@ -451,6 +459,12 @@ if __name__ == "__main__":
 
         # cost for migration
         cost = args.cost if args.cost is not None else config.get("migration_cost", 0.0001)
+
+        # proposers per slot
+        num_proposers_per_slot = args.num_proposers_per_slot if args.num_proposers_per_slot is not None else config.get("num_proposers_per_slot", 1)
+        if model == "SSP" and num_proposers_per_slot != 1:
+            print("Warning: SSP model only supports 1 proposer per slot. Overriding to 1.")
+            num_proposers_per_slot = 1
 
         if args.output_dir == "default":
             output_folder = os.path.join(
@@ -532,6 +546,7 @@ if __name__ == "__main__":
             time_window=time_window,
             fast_mode=fast_mode,
             cost=cost,
+            num_proposers_per_slot=num_proposers_per_slot
         )
 
     except (FileNotFoundError, ValueError, RuntimeError) as e:

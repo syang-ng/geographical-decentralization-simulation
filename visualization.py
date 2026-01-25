@@ -121,12 +121,10 @@ def create_app(
                 last_a = average_nearest_neighbor_distance(dm)
                 last_nni = nearest_neighbor_index_spherical(dm, space)[0]
                 last_mev = sum(mev_series[i]) if mev_series else 0.0
-                last_attest = sum(attest_series[i])
-                last_proposal_time = (
-                    sum(t for t in proposal_time_series[i] if t > 0)
-                    if proposal_time_series[i]
-                    else 0.0
-                )
+                rates = [r for r in attest_series[i] if r > 0]  # with MCP we can have many attestation rates per slot
+                last_attest = (sum(rates) / len(rates)) if rates else 0.0
+                times = [t for t in proposal_time_series[i] if t > 0]
+                last_proposal_time = (sum(times) / len(times)) if times else 0.0
 
                 relay_dist_per_slot = [
                     sum([space.distance(pt, relay_pos) for pt in pts]) / len(pts)

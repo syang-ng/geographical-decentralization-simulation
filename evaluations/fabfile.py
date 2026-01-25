@@ -332,6 +332,38 @@ def run_eip7782(c, session="eip7782"):
 
 
 @task
+def run_multiple_proposers_baseline(c, session="multiple-proposers-baseline"):
+    """
+    Run simulations with multiple proposers per slot in a tmux session.
+    
+    Usage:
+        fab run-multiple-proposers-baseline             # default session name is 'multiple-proposers-baseline'
+        fab run-multiple-proposers-baseline:session=foo # custom session name
+    """
+    # Resolve parent directory (equivalent to cd "$SCRIPT_DIR/..")
+    script_dir = Path(__file__).resolve().parent
+    root = script_dir.parent
+
+    # Make sure the tmux session exists
+    _ensure_session(c, session)
+    
+    num_jobs = 0
+
+    cost = 0
+    
+    # model is MSP only for this evaluation
+    for num_proposers in [1, 2, 4, 8]:
+        _tmux(c, f"new-window -t {session} -n proposers_{num_proposers}")
+        window = f"{session}:proposers_{num_proposers}"
+        config_path = f"params/MSP-baseline.yaml"
+        outdir = f"output/multiple_proposers_baseline/MSP/validators_1000_slots_10000_cost_{cost}_proposers_{num_proposers}"
+        cmd = _build_cmd("MSP", root, config_path, outdir, [f"--cost {cost}", f"--num_proposers_per_slot {num_proposers}"])
+
+        _tmux(c, f"select-window -t {window}.0")
+        _tmux(c, f"send-keys -t {window}.0 {_quoted(cmd)} Enter")
+        num_jobs += 1
+
+@task
 def attach(c, session="simulation-baseline"):
     """Attach to the tmux session to view logs interactively."""
     c.run(f"tmux attach -t {shlex.quote(session)}", pty=True)
