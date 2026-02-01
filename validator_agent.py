@@ -478,7 +478,7 @@ class MCPValidator(MSPValidator):
 
         return best_id, best_offer
 
-    def simulation_with_signals(self, signal_user_counts):
+    def simulation_with_signals(self, signal_user_counts, update_state=True, marginal=True):
         simulation_results = []
         time_simulations = []
         region_data = [
@@ -505,7 +505,7 @@ class MCPValidator(MSPValidator):
             best_signal_latency_threshold = float("-inf")
 
             for signal_agent in self.model.signal_agents:
-                users = signal_user_counts.get(signal_agent.unique_id, 0) + 1
+                users = signal_user_counts.get(signal_agent.unique_id, 0) + (1 if marginal else 0)
                 to_signal_latency = self.model.gcp_latency_model.get_latency(gcp_region, signal_agent.gcp_region)
                 latency_threshold = base_threshold - to_signal_latency
                 offer = signal_agent.get_mev_offer_at_time(latency_threshold, users=users)
@@ -527,6 +527,8 @@ class MCPValidator(MSPValidator):
                     "signal_id": best_signal_id,
                 }
             )
+        if not update_state:
+            return simulation_results
 
         local_region_res = next((r for r in simulation_results if r["gcp_region"] == self.gcp_region), None)
         if local_region_res is not None:
@@ -554,9 +556,8 @@ class MCPValidator(MSPValidator):
             x["latency_threshold"]
         ))
 
-        for i in simulation_results:
-            i["slot"] = self.model.current_slot_idx
-        self.model.region_profits += simulation_results
+        # NOTE: we do not log all regions' profits here since signal_user_counts is not finalised
+
         return simulation_results[0]
 
     def decide_to_migrate(self, signal_user_counts=None):

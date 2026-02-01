@@ -356,6 +356,20 @@ class MultiSourceParadigm(EthereumRawModel):
         # --- Initial Slot Setup (before first step) ---
         self._setup_new_slot()
     
+    def _log_region_profits_mcp(self):
+        # logs region profits once per slot using final signal_user_counts
+        if self.signal_user_counts is None:
+            return
+        # pick any proposer agent to run the simulation helper
+        proposer = self.current_proposer_agents[0] if self.current_proposer_agents else None
+        if proposer is None:
+            return
+
+        simulation_results = proposer.simulation_with_signals(self.signal_user_counts, update_state=False, marginal=False)
+
+        for row in simulation_results:
+            row["slot"] = self.current_slot_idx
+        self.region_profits += simulation_results
 
     def _setup_new_slot(self):
         super()._setup_new_slot()
@@ -374,7 +388,9 @@ class MultiSourceParadigm(EthereumRawModel):
                 if is_migrated:
                     print(f"Proposer {proposer.unique_id} migrated from {prev_gcp_region} to {proposer.gcp_region} for Slot {self.current_slot_idx}")
                 any_migrated = any_migrated or is_migrated
-                self.action_reasons.append((action_reason, prev_gcp_region, proposer.gcp_region))        
+                self.action_reasons.append((action_reason, prev_gcp_region, proposer.gcp_region))
+
+            self._log_region_profits_mcp()             
         else:
             prev_gcp_region = self.current_proposer_agent.gcp_region
             any_migrated, action_reason = self.current_proposer_agent.decide_to_migrate()
