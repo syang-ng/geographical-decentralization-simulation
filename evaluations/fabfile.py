@@ -332,13 +332,57 @@ def run_eip7782(c, session="eip7782"):
 
 
 @task
-def run_multiple_proposers_baseline(c, session="multiple-proposers-baseline"):
+def run_multiple_proposers_baseline(c, session="multiple-proposers-baseline", hetero_info=False):
     """
     Run simulations with multiple proposers per slot in a tmux session.
+
+    Usage:
+        fab run-multiple-proposers-baseline
+        fab run-multiple-proposers-baseline --hetero-info
+        fab run-multiple-proposers-baseline:session=foo
+        fab run-multiple-proposers-baseline:session=foo --hetero-info
+    """
+    script_dir = Path(__file__).resolve().parent
+    root = script_dir.parent
+
+    _ensure_session(c, session)
+
+    cost = 0
+
+    # model is MSP only for this evaluation
+    for num_proposers in [1, 2, 4, 8]:
+        _tmux(c, f"new-window -t {session} -n proposers_{num_proposers}")
+        window = f"{session}:proposers_{num_proposers}"
+
+        config_path = "params/MSP-baseline.yaml"
+
+        suffix = "_hetero_info" if hetero_info else ""
+        outdir = (
+            f"output/multiple_proposers_baseline/"
+            f"validators_1000_slots_10000_cost_{cost}_proposers_{num_proposers}{suffix}"
+        )
+
+        extra_args = [
+            f"--cost {cost}",
+            f"--num_proposers_per_slot {num_proposers}",
+            f"--proposer_mode MCP",
+        ]
+        if hetero_info:
+            extra_args.append("--info-distribution heterogeneous")
+
+        cmd = _build_cmd("MSP", root, config_path, outdir, extra_args)
+
+        _tmux(c, f"select-window -t {window}.0")
+        _tmux(c, f"send-keys -t {window}.0 {_quoted(cmd)} Enter")
+
+@task
+def run_multiple_proposers_few_signals(c, session="multiple-proposers-few-signals"):
+    """
+    Run simulations with multiple proposers per slot and 1 or 2 signals per continent in a tmux session.
     
     Usage:
-        fab run-multiple-proposers-baseline             # default session name is 'multiple-proposers-baseline'
-        fab run-multiple-proposers-baseline:session=foo # custom session name
+        fab run-multiple-proposers-few-signals             # default session name is 'multiple-proposers-few-signals'
+        fab run-multiple-proposers-few-signals:session=foo # custom session name
     """
     # Resolve parent directory (equivalent to cd "$SCRIPT_DIR/..")
     script_dir = Path(__file__).resolve().parent
@@ -351,13 +395,19 @@ def run_multiple_proposers_baseline(c, session="multiple-proposers-baseline"):
 
     cost = 0
     
-    # model is MSP only for this evaluation
     for num_proposers in [1, 2, 4, 8]:
         _tmux(c, f"new-window -t {session} -n proposers_{num_proposers}")
         window = f"{session}:proposers_{num_proposers}"
-        config_path = f"params/MSP-baseline.yaml"
-        outdir = f"output/multiple_proposers_baseline/MSP/validators_1000_slots_10000_cost_{cost}_proposers_{num_proposers}"
-        cmd = _build_cmd("MSP", root, config_path, outdir, [f"--cost {cost}", f"--num_proposers_per_slot {num_proposers}"])
+        config_path = f"params/MCP-few_signals.yaml"
+        outdir = f"output/multiple_proposers_few_signals/validators_1000_slots_10000_cost_{cost}_proposers_{num_proposers}"
+        extra_args = [
+            f"--cost {cost}",
+            f"--num_proposers_per_slot {num_proposers}",
+            "--info-distribution heterogeneous",
+            "--proposer_mode MCP",
+        ]
+
+        cmd = _build_cmd("MSP", root, config_path, outdir, extra_args)
 
         _tmux(c, f"select-window -t {window}.0")
         _tmux(c, f"send-keys -t {window}.0 {_quoted(cmd)} Enter")

@@ -555,3 +555,61 @@ def plot_different_scale(c):
     continent_comparision_output_path = os.path.join(FIGURE_DIR, "continent_comparision_different_scale.pdf")
 
     plot_comparision(folder_paths, names, continent_comparision_output_path, figsize=(25, 13), normalized=True, ncol=2, columnspacing=2.0, h_offset=0.09)
+
+
+@task
+def plot_multiple_proposers_baseline(c, hetero_info=False):
+    """
+    Plot multiple proposer baseline for all metrics with 4 lines (P=1,2,4,8).
+
+    Usage:
+      fab plot-multiple-proposers-baseline
+      fab plot-multiple-proposers-baseline --hetero-info
+    """
+    cost = 0
+    base = "validators_1000_slots_10000_cost_{cost}_proposers_{p}"
+    if hetero_info:
+        base += "_hetero_info"
+
+    folder_paths = [
+        os.path.join(
+            OUTPUT_DIR,
+            "multiple_proposers_baseline",
+            base.format(cost=cost, p=p),
+        )
+        for p in [1, 2, 4, 8]
+    ]
+
+    names = [rf"$P={p}$" for p in [1, 2, 4, 8]]
+
+    tag = "hetero_info" if hetero_info else "baseline"
+    output_path = os.path.join(FIGURE_DIR, f"multiple_proposers_{tag}.pdf")
+
+    plot_comparision(folder_paths, names, output_path)
+
+
+@task
+def plot_multiple_proposers_few_signals(c):
+    """
+    Plot multiple proposer with few signals for all metrics with 4 lines (P=1,2,4,8).
+
+    Usage:
+      fab plot-multiple-proposers-few-signals
+    """
+    cost = 0
+    base = "validators_1000_slots_10000_cost_{cost}_proposers_{p}"
+    
+    folder_paths = [
+        os.path.join(
+            OUTPUT_DIR,
+            "multiple_proposers_few_signals",
+            base.format(cost=cost, p=p),
+        )
+        for p in [1, 2, 4, 8]
+    ]
+
+    names = [rf"$P={p}$" for p in [1, 2, 4, 8]]
+
+    output_path = os.path.join(FIGURE_DIR, f"multiple_proposers_few_signals.pdf")
+
+    plot_comparision(folder_paths, names, output_path)

@@ -1,0 +1,112 @@
+simulation_name: MSP-baseline
+model: MSP
+iterations: 10000
+time_granularity_ms: 50
+validators: 1000
+input_folder: data
+output_folder: MSP/baseline
+time_window: 10000
+cost: 0.0
+
+cloud: 1
+noncompliant: 1
+
+consensus_settings:
+  slot_duration_ms: 12000
+  attestation_time_ms: 4000 
+  attestation_threshold: 0.6667
+  timely_head_reward: 0.0790425
+  timely_source_reward: 0.147825
+  timely_target_reward: 0.12852
+  proposer_reward: 0.2
+  sync_committee_reward: 0.2
+
+signal_profiles:
+  - unique_id: northamerica-east-signal
+    gcp_region: us-east4
+    lat: 39.0437
+    lon: -77.4874
+    utility_function:
+      type: linear_mev
+      base_mev: 0.4
+      mev_increase: 0.04
+      multiplier: 1.0
+    type: NONCENSORING
+  - unique_id: northamerica-west-signal
+    gcp_region: us-west2
+    lat: 34.422
+    lon: -118.2437
+    utility_function:
+      type: linear_mev
+      base_mev: 0.4
+      mev_increase: 0.04
+      multiplier: 1.0
+    type: NONCENSORING
+  - unique_id: europe-signal
+    gcp_region: europe-west1
+    lat: 50.4577
+    lon: 3.8643
+    utility_function:
+      type: linear_mev
+      base_mev: 0.4
+      mev_increase: 0.04
+      multiplier: 1.0
+    type: NONCENSORING
+  - unique_id: asia-signal
+    gcp_region: asia-northeast1
+    lat: 35.6895
+    lon: 139.6917
+    utility_function:
+      type: linear_mev
+      base_mev: 0.4
+      mev_increase: 0.04
+      multiplier: 1.0
+    type: NONCENSORING
+  - unique_id: southamerica-signal
+    gcp_region: southamerica-east1
+    lat: -23.554
+    lon: -46.6333
+    utility_function:
+      type: linear_mev
+      base_mev: 0.4
+      mev_increase: 0.04
+      multiplier: 1.0
+    subsidy: 0
+    threshold: 0
+    type: NONCENSORING
+  - unique_id: africa-signal
+    gcp_region: africa-south1
+    lat: -26.2041
+    lon: 28.0473
+    utility_function:
+      type: linear_mev
+      base_mev: 0.4
+      mev_increase: 0.04
+      multiplier: 1.0
+    subsidy: 0
+    threshold: 0
+    type: NONCENSORING
+  - unique_id: oceania-signal
+    gcp_region: australia-southeast1
+    lat: -33.8688
+    lon: 151.2093
+    utility_function:
+      type: linear_mev
+      base_mev: 0.4
+      mev_increase: 0.04
+      multiplier: 1.0
+    subsidy: 0
+    threshold: 0
+    type: NONCENSORING
+  - unique_id: middleeast-signal
+    gcp_region: me-central1
+    lat: 25.2854
+    lon: 51.531
+    utility_function:
+      type: linear_mev
+      base_mev: 0.4
+      mev_increase: 0.04
+      multiplier: 1.0
+    subsidy: 0
+    threshold: 0
+    type: NONCENSORING
