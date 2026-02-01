@@ -143,7 +143,8 @@ def simulation(
     time_window,  # Time window for migration checks
     fast_mode=False,  # Fast mode for latency computation
     cost=0.0001,  # Cost for migration, default to 0.0001
-    num_proposers_per_slot=1  # Number of proposers per slot
+    num_proposers_per_slot=1,  # Number of proposers per slot
+    proposer_mode="MSP"  # Proposer mode, default to "MSP"
 ):
     # --- Simulation Execution ---
     random.seed(0x06511)  # For reproducibility
@@ -181,7 +182,8 @@ def simulation(
         "time_window": time_window,  # Time window for migration checks
         "fast_mode": fast_mode,  # Fast mode for latency computation
         "cost": cost,  # Cost for migration
-        "num_proposers_per_slot": num_proposers_per_slot
+        "num_proposers_per_slot": num_proposers_per_slot,
+        "proposer_mode": proposer_mode
     }
 
     # --- Create and Run the Model ---
@@ -426,6 +428,15 @@ if __name__ == "__main__":
         help="Number of proposers per slot (default: 1)",
     )
 
+    parser.add_argument(
+        "--proposer_mode",
+        type=str,
+        default="MSP",
+        choices=["MSP", "MCP"],
+        help="Proposer mode: MSP (sum signals) or MCP (choose best signal). "
+             "(default: MSP)",
+    )
+
     args = parser.parse_args()
 
     try:
@@ -465,6 +476,15 @@ if __name__ == "__main__":
         if model == "SSP" and num_proposers_per_slot != 1:
             print("Warning: SSP model only supports 1 proposer per slot. Overriding to 1.")
             num_proposers_per_slot = 1
+
+        proposer_mode = (
+            args.proposer_mode
+            if args.proposer_mode is not None
+            else config.get("proposer_mode", None)
+        )
+
+        if num_proposers_per_slot > 1 and proposer_mode == "MSP":
+            proposer_mode = "MCP"
 
         if args.output_dir == "default":
             output_folder = os.path.join(
@@ -546,7 +566,8 @@ if __name__ == "__main__":
             time_window=time_window,
             fast_mode=fast_mode,
             cost=cost,
-            num_proposers_per_slot=num_proposers_per_slot
+            num_proposers_per_slot=num_proposers_per_slot,
+            proposer_mode=proposer_mode
         )
 
     except (FileNotFoundError, ValueError, RuntimeError) as e:
