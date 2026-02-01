@@ -250,7 +250,8 @@ class MSPValidator(RawValidatorAgent):
         if self.model.fast_mode:
             for gcp_region, params in zip(self.model.gcp_latency_model.gcp_regions["Region"].values, region_data):
                 to_attester_latency, required_attesters_for_supermajority = params
-                time_simulations.append((gcp_region, to_attester_latency[required_attesters_for_supermajority],))
+                idx = max(0, required_attesters_for_supermajority - 1)
+                time_simulations.append((gcp_region, to_attester_latency[idx],))
         else:
             thread_number = min(10, cpu_count(), len(self.model.gcp_latency_model.gcp_regions))
             with ThreadPoolExecutor(max_workers=thread_number) as ex:
@@ -488,7 +489,8 @@ class MCPValidator(MSPValidator):
         if self.model.fast_mode:
             for gcp_region, params in zip(self.model.gcp_latency_model.gcp_regions["Region"].values, region_data):
                 to_attester_latency, required_attesters_for_supermajority = params
-                time_simulations.append((gcp_region, to_attester_latency[required_attesters_for_supermajority],))
+                idx = max(0, required_attesters_for_supermajority - 1)
+                time_simulations.append((gcp_region, to_attester_latency[idx],))
         else:
             thread_number = min(10, cpu_count(), len(self.model.gcp_latency_model.gcp_regions))
             with ThreadPoolExecutor(max_workers=thread_number) as ex:
