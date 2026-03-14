@@ -1,6 +1,7 @@
 simulation_name: simulation_config
 model: SSP
 iterations: 1000
+seed: 25873
 time_granularity_ms: 100
 validators: 1000
 input_folder: data

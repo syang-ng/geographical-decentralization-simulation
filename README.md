@@ -18,6 +18,7 @@ Run the simulation with homogeneous validators and homogeneous information sourc
 ```bash
 cd evaluations
 fab run-baseline
+fab run-baseline --seed=12345
 ```
 
 Plot the results.
@@ -35,6 +36,7 @@ Run the simulation with homogeneous validators but heterogeneous information sou
 ```bash
 cd evaluations
 fab run-heterogeneous-information-sources
+fab run-heterogeneous-information-sources --seed=12345
 ```
 
 Plot the results.
@@ -49,6 +51,7 @@ Run the simulation with homogeneous information sources but heterogeneous valida
 ```bash
 cd evaluations
 fab run-heterogeneous-validators
+fab run-heterogeneous-validators --seed=12345
 ```
 
 Plot the results.
@@ -63,6 +66,7 @@ Run the simulation with heterogeneous validators and heterogeneous information s
 ```bash
 cd evaluations
 fab run-hetero-both
+fab run-hetero-both --seed=12345
 ```
 
 Polt the results.
@@ -81,6 +85,7 @@ We also test other settings to further understand how consensus changes would af
 # test different \gamma (consensus threshold)
 cd evaluations
 fab run-different-gammas
+fab run-different-gammas --seed=12345
 
 # plot different \gamma (consensus threshold)
 fab plot-different-gammas
@@ -92,6 +97,7 @@ fab plot-different-gammas
 # test eip-7782
 cd evaluations
 fab run-eip7782 
+fab run-eip7782 --seed=12345
 
 # plot eip-7782
 cd plot

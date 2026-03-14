@@ -17,6 +17,9 @@ from models import SingleSourceParadigm, MultiSourceParadigm
 from source_agent import initialize_relays, initialize_signals
 
 
+DEFAULT_SIMULATION_SEED = 0x06511
+
+
 # --- Simulation Initialization Functions ---
 
 def load_simulation_config(config_file_path):
@@ -143,10 +146,11 @@ def simulation(
     time_window,  # Time window for migration checks
     fast_mode=False,  # Fast mode for latency computation
     cost=0.0001,  # Cost for migration, default to 0.0001
+    seed=DEFAULT_SIMULATION_SEED,
 ):
     # --- Simulation Execution ---
-    random.seed(0x06511)  # For reproducibility
-    np.random.seed(0x06511)  # For reproducibility in NumPy operations
+    random.seed(seed)  # For reproducibility
+    np.random.seed(seed)  # For reproducibility in NumPy operations
 
     # --- Define Simulation Parameters ---
     # Calculate total time steps using values from ConsensusSettings
@@ -184,6 +188,7 @@ def simulation(
 
     # --- Create and Run the Model ---
     print(f"\n--- Starting MEV-Boost Simulation: {simulation_name} ---")
+    print(f"Simulation seed: {seed}")
     start_time = time.time()
 
     if model == "SSP":
@@ -417,6 +422,12 @@ if __name__ == "__main__":
         default=4000,
         help="Cutoff time for attestations in milliseconds (default: 4000)",
     )
+    parser.add_argument(
+        "--seed",
+        type=int,
+        default=None,
+        help=f"Random seed for the simulation (default: YAML seed or {DEFAULT_SIMULATION_SEED})",
+    )
 
     args = parser.parse_args()
 
@@ -451,14 +462,18 @@ if __name__ == "__main__":
 
         # cost for migration
         cost = args.cost if args.cost is not None else config.get("migration_cost", 0.0001)
+        seed = args.seed if args.seed is not None else config.get("seed", DEFAULT_SIMULATION_SEED)
 
         if args.output_dir == "default":
             output_folder = os.path.join(
                 output_folder,
-                f"num_slots_{num_slots}_validators_{num_validators}_time_window_{time_window}_cost_{cost}_gamma_{args.gamma}_delta_{args.delta}_cutoff_{args.cutoff}",
+                f"num_slots_{num_slots}_validators_{num_validators}_time_window_{time_window}_cost_{cost}_gamma_{args.gamma}_delta_{args.delta}_cutoff_{args.cutoff}_seed_{seed}",
             )
         else:
             output_folder = args.output_dir
+
+        random.seed(seed)
+        np.random.seed(seed)
 
         gcp_regions = pd.read_csv(os.path.join(input_folder, "gcp_regions.csv"))
         gcp_latency = pd.read_csv(os.path.join(input_folder, "gcp_latency.csv"))
@@ -474,7 +489,7 @@ if __name__ == "__main__":
         validators = pd.read_csv(os.path.join(input_folder, "validators.csv"))
         # Sample validators if the CSV has more than the configured number
         if len(validators) > num_validators:
-            validators = validators.sample(n=num_validators, random_state=42)
+            validators = validators.sample(n=num_validators, random_state=seed)
         else:
             print(
                 f"Using all {len(validators)} validators from CSV as it's less than configured {num_validators}."
@@ -532,6 +547,7 @@ if __name__ == "__main__":
             time_window=time_window,
             fast_mode=fast_mode,
             cost=cost,
+            seed=seed,
         )
 
     except (FileNotFoundError, ValueError, RuntimeError) as e:
