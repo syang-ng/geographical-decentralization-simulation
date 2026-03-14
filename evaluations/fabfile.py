@@ -63,6 +63,13 @@ def _with_seed_suffix(outdir: str, seed=None) -> str:
     return f"{outdir}_seed_{seed}"
 
 
+def _with_seed_session(session: str, seed=None) -> str:
+    """Append seed to tmux session names when provided."""
+    if seed is None:
+        return session
+    return f"{session}-seed-{seed}"
+
+
 def _build_cmd(model: str, root: Path, config_path: str, outdir: str, appended_args: list) -> str:
     """Build the command string for one simulation run."""
     if model == "SSP":
@@ -88,6 +95,7 @@ def run_baseline(c, session="simulation-baseline", seed=None):
     # Resolve parent directory (equivalent to cd "$SCRIPT_DIR/..")
     script_dir = Path(__file__).resolve().parent
     root = script_dir.parent
+    session = _with_seed_session(session, seed)
 
     # Make sure the tmux session exists
     _ensure_session(c, session)
@@ -146,6 +154,7 @@ def run_heterogeneous_information_sources(c, session="hetero-info", seed=None):
     # Resolve parent directory (equivalent to cd "$SCRIPT_DIR/..")
     script_dir = Path(__file__).resolve().parent
     root = script_dir.parent
+    session = _with_seed_session(session, seed)
 
     # Make sure the tmux session exists
     _ensure_session(c, session)
@@ -201,6 +210,7 @@ def run_heterogeneous_validators(c, session="hetero-validators", seed=None):
     # Resolve parent directory (equivalent to cd "$SCRIPT_DIR/..")
     script_dir = Path(__file__).resolve().parent
     root = script_dir.parent
+    session = _with_seed_session(session, seed)
 
     # Make sure the tmux session exists
     _ensure_session(c, session)
@@ -254,6 +264,7 @@ def run_hetero_both(c, session="hetero-both", seed=None):
     # Resolve parent directory (equivalent to cd "$SCRIPT_DIR/..")
     script_dir = Path(__file__).resolve().parent
     root = script_dir.parent
+    session = _with_seed_session(session, seed)
 
     # Make sure the tmux session exists
     _ensure_session(c, session)
@@ -309,6 +320,7 @@ def run_different_gammas(c, session="different-gammas", seed=None):
     # Resolve parent directory (equivalent to cd "$SCRIPT_DIR/..")
     script_dir = Path(__file__).resolve().parent
     root = script_dir.parent
+    session = _with_seed_session(session, seed)
 
     # Make sure the tmux session exists
     _ensure_session(c, session)
@@ -364,6 +376,7 @@ def run_eip7782(c, session="eip7782", seed=None):
     # Resolve parent directory (equivalent to cd "$SCRIPT_DIR/..")
     script_dir = Path(__file__).resolve().parent
     root = script_dir.parent
+    session = _with_seed_session(session, seed)
 
     # Make sure the tmux session exists
     _ensure_session(c, session)
@@ -404,14 +417,16 @@ def run_eip7782(c, session="eip7782", seed=None):
 
 
 @task
-def attach(c, session="simulation-baseline"):
+def attach(c, session="simulation-baseline", seed=None):
     """Attach to the tmux session to view logs interactively."""
+    session = _with_seed_session(session, seed)
     c.run(f"tmux attach -t {shlex.quote(session)}", pty=True)
 
 
 @task
-def kill(c, session="simulation-baseline"):
+def kill(c, session="simulation-baseline", seed=None):
     """Kill the tmux session to stop all jobs."""
+    session = _with_seed_session(session, seed)
     if _has_session(c, session):
         _tmux(c, f"kill-session -t {shlex.quote(session)}")
         print(f"[ok] Killed tmux session '{session}'.")
