@@ -196,7 +196,7 @@ def simulation(
     else:
         model_standard = MultiSourceParadigm(**model_params_standard_nomig)
 
-    for i in range(TOTAL_TIME_STEPS):
+    while model_standard.steps < TOTAL_TIME_STEPS:
         model_standard.step()
         if not model_standard.running:
             print(

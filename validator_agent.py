@@ -196,14 +196,24 @@ class RawValidatorAgent(Agent):
     
 
     def calculate_minimal_needed_time(self, gcp_region):
+        cache_key = (
+            self.model.current_slot_idx,
+            self.model.fast_mode,
+            gcp_region,
+        )
+        cached_time = self.model.minimal_needed_time_cache.get(cache_key)
+        if cached_time is not None:
+            return cached_time
+
         params = self.calculate_minimal_needed_time_params(gcp_region)
         if self.model.fast_mode:
             to_attester_latency, required_attesters_for_supermajority = params
-            return to_attester_latency[required_attesters_for_supermajority]
+            minimal_needed_time = to_attester_latency[required_attesters_for_supermajority]
         else:
-            return find_min_threshold_fast(
-                *params
-            )
+            minimal_needed_time = find_min_threshold_fast(*params)
+
+        self.model.minimal_needed_time_cache[cache_key] = minimal_needed_time
+        return minimal_needed_time
 
 
     # dummy method for now, we complete migration immediately
@@ -246,16 +256,45 @@ class MSPValidator(RawValidatorAgent):
     def simulation_with_signals(self):
         simulation_results = []
         time_simulations = []
-        region_data = [self.calculate_minimal_needed_time_params(gcp_region) for gcp_region in self.model.gcp_latency_model.gcp_regions["Region"].values]
+        candidate_regions = self.model.gcp_latency_model.gcp_regions["Region"].values
         if self.model.fast_mode:
-            for gcp_region, params in zip(self.model.gcp_latency_model.gcp_regions["Region"].values, region_data):
-                to_attester_latency, required_attesters_for_supermajority = params
-                time_simulations.append((gcp_region, to_attester_latency[required_attesters_for_supermajority],))
+            for gcp_region in candidate_regions:
+                time_simulations.append((gcp_region, self.calculate_minimal_needed_time(gcp_region)))
         else:
-            thread_number = min(10, cpu_count(), len(self.model.gcp_latency_model.gcp_regions))
-            with ThreadPoolExecutor(max_workers=thread_number) as ex:
-                time_simulations = list(ex.map(lambda p: find_min_threshold_fast(*p), region_data))
-            time_simulations = list(zip(self.model.gcp_latency_model.gcp_regions["Region"].values, time_simulations))
+            uncached_regions = []
+            uncached_params = []
+            for gcp_region in candidate_regions:
+                cache_key = (
+                    self.model.current_slot_idx,
+                    self.model.fast_mode,
+                    gcp_region,
+                )
+                if cache_key in self.model.minimal_needed_time_cache:
+                    continue
+                uncached_regions.append(gcp_region)
+                uncached_params.append(self.calculate_minimal_needed_time_params(gcp_region))
+
+            if uncached_params:
+                thread_number = min(10, cpu_count(), len(uncached_params))
+                with ThreadPoolExecutor(max_workers=thread_number) as ex:
+                    uncached_times = list(ex.map(lambda p: find_min_threshold_fast(*p), uncached_params))
+                for gcp_region, minimal_needed_time in zip(uncached_regions, uncached_times):
+                    cache_key = (
+                        self.model.current_slot_idx,
+                        self.model.fast_mode,
+                        gcp_region,
+                    )
+                    self.model.minimal_needed_time_cache[cache_key] = minimal_needed_time
+
+            time_simulations = [
+                (
+                    gcp_region,
+                    self.model.minimal_needed_time_cache[
+                        (self.model.current_slot_idx, self.model.fast_mode, gcp_region)
+                    ],
+                )
+                for gcp_region in candidate_regions
+            ]
 
         for gcp_region, required_time in time_simulations:
             base_threshold = self.model.consensus_settings.attestation_time_ms - required_time
@@ -523,16 +562,44 @@ class SSPValidator(RawValidatorAgent):
 
         target_relays = [relay_agent for relay_agent in self.model.relay_agents if (self.preference == ValidatorPreference.NONCOMPLIANT or relay_agent.type == RelayType.CENSORING)]
         target_gcp_regions = [r.gcp_region for r in target_relays]
-        region_data = [self.calculate_minimal_needed_time_params(gcp_region) for gcp_region in target_gcp_regions]
         if self.model.fast_mode:
-            for target_relay, params in zip(target_relays, region_data):
-                to_attester_latency, required_attesters_for_supermajority = params
-                time_simulations.append((target_relay, to_attester_latency[required_attesters_for_supermajority],))
+            for target_relay in target_relays:
+                time_simulations.append((target_relay, self.calculate_minimal_needed_time(target_relay.gcp_region)))
         else:
-            thread_number = min(10, cpu_count(), len(self.model.gcp_latency_model.gcp_regions))
-            with ThreadPoolExecutor(max_workers=thread_number) as ex:
-                time_simulations = list(ex.map(lambda p: find_min_threshold_fast(*p), region_data))
-            time_simulations = list(zip(target_relays, time_simulations)) 
+            uncached_regions = []
+            uncached_params = []
+            for gcp_region in target_gcp_regions:
+                cache_key = (
+                    self.model.current_slot_idx,
+                    self.model.fast_mode,
+                    gcp_region,
+                )
+                if cache_key in self.model.minimal_needed_time_cache:
+                    continue
+                uncached_regions.append(gcp_region)
+                uncached_params.append(self.calculate_minimal_needed_time_params(gcp_region))
+
+            if uncached_params:
+                thread_number = min(10, cpu_count(), len(uncached_params))
+                with ThreadPoolExecutor(max_workers=thread_number) as ex:
+                    uncached_times = list(ex.map(lambda p: find_min_threshold_fast(*p), uncached_params))
+                for gcp_region, minimal_needed_time in zip(uncached_regions, uncached_times):
+                    cache_key = (
+                        self.model.current_slot_idx,
+                        self.model.fast_mode,
+                        gcp_region,
+                    )
+                    self.model.minimal_needed_time_cache[cache_key] = minimal_needed_time
+
+            time_simulations = [
+                (
+                    target_relay,
+                    self.model.minimal_needed_time_cache[
+                        (self.model.current_slot_idx, self.model.fast_mode, target_relay.gcp_region)
+                    ],
+                )
+                for target_relay in target_relays
+            ]
 
         for target_relay, minimal_needed_time in time_simulations:
             latency_threshold = (
