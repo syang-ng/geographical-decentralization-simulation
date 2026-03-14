@@ -2,7 +2,7 @@ import inspect
 import math
 import random
 
-from collections import deque
+from collections import Counter, deque
 from mesa import Model, DataCollector
 
 from consensus import ConsensusSettings
@@ -83,6 +83,7 @@ class EthereumRawModel(Model):
         self.attestation_rate = 0.0  # Calculated as a percentage
         self.failed_block_proposals = 0  # Count of failed block proposals
         self.region_profits = []
+        self.region_counter_per_slot = {}
         self.minimal_needed_time_cache = {}
 
         # --- Setup DataCollector ---
@@ -110,19 +111,13 @@ class EthereumRawModel(Model):
                     else 0.0
                 ),
             },
-            agent_reporters={
-                "Role": "role",
-                "Slot": "current_slot_idx",
-                "MEV_Captured_Slot": "mev_captured",  # MEV actually earned in the last slot
-                "Estimated_Profit": "estimated_profit",  # Estimated profit before migration
-                "Attestation_Rate": "attestation_rate",  # Percentage of successful attestations
-                "Proposal Time": "proposed_time_ms",  # Time when the block was proposed,
-                "Location_Strategy": lambda v: (
-                    v.location_strategy["type"] if v.role == "proposer" else "none"
-                ),
-                "GCP_Region": "gcp_region",
-            },
         )
+
+
+    def _record_region_counter_for_slot(self):
+        """Capture the final validator region distribution for the current slot."""
+        region_counts = Counter(validator.gcp_region for validator in self.validators)
+        self.region_counter_per_slot[self.current_slot_idx] = region_counts.most_common()
 
 
     def _setup_new_slot(self):
@@ -135,9 +130,6 @@ class EthereumRawModel(Model):
 
         # Reset all validators for the new slot
         for validator in self.validators:
-            validator.current_slot_idx = (
-                self.current_slot_idx
-            )  # Pass current slot index for migration logic
             validator.reset_for_new_slot()  # Handles cooldown, completes migrations, resets ephemeral state
 
         # Select Proposer (must not be migrating)
@@ -247,6 +239,8 @@ class EthereumRawModel(Model):
                     self.current_proposer_agent.proposed_time_ms
                 )
                 self.total_successful_attestations += slot_successful_attestations
+
+            self._record_region_counter_for_slot()
 
             # Collect data after all agents have acted in this step
             self.datacollector.collect(self)

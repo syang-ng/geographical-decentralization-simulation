@@ -7,7 +7,6 @@ import random
 import time
 import traceback
 import yaml  # Import yaml library
-from collections import defaultdict, Counter
 
 from constants import LinearMEVUtility
 from consensus import ConsensusSettings
@@ -221,6 +220,7 @@ def simulation(
         f"Avg MEV Earned per Slot: {model_standard.total_mev_earned / (model_standard.current_slot_idx):.4f} ETH"
     )
     model_data = model_standard.datacollector.get_model_vars_dataframe()
+    failed_block_proposals = model_data["Failed_Block_Proposals"].tolist()
 
     print("\n--- Collected Model Data ---")
     print(model_data.head())
@@ -235,92 +235,26 @@ def simulation(
         with open(f"{output_folder}/{output_name}", "w") as f:
             json.dump(names, f)
 
-    avg_mev_series = model_data["Average_MEV_Earned"].tolist()
-    supermaj_series = model_data["Supermajority_Success_Rate"].tolist()
-    failed_block_proposals = model_data["Failed_Block_Proposals"].tolist()
-    utility_increase_series = model_data["Utility_Increase"].tolist()
-
     gcp_region_profits = pd.DataFrame(model_standard.region_profits)
     gcp_region_profits.to_csv(f"{output_folder}/region_profits.csv", index=False)
-
-    with open(f"{output_folder}/avg_mev.json", "w") as f:
-        json.dump(avg_mev_series, f)
-
-    with open(f"{output_folder}/supermajority_success.json", "w") as f:
-        json.dump(supermaj_series, f)
-
-    with open(f"{output_folder}/failed_block_proposals.json", "w") as f:
-        json.dump(failed_block_proposals, f)
-
-    with open(f"{output_folder}/utility_increase.json", "w") as f:
-        json.dump(utility_increase_series, f)
-
-    action_reasons = model_standard.action_reasons
-    action_reasons_df = pd.DataFrame(
-        action_reasons, columns=["Action_Reason", "Previous_Region", "New_Region"]
-    )
-    action_reasons_df.to_csv(f"{output_folder}/action_reasons.csv", index=False)
-
-    agent_data = model_standard.datacollector.get_agent_vars_dataframe()
-
-    print("\n--- Agent Data Collected ---")
-    print("DataFrame Head:")
-    print(agent_data.head())
-
-    print("\nDataFrame Tail:")
-    print(agent_data.tail())
-
-    print("\nDataFrame Info:")
-    agent_data.info()
-    if isinstance(agent_data.index, pd.MultiIndex):
-        agent_data = agent_data.reset_index()
-
-    validator_agent_data = agent_data[(agent_data["Role"] != "relay_agent") & (agent_data["Role"] != "signal_agent")].reindex()
-    
-    # Group by slot and collect lists of per-agent values:
-    mev_by_slot = (
-        validator_agent_data.groupby("Slot")["MEV_Captured_Slot"].apply(list).tolist()
-    )
-    estimated_mev_by_slot = (
-        validator_agent_data.groupby("Slot")["Estimated_Profit"].apply(list).tolist()
-    )
-    attest_by_slot = (
-        validator_agent_data.groupby("Slot")["Attestation_Rate"].apply(list).tolist()
-    )
-    proposal_time_by_slot = (
-        validator_agent_data.groupby("Slot")["Proposal Time"].apply(list).tolist()
-    )
-
-    latest_steps = (
-        validator_agent_data.sort_values("Step")
-        .groupby(["Slot", "AgentID"], as_index=False)
-        .last()
-    )
-    region_counter_per_slot = defaultdict(list)
-    for slot, slot_df in latest_steps.groupby("Slot"):
-        region_counts = Counter(slot_df["GCP_Region"])
-        region_counter_per_slot[int(slot)] = region_counts.most_common()
-
-    # Proposer data
-    proposer_data = agent_data[agent_data["Role"] == "proposer"]
-    proposer_strategy_and_mev = proposer_data[
-        ["Slot", "Location_Strategy", "MEV_Captured_Slot"]
-    ].to_dict(orient="records")
-
-    with open(f"{output_folder}/mev_by_slot.json", "w") as f:
-        json.dump(mev_by_slot, f)
-    with open(f"{output_folder}/estimated_mev_by_slot.json", "w") as f:
-        json.dump(estimated_mev_by_slot, f)
-    with open(f"{output_folder}/attest_by_slot.json", "w") as f:
-        json.dump(attest_by_slot, f)
-    with open(f"{output_folder}/proposal_time_by_slot.json", "w") as f:
-        json.dump(proposal_time_by_slot, f)
-    with open(f"{output_folder}/proposer_strategy_and_mev.json", "w") as f:
-        json.dump(proposer_strategy_and_mev, f)
     with open(f"{output_folder}/region_counter_per_slot.json", "w") as f:
-        json.dump(region_counter_per_slot, f)
+        json.dump(model_standard.region_counter_per_slot, f)
 
-    print("Saved data in JSON files in the output directory.")
+    summary = {
+        "simulation_name": simulation_name,
+        "seed": seed,
+        "model": model,
+        "total_slots": model_standard.current_slot_idx + 1,
+        "total_mev_earned": model_standard.total_mev_earned,
+        "avg_mev_per_slot": model_standard.total_mev_earned / model_standard.current_slot_idx
+        if model_standard.current_slot_idx > 0
+        else 0.0,
+        "failed_block_proposals_total": int(sum(failed_block_proposals)),
+    }
+    with open(f"{output_folder}/summary.json", "w") as f:
+        json.dump(summary, f)
+
+    print("Saved summary, region_counter_per_slot.json, and region_profits.csv in the output directory.")
     print("Information Sources:")
     if model == "SSP":
         print("Relays:")
