@@ -4,6 +4,7 @@ from pathlib import Path
 
 import shlex
 import sys
+import time
 
 python_bin = sys.executable
 
@@ -48,6 +49,22 @@ def _quoted(s: str) -> str:
     return shlex.quote(s)
 
 
+def _normalize_task_name(task_name: str) -> str:
+    """Accept either Fabric CLI names or Python function-style task names."""
+    return task_name.strip().replace("-", "_")
+
+
+def _parse_csv(value) -> list[str]:
+    """Parse a comma-separated CLI argument into a clean list."""
+    if value is None:
+        return []
+    if isinstance(value, (list, tuple)):
+        items = value
+    else:
+        items = str(value).split(",")
+    return [item.strip() for item in items if item and item.strip()]
+
+
 def _optional_cli_args(seed=None) -> list:
     """Build optional CLI arguments shared across evaluation tasks."""
     args = []
@@ -80,6 +97,37 @@ def _build_cmd(model: str, root: Path, config_path: str, outdir: str, appended_a
         raise ValueError(f"Unknown model type: {model}")
     # Each command first changes into the parent directory before running
     return f"cd {_quoted(str(root))} && {python_bin} simulation.py " + " ".join(args)
+
+
+def _session_pane_commands(c, session: str) -> list[str]:
+    """Return the current command running in every pane of a tmux session."""
+    if not _has_session(c, session):
+        return []
+    result = _tmux(c, f"list-panes -s -t {shlex.quote(session)} -F '#{{pane_current_command}}'")
+    if not result.ok or not result.stdout.strip():
+        return []
+    return [line.strip() for line in result.stdout.splitlines() if line.strip()]
+
+
+def _is_session_busy(c, session: str) -> bool:
+    """Treat a tmux session as busy while any pane is still running a non-shell command."""
+    shell_commands = {"bash", "sh", "zsh", "fish", "login"}
+    commands = _session_pane_commands(c, session)
+    if not commands:
+        return False
+    return any(command.lstrip("-") not in shell_commands for command in commands)
+
+
+def _task_registry():
+    """Registry for evaluation tasks that can be orchestrated in batches."""
+    return {
+        "run_baseline": run_baseline,
+        "run_heterogeneous_information_sources": run_heterogeneous_information_sources,
+        "run_heterogeneous_validators": run_heterogeneous_validators,
+        "run_hetero_both": run_hetero_both,
+        "run_different_gammas": run_different_gammas,
+        "run_eip7782": run_eip7782,
+    }
 
 
 @task
@@ -414,6 +462,102 @@ def run_eip7782(c, session="eip7782", seed=None):
     # Print instructions for the user
     print(f"[ok] Started {num_jobs} jobs in tmux session '{session}'.")
     print(f"Attach with: tmux attach -t {session}")
+
+
+@task
+def run_seed_queue(
+    c,
+    seeds,
+    tasks=None,
+    max_parallel=1,
+    poll_interval=30,
+    session_prefix="batch",
+    kill_when_done=False,
+):
+    """
+    Run multiple evaluation batches with bounded concurrency.
+
+    Each queued job is one existing `run-*` Fabric task with a specific seed.
+    The scheduler waits until all tmux panes inside that task have finished
+    before starting another queued job.
+
+    Usage:
+        fab run-seed-queue --seeds=1,2,3 --max-parallel=2
+        fab run-seed-queue --seeds=11,22 --tasks=run-baseline,run-hetero-both
+    """
+    parsed_seeds = _parse_csv(seeds)
+    registry = _task_registry()
+    parsed_tasks = (
+        [_normalize_task_name(task_name) for task_name in _parse_csv(tasks)]
+        if tasks is not None
+        else list(registry.keys())
+    )
+
+    if not parsed_seeds:
+        raise ValueError("Please provide at least one seed via --seeds=1,2,3")
+    if tasks is not None and not parsed_tasks:
+        raise ValueError("Please provide at least one task via --tasks=run-baseline")
+    if max_parallel < 1:
+        raise ValueError("--max-parallel must be at least 1")
+    if poll_interval < 1:
+        raise ValueError("--poll-interval must be at least 1 second")
+
+    unknown_tasks = [task_name for task_name in parsed_tasks if task_name not in registry]
+    if unknown_tasks:
+        available = ", ".join(sorted(name.replace("_", "-") for name in registry))
+        raise ValueError(
+            "Unknown task(s): "
+            + ", ".join(task_name.replace("_", "-") for task_name in unknown_tasks)
+            + f". Available tasks: {available}"
+        )
+
+    queue = []
+    for task_name in parsed_tasks:
+        for seed in parsed_seeds:
+            base_session = f"{session_prefix}-{task_name.replace('_', '-')}"
+            queue.append(
+                {
+                    "task_name": task_name,
+                    "seed": seed,
+                    "base_session": base_session,
+                    "session": _with_seed_session(base_session, seed),
+                    "runner": registry[task_name],
+                }
+            )
+
+    active_jobs = []
+    queue_index = 0
+
+    while queue_index < len(queue) or active_jobs:
+        while queue_index < len(queue) and len(active_jobs) < max_parallel:
+            job = queue[queue_index]
+            print(
+                f"[start] {job['task_name'].replace('_', '-')} seed={job['seed']} "
+                f"session={job['session']}"
+            )
+            job["runner"](c, session=job["base_session"], seed=job["seed"])
+            active_jobs.append(job)
+            queue_index += 1
+
+        time.sleep(poll_interval)
+
+        remaining_jobs = []
+        for job in active_jobs:
+            if _is_session_busy(c, job["session"]):
+                remaining_jobs.append(job)
+                continue
+
+            print(
+                f"[done] {job['task_name'].replace('_', '-')} seed={job['seed']} "
+                f"session={job['session']}"
+            )
+            if kill_when_done and _has_session(c, job["session"]):
+                _tmux(c, f"kill-session -t {shlex.quote(job['session'])}")
+                print(f"[cleanup] killed tmux session '{job['session']}'")
+
+        active_jobs = remaining_jobs
+
+    print("[ok] All queued jobs have finished.")
 
 
 @task

@@ -11,6 +11,29 @@ pip install -r requirements.txt
 
 ## Evaluations
 
+### Batch Scheduler
+
+If you want to queue several seeds and only start a new `fab run-*` batch after an earlier batch has fully finished, use:
+
+```bash
+cd evaluations
+fab run-seed-queue --seeds=1,2,3 --max-parallel=2
+```
+
+If `tasks` is omitted, all supported evaluation `run-*` tasks will be queued in order. The scheduler keeps at most `2` seed batches running at once. A batch is considered finished only when all tmux panes created by that `fab run-*` task have returned to the shell.
+
+You can also queue multiple evaluation tasks in order:
+
+```bash
+cd evaluations
+fab run-seed-queue --seeds=1,2 --tasks=run-baseline,run-hetero-both --max-parallel=2
+```
+
+Useful options:
+- `--poll-interval=30`: check tmux status every 30 seconds.
+- `--session-prefix=batch`: prefix for generated tmux session names.
+- `--kill-when-done`: automatically kill finished tmux sessions after detection.
+
 ### Baseline
 
 Run the simulation with homogeneous validators and homogeneous information sources.
