@@ -145,6 +145,7 @@ def simulation(
     time_window,  # Time window for migration checks
     fast_mode=False,  # Fast mode for latency computation
     cost=0.0001,  # Cost for migration, default to 0.0001
+    latency_std_dev_ratio=0.5,
     seed=DEFAULT_SIMULATION_SEED,
 ):
     # --- Simulation Execution ---
@@ -183,6 +184,7 @@ def simulation(
         "time_window": time_window,  # Time window for migration checks
         "fast_mode": fast_mode,  # Fast mode for latency computation
         "cost": cost,  # Cost for migration
+        "latency_std_dev_ratio": latency_std_dev_ratio,
     }
 
     # --- Create and Run the Model ---
@@ -244,6 +246,7 @@ def simulation(
         "simulation_name": simulation_name,
         "seed": seed,
         "model": model,
+        "latency_std_dev_ratio": latency_std_dev_ratio,
         "total_slots": model_standard.current_slot_idx + 1,
         "total_mev_earned": model_standard.total_mev_earned,
         "avg_mev_per_slot": model_standard.total_mev_earned / model_standard.current_slot_idx
@@ -362,6 +365,12 @@ if __name__ == "__main__":
         default=None,
         help=f"Random seed for the simulation (default: YAML seed or {DEFAULT_SIMULATION_SEED})",
     )
+    parser.add_argument(
+        "--latency-std-dev-ratio",
+        type=float,
+        default=None,
+        help="Latency sampling standard deviation as a fraction of mean latency (default: YAML value or 0.5)",
+    )
 
     args = parser.parse_args()
 
@@ -397,11 +406,18 @@ if __name__ == "__main__":
         # cost for migration
         cost = args.cost if args.cost is not None else config.get("migration_cost", 0.0001)
         seed = args.seed if args.seed is not None else config.get("seed", DEFAULT_SIMULATION_SEED)
+        latency_std_dev_ratio = (
+            args.latency_std_dev_ratio
+            if args.latency_std_dev_ratio is not None
+            else config.get("latency_std_dev_ratio", 0.5)
+        )
+        if latency_std_dev_ratio < 0:
+            raise ValueError("latency_std_dev_ratio must be non-negative")
 
         if args.output_dir == "default":
             output_folder = os.path.join(
                 output_folder,
-                f"num_slots_{num_slots}_validators_{num_validators}_time_window_{time_window}_cost_{cost}_gamma_{args.gamma}_delta_{args.delta}_cutoff_{args.cutoff}_seed_{seed}",
+                f"num_slots_{num_slots}_validators_{num_validators}_time_window_{time_window}_cost_{cost}_gamma_{args.gamma}_delta_{args.delta}_cutoff_{args.cutoff}_latstd_{latency_std_dev_ratio}_seed_{seed}",
             )
         else:
             output_folder = args.output_dir
@@ -481,6 +497,7 @@ if __name__ == "__main__":
             time_window=time_window,
             fast_mode=fast_mode,
             cost=cost,
+            latency_std_dev_ratio=latency_std_dev_ratio,
             seed=seed,
         )
 

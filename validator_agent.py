@@ -186,7 +186,10 @@ class RawValidatorAgent(Agent):
             else:
                 return (
                     tuple(to_attester_latency),
-                    tuple([0.5] * len(self.model.current_attesters)),
+                    tuple(
+                        [self.model.latency_std_dev_ratio]
+                        * len(self.model.current_attesters)
+                    ),
                     required_attesters_for_supermajority,
                     0.99,
                     0.0,
@@ -479,7 +482,10 @@ class MSPValidator(RawValidatorAgent):
             self.decide_and_attest(
                 current_slot_time_ms_inner,
                 proposer_agent.proposed_time_ms,
-                self.model.latency_generator.get_latency(to_attester_latency, 0.5)
+                self.model.latency_generator.get_latency(
+                    to_attester_latency,
+                    self.model.latency_std_dev_ratio,
+                )
             )
 
 
@@ -846,5 +852,8 @@ class SSPValidator(RawValidatorAgent):
                 current_slot_time_ms_inner,
                 proposer_agent.proposed_time_ms,
                 proposer_to_relay_latency,
-                self.model.latency_generator.get_latency(avg_latency_to_relay, 0.5),
+                self.model.latency_generator.get_latency(
+                    avg_latency_to_relay,
+                    self.model.latency_std_dev_ratio,
+                ),
             )

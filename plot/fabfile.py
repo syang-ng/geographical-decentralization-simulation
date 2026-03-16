@@ -45,6 +45,27 @@ def _load_json_if_exists(path: Path):
     return None
 
 
+def _with_seed_suffix(path: str, seed=None) -> str:
+    if seed is None:
+        return path
+    return f"{path}_seed_{seed}"
+
+
+def _format_latency_std_dev_ratio(latency_std_dev_ratio) -> str:
+    return format(float(latency_std_dev_ratio), "g")
+
+
+def _with_run_suffix(path: str, seed=None, latency_std_dev_ratio=None) -> str:
+    if latency_std_dev_ratio is not None:
+        path = f"{path}_latstd_{_format_latency_std_dev_ratio(latency_std_dev_ratio)}"
+    return _with_seed_suffix(path, seed)
+
+
+def _figure_output_path(filename: str, seed=None, latency_std_dev_ratio=None) -> str:
+    stem, ext = os.path.splitext(filename)
+    return os.path.join(FIGURE_DIR, f"{_with_run_suffix(stem, seed, latency_std_dev_ratio)}{ext}")
+
+
 def load_folder(folder_path: Path) -> pd.DataFrame:
     data = _load_json_if_exists(folder_path / "region_counter_per_slot.json")
 
@@ -329,11 +350,11 @@ def plot_comparision(folder_paths, names, output_path, figsize=(25, 12), desired
 
 
 @task
-def plot_baseline(c):
+def plot_baseline(c, seed=None, latency_std_dev_ratio=None):
     """Generate baseline plots."""
     folder_paths = [
-        os.path.join(OUTPUT_DIR, "baseline", "SSP", "validators_1000_slots_10000_cost_0.002"),
-        os.path.join(OUTPUT_DIR, "baseline", "MSP", "validators_1000_slots_10000_cost_0.002"),
+        _with_run_suffix(os.path.join(OUTPUT_DIR, "baseline", "SSP", "validators_1000_slots_10000_cost_0.002"), seed, latency_std_dev_ratio),
+        _with_run_suffix(os.path.join(OUTPUT_DIR, "baseline", "MSP", "validators_1000_slots_10000_cost_0.002"), seed, latency_std_dev_ratio),
     ]
 
     names = [
@@ -346,15 +367,15 @@ def plot_baseline(c):
         "Validator Distribution (%)",
     ]
 
-    continent_comparision_output_path = os.path.join(FIGURE_DIR, "continent_comparision_baseline.pdf")
-    continent_distribution_output_path = os.path.join(FIGURE_DIR, "continent_distribution_baseline.pdf")
+    continent_comparision_output_path = _figure_output_path("continent_comparision_baseline.pdf", seed, latency_std_dev_ratio)
+    continent_distribution_output_path = _figure_output_path("continent_distribution_baseline.pdf", seed, latency_std_dev_ratio)
 
     plot_comparision(folder_paths, names, continent_comparision_output_path, h_offset=0)
     plot_continent_distribution(folder_paths, names, ylabels, continent_distribution_output_path, subplots=(1,2))
 
 
 @task
-def plot_cost(c):
+def plot_cost(c, seed=None, latency_std_dev_ratio=None):
     """Generate cost plots."""
     folder_paths = []
     names = []
@@ -368,28 +389,28 @@ def plot_cost(c):
     for paradigm in ["SSP", "MSP"]:
         for cost in ["0.0", "0.001", "0.002", "0.003"]:
             folder_paths.append(
-                os.path.join(OUTPUT_DIR, "baseline", paradigm, f"validators_1000_slots_10000_cost_{cost}")
+                _with_run_suffix(os.path.join(OUTPUT_DIR, "baseline", paradigm, f"validators_1000_slots_10000_cost_{cost}"), seed, latency_std_dev_ratio)
             )
             names.append(f"$c = {cost}$ ({label_map[paradigm]})")
 
 
-    continent_comparision_output_path = os.path.join(FIGURE_DIR, "continent_comparision_cost.pdf")
+    continent_comparision_output_path = _figure_output_path("continent_comparision_cost.pdf", seed, latency_std_dev_ratio)
 
     plot_comparision(folder_paths, names, continent_comparision_output_path)
 
 
 @task
-def plot_heterogeneous_information_sources(c):
+def plot_heterogeneous_information_sources(c, seed=None, latency_std_dev_ratio=None):
     """
     Generate hetero-info plots.
     """
     folder_paths = [
-        os.path.join(OUTPUT_DIR, "baseline", "SSP", "validators_1000_slots_10000_cost_0.002"),
-        os.path.join(OUTPUT_DIR, "baseline", "MSP", "validators_1000_slots_10000_cost_0.002"),
-        os.path.join(OUTPUT_DIR, "hetero_info", "SSP", "validators_1000_slots_10000_cost_0.002_latency_latency-aligned"),
-        os.path.join(OUTPUT_DIR, "hetero_info", "MSP", "validators_1000_slots_10000_cost_0.002_latency_latency-aligned"),
-        os.path.join(OUTPUT_DIR, "hetero_info", "SSP", "validators_1000_slots_10000_cost_0.002_latency_latency-misaligned"),
-        os.path.join(OUTPUT_DIR, "hetero_info", "MSP", "validators_1000_slots_10000_cost_0.002_latency_latency-misaligned"),
+        _with_run_suffix(os.path.join(OUTPUT_DIR, "baseline", "SSP", "validators_1000_slots_10000_cost_0.002"), seed, latency_std_dev_ratio),
+        _with_run_suffix(os.path.join(OUTPUT_DIR, "baseline", "MSP", "validators_1000_slots_10000_cost_0.002"), seed, latency_std_dev_ratio),
+        _with_run_suffix(os.path.join(OUTPUT_DIR, "hetero_info", "SSP", "validators_1000_slots_10000_cost_0.002_latency_latency-aligned"), seed, latency_std_dev_ratio),
+        _with_run_suffix(os.path.join(OUTPUT_DIR, "hetero_info", "MSP", "validators_1000_slots_10000_cost_0.002_latency_latency-aligned"), seed, latency_std_dev_ratio),
+        _with_run_suffix(os.path.join(OUTPUT_DIR, "hetero_info", "SSP", "validators_1000_slots_10000_cost_0.002_latency_latency-misaligned"), seed, latency_std_dev_ratio),
+        _with_run_suffix(os.path.join(OUTPUT_DIR, "hetero_info", "MSP", "validators_1000_slots_10000_cost_0.002_latency_latency-misaligned"), seed, latency_std_dev_ratio),
     ]
 
     names = [
@@ -410,18 +431,18 @@ def plot_heterogeneous_information_sources(c):
         "latency-misaligned (Local)",
     ]
 
-    continent_comparision_output_path = os.path.join(FIGURE_DIR, "continent_comparision_hetero_info.pdf")
+    continent_comparision_output_path = _figure_output_path("continent_comparision_hetero_info.pdf", seed, latency_std_dev_ratio)
     plot_comparision(folder_paths, names, continent_comparision_output_path, figsize=(25, 13), desired_order=order, ncol=2, columnspacing=2.0, h_offset=0.09)
 
 
 @task
-def plot_heterogeneous_validators(c):
+def plot_heterogeneous_validators(c, seed=None, latency_std_dev_ratio=None):
     """Generate hetero-validator plots."""
     folder_paths = [
-        os.path.join(OUTPUT_DIR, "baseline", "SSP", "validators_1000_slots_10000_cost_0.002"),
-        os.path.join(OUTPUT_DIR, "baseline", "MSP", "validators_1000_slots_10000_cost_0.002"),
-        os.path.join(OUTPUT_DIR, "hetero_validators", "SSP", "slots_10000_cost_0.002_validators_heterogeneous"),
-        os.path.join(OUTPUT_DIR, "hetero_validators", "MSP", "slots_10000_cost_0.002_validators_heterogeneous"),
+        _with_run_suffix(os.path.join(OUTPUT_DIR, "baseline", "SSP", "validators_1000_slots_10000_cost_0.002"), seed, latency_std_dev_ratio),
+        _with_run_suffix(os.path.join(OUTPUT_DIR, "baseline", "MSP", "validators_1000_slots_10000_cost_0.002"), seed, latency_std_dev_ratio),
+        _with_run_suffix(os.path.join(OUTPUT_DIR, "hetero_validators", "SSP", "slots_10000_cost_0.002_validators_heterogeneous"), seed, latency_std_dev_ratio),
+        _with_run_suffix(os.path.join(OUTPUT_DIR, "hetero_validators", "MSP", "slots_10000_cost_0.002_validators_heterogeneous"), seed, latency_std_dev_ratio),
     ]
 
     names = [
@@ -438,20 +459,20 @@ def plot_heterogeneous_validators(c):
         "heterogeneous validators (Local)",
     ]
 
-    continent_comparision_output_path = os.path.join(FIGURE_DIR, "continent_comparision_hetero_validator.pdf")
+    continent_comparision_output_path = _figure_output_path("continent_comparision_hetero_validator.pdf", seed, latency_std_dev_ratio)
     plot_comparision(folder_paths, names, continent_comparision_output_path, desired_order=order, ncol=2, columnspacing=2.0)
 
 
 @task
-def plot_hetero_both(c):
+def plot_hetero_both(c, seed=None, latency_std_dev_ratio=None):
     """Generate hetero-both plots."""
     folder_paths = [
-        os.path.join(OUTPUT_DIR, "baseline", "SSP", "validators_1000_slots_10000_cost_0.002"),
-        os.path.join(OUTPUT_DIR, "baseline", "MSP", "validators_1000_slots_10000_cost_0.002"),
-        os.path.join(OUTPUT_DIR, "hetero_both", "SSP", "validators_heterogeneous_slots_10000_cost_0.002_latency_latency-aligned"),
-        os.path.join(OUTPUT_DIR, "hetero_both", "MSP", "validators_heterogeneous_slots_10000_cost_0.002_latency_latency-aligned"),
-        os.path.join(OUTPUT_DIR, "hetero_both", "SSP", "validators_heterogeneous_slots_10000_cost_0.002_latency_latency-misaligned"),
-        os.path.join(OUTPUT_DIR, "hetero_both", "MSP", "validators_heterogeneous_slots_10000_cost_0.002_latency_latency-misaligned"),
+        _with_run_suffix(os.path.join(OUTPUT_DIR, "baseline", "SSP", "validators_1000_slots_10000_cost_0.002"), seed, latency_std_dev_ratio),
+        _with_run_suffix(os.path.join(OUTPUT_DIR, "baseline", "MSP", "validators_1000_slots_10000_cost_0.002"), seed, latency_std_dev_ratio),
+        _with_run_suffix(os.path.join(OUTPUT_DIR, "hetero_both", "SSP", "validators_heterogeneous_slots_10000_cost_0.002_latency_latency-aligned"), seed, latency_std_dev_ratio),
+        _with_run_suffix(os.path.join(OUTPUT_DIR, "hetero_both", "MSP", "validators_heterogeneous_slots_10000_cost_0.002_latency_latency-aligned"), seed, latency_std_dev_ratio),
+        _with_run_suffix(os.path.join(OUTPUT_DIR, "hetero_both", "SSP", "validators_heterogeneous_slots_10000_cost_0.002_latency_latency-misaligned"), seed, latency_std_dev_ratio),
+        _with_run_suffix(os.path.join(OUTPUT_DIR, "hetero_both", "MSP", "validators_heterogeneous_slots_10000_cost_0.002_latency_latency-misaligned"), seed, latency_std_dev_ratio),
     ]
 
     names = [
@@ -481,41 +502,41 @@ def plot_hetero_both(c):
         "Validator Distribution (%)",
     ]
 
-    continent_comparision_output_path = os.path.join(FIGURE_DIR, "continent_comparision_hetero_both.pdf")
-    continent_distribution_output_path = os.path.join(FIGURE_DIR, "continent_distribution_hetero_both.pdf")
+    continent_comparision_output_path = _figure_output_path("continent_comparision_hetero_both.pdf", seed, latency_std_dev_ratio)
+    continent_distribution_output_path = _figure_output_path("continent_distribution_hetero_both.pdf", seed, latency_std_dev_ratio)
     plot_comparision(folder_paths, names, continent_comparision_output_path, figsize=(25, 13), desired_order=order, ncol=2, columnspacing=2.0, h_offset=0.09)
     plot_continent_distribution(folder_paths[2:6], xlabels, ylabels, continent_distribution_output_path)
 
 
 @task
-def plot_different_gammas(c):
+def plot_different_gammas(c, seed=None, latency_std_dev_ratio=None):
     """Generate gamma plots."""
     folder_paths = [
-        os.path.join(OUTPUT_DIR, "different_gammas", "SSP", "validators_1000_slots_10000_cost_0.002_gamma_0.3333"),
-        os.path.join(OUTPUT_DIR, "different_gammas", "SSP", "validators_1000_slots_10000_cost_0.002_gamma_0.5"),
-        os.path.join(OUTPUT_DIR, "baseline", "SSP", "validators_1000_slots_10000_cost_0.002"),
-        os.path.join(OUTPUT_DIR, "different_gammas", "SSP", "validators_1000_slots_10000_cost_0.002_gamma_0.8"),
-        os.path.join(OUTPUT_DIR, "different_gammas", "MSP", "validators_1000_slots_10000_cost_0.002_gamma_0.3333"),
-        os.path.join(OUTPUT_DIR, "different_gammas", "MSP", "validators_1000_slots_10000_cost_0.002_gamma_0.5"),
-        os.path.join(OUTPUT_DIR, "baseline", "MSP", "validators_1000_slots_10000_cost_0.002"),
-        os.path.join(OUTPUT_DIR, "different_gammas", "MSP", "validators_1000_slots_10000_cost_0.002_gamma_0.8"),
+        _with_run_suffix(os.path.join(OUTPUT_DIR, "different_gammas", "SSP", "validators_1000_slots_10000_cost_0.002_gamma_0.3333"), seed, latency_std_dev_ratio),
+        _with_run_suffix(os.path.join(OUTPUT_DIR, "different_gammas", "SSP", "validators_1000_slots_10000_cost_0.002_gamma_0.5"), seed, latency_std_dev_ratio),
+        _with_run_suffix(os.path.join(OUTPUT_DIR, "baseline", "SSP", "validators_1000_slots_10000_cost_0.002"), seed, latency_std_dev_ratio),
+        _with_run_suffix(os.path.join(OUTPUT_DIR, "different_gammas", "SSP", "validators_1000_slots_10000_cost_0.002_gamma_0.8"), seed, latency_std_dev_ratio),
+        _with_run_suffix(os.path.join(OUTPUT_DIR, "different_gammas", "MSP", "validators_1000_slots_10000_cost_0.002_gamma_0.3333"), seed, latency_std_dev_ratio),
+        _with_run_suffix(os.path.join(OUTPUT_DIR, "different_gammas", "MSP", "validators_1000_slots_10000_cost_0.002_gamma_0.5"), seed, latency_std_dev_ratio),
+        _with_run_suffix(os.path.join(OUTPUT_DIR, "baseline", "MSP", "validators_1000_slots_10000_cost_0.002"), seed, latency_std_dev_ratio),
+        _with_run_suffix(os.path.join(OUTPUT_DIR, "different_gammas", "MSP", "validators_1000_slots_10000_cost_0.002_gamma_0.8"), seed, latency_std_dev_ratio),
     ]
 
     names = [r"$\gamma=1/3$ (External)", r"$\gamma=1/2$ (External)", r"$\gamma=2/3$ (External)", r"$\gamma=4/5$ (External)",
              r"$\gamma=1/3$ (Local)", r"$\gamma=1/2$ (Local)", r"$\gamma=2/3$ (Local)", r"$\gamma=4/5$ (Local)"]
 
-    continent_comparision_output_path = os.path.join(FIGURE_DIR, "continent_comparision_gamma.pdf")
+    continent_comparision_output_path = _figure_output_path("continent_comparision_gamma.pdf", seed, latency_std_dev_ratio)
     plot_comparision(folder_paths, names, continent_comparision_output_path)
 
 
 @task
-def plot_eip7782(c):
+def plot_eip7782(c, seed=None, latency_std_dev_ratio=None):
     """Generate EIP-7782 plots."""
     folder_paths = [
-        os.path.join(OUTPUT_DIR, "baseline", "SSP", "validators_1000_slots_10000_cost_0.002"),
-        os.path.join(OUTPUT_DIR, "eip7782", "SSP", "validators_1000_slots_10000_cost_0.002_delta_6000_cutoff_3000"),
-        os.path.join(OUTPUT_DIR, "baseline", "MSP", "validators_1000_slots_10000_cost_0.002"),
-        os.path.join(OUTPUT_DIR, "eip7782", "MSP", "validators_1000_slots_10000_cost_0.002_delta_6000_cutoff_3000"),
+        _with_run_suffix(os.path.join(OUTPUT_DIR, "baseline", "SSP", "validators_1000_slots_10000_cost_0.002"), seed, latency_std_dev_ratio),
+        _with_run_suffix(os.path.join(OUTPUT_DIR, "eip7782", "SSP", "validators_1000_slots_10000_cost_0.002_delta_6000_cutoff_3000"), seed, latency_std_dev_ratio),
+        _with_run_suffix(os.path.join(OUTPUT_DIR, "baseline", "MSP", "validators_1000_slots_10000_cost_0.002"), seed, latency_std_dev_ratio),
+        _with_run_suffix(os.path.join(OUTPUT_DIR, "eip7782", "MSP", "validators_1000_slots_10000_cost_0.002_delta_6000_cutoff_3000"), seed, latency_std_dev_ratio),
     ]
 
     names = [
@@ -525,22 +546,22 @@ def plot_eip7782(c):
         r"$\Delta=6s$ (Local)"
     ]
 
-    continent_comparision_output_path = os.path.join(FIGURE_DIR, "continent_comparision_eip7782.pdf")
+    continent_comparision_output_path = _figure_output_path("continent_comparision_eip7782.pdf", seed, latency_std_dev_ratio)
 
     plot_comparision(folder_paths, names, continent_comparision_output_path)
 
 
 @task
-def plot_different_scale(c):
+def plot_different_scale(c, seed=None, latency_std_dev_ratio=None):
     """Generate different scale plots."""
 
     folder_paths = [
-        os.path.join(OUTPUT_DIR, "baseline", "SSP", "validators_100_slots_1000_cost_0.0"),
-        os.path.join(OUTPUT_DIR, "baseline", "SSP", "validators_1000_slots_10000_cost_0.0"),
-        os.path.join(OUTPUT_DIR, "baseline", "SSP", "validators_10000_slots_100000_cost_0.0"),
-        os.path.join(OUTPUT_DIR, "baseline", "MSP", "validators_100_slots_1000_cost_0.0"),
-        os.path.join(OUTPUT_DIR, "baseline", "MSP", "validators_1000_slots_10000_cost_0.0"),
-        os.path.join(OUTPUT_DIR, "baseline", "MSP", "validators_10000_slots_100000_cost_0.0"),
+        _with_run_suffix(os.path.join(OUTPUT_DIR, "baseline", "SSP", "validators_100_slots_1000_cost_0.0"), seed, latency_std_dev_ratio),
+        _with_run_suffix(os.path.join(OUTPUT_DIR, "baseline", "SSP", "validators_1000_slots_10000_cost_0.0"), seed, latency_std_dev_ratio),
+        _with_run_suffix(os.path.join(OUTPUT_DIR, "baseline", "SSP", "validators_10000_slots_100000_cost_0.0"), seed, latency_std_dev_ratio),
+        _with_run_suffix(os.path.join(OUTPUT_DIR, "baseline", "MSP", "validators_100_slots_1000_cost_0.0"), seed, latency_std_dev_ratio),
+        _with_run_suffix(os.path.join(OUTPUT_DIR, "baseline", "MSP", "validators_1000_slots_10000_cost_0.0"), seed, latency_std_dev_ratio),
+        _with_run_suffix(os.path.join(OUTPUT_DIR, "baseline", "MSP", "validators_10000_slots_100000_cost_0.0"), seed, latency_std_dev_ratio),
     ]
 
     names = [
@@ -552,6 +573,6 @@ def plot_different_scale(c):
         r"$|\mathcal{V}| = 10,000$ (Local)",
     ]
 
-    continent_comparision_output_path = os.path.join(FIGURE_DIR, "continent_comparision_different_scale.pdf")
+    continent_comparision_output_path = _figure_output_path("continent_comparision_different_scale.pdf", seed, latency_std_dev_ratio)
 
     plot_comparision(folder_paths, names, continent_comparision_output_path, figsize=(25, 13), normalized=True, ncol=2, columnspacing=2.0, h_offset=0.09)
