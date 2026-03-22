@@ -238,7 +238,9 @@ def simulation(
             json.dump(names, f)
 
     gcp_region_profits = pd.DataFrame(model_standard.region_profits)
+    utility_increase = pd.DataFrame(model_data["Utility_Increase"].tolist())
     gcp_region_profits.to_csv(f"{output_folder}/region_profits.csv", index=False)
+    utility_increase.to_json(f"{output_folder}/utility_increase.json")
     with open(f"{output_folder}/region_counter_per_slot.json", "w") as f:
         json.dump(model_standard.region_counter_per_slot, f)
 
@@ -252,12 +254,12 @@ def simulation(
         "avg_mev_per_slot": model_standard.total_mev_earned / model_standard.current_slot_idx
         if model_standard.current_slot_idx > 0
         else 0.0,
-        "failed_block_proposals_total": int(sum(failed_block_proposals)),
+        "failed_block_proposals_total": failed_block_proposals[-1],
     }
     with open(f"{output_folder}/summary.json", "w") as f:
         json.dump(summary, f)
 
-    print("Saved summary, region_counter_per_slot.json, and region_profits.csv in the output directory.")
+    print("Saved summary, region_counter_per_slot.json, region_profits.csv, and utility_increase.json in the output directory.")
     print("Information Sources:")
     if model == "SSP":
         print("Relays:")
