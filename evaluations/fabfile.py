@@ -80,6 +80,37 @@ def _parse_latency_std_dev_ratios(value) -> list:
     return ratios or [None]
 
 
+def _parse_optional_int(value):
+    """Parse optional integer CLI values passed through Fabric."""
+    if value is None:
+        return None
+    return int(value)
+
+
+def _parse_costs(value) -> list[str]:
+    """Parse one or many migration cost values into canonical baseline cost strings."""
+    if value is None:
+        return list(COSTS)
+
+    canonical_costs = {float(cost): cost for cost in COSTS}
+    parsed_costs = []
+    seen = set()
+    for item in _parse_csv(value):
+        numeric_cost = float(item)
+        if numeric_cost not in canonical_costs:
+            raise ValueError(
+                "Unknown cost value: "
+                f"{item}. Available baseline costs: {', '.join(COSTS)}"
+            )
+
+        canonical = canonical_costs[numeric_cost]
+        if canonical not in seen:
+            parsed_costs.append(canonical)
+            seen.add(canonical)
+
+    return parsed_costs or list(COSTS)
+
+
 def _optional_cli_args(seed=None, latency_std_dev_ratio=None) -> list:
     """Build optional CLI arguments shared across evaluation tasks."""
     args = []
@@ -170,6 +201,8 @@ def _is_pane_busy(c, target: str) -> bool:
 
 def _run_jobs_with_worker_windows(c, session: str, jobs: list[dict], max_parallel: int, poll_interval: int = 30) -> None:
     """Run queued simulation commands with a bounded number of tmux worker windows."""
+    max_parallel = _parse_optional_int(max_parallel)
+    poll_interval = _parse_optional_int(poll_interval)
     if max_parallel < 1:
         raise ValueError("--max-parallel must be at least 1")
     if poll_interval < 1:
@@ -232,7 +265,7 @@ def _task_registry():
 
 
 @task
-def run_baseline(c, session="simulation-baseline", seed=None, latency_std_dev_ratio=None, max_parallel=None, poll_interval=30):
+def run_baseline(c, session="simulation-baseline", seed=None, latency_std_dev_ratio=None, cost=None, max_parallel=None, poll_interval=30):
     """
     Run four baseline evaluations in parallel inside tmux panes.
     
@@ -242,12 +275,14 @@ def run_baseline(c, session="simulation-baseline", seed=None, latency_std_dev_ra
         fab run-baseline --seed=12345    # run this batch with a fixed seed
         fab run-baseline --latency-std-dev-ratio=0.25
         fab run-baseline --latency-std-dev-ratio=0.25,0.5 --max-parallel=4
+        fab run-baseline --seed=25871 --latency-std-dev-ratio=0.2,0.3,0.4 --cost=0.002 --max-parallel=8
     """
     # Resolve parent directory (equivalent to cd "$SCRIPT_DIR/..")
     script_dir = Path(__file__).resolve().parent
     root = script_dir.parent
     session = _with_seed_session(session, seed)
     latency_std_dev_ratios = _parse_latency_std_dev_ratios(latency_std_dev_ratio)
+    selected_costs = _parse_costs(cost)
 
     jobs = []
 
@@ -257,16 +292,16 @@ def run_baseline(c, session="simulation-baseline", seed=None, latency_std_dev_ra
         outdir = f"output/baseline/{model}/validators_1000_slots_10000"
 
         for ratio in latency_std_dev_ratios:
-            for cost in COSTS:
+            for single_cost in selected_costs:
                 jobs.append(
                     {
-                        "label": f"{model} cost={cost} seed={seed} latstd={ratio}",
+                        "label": f"{model} cost={single_cost} seed={seed} latstd={ratio}",
                         "cmd": _build_cmd(
                             model,
                             root,
                             config_path,
-                            _with_run_suffix(f"{outdir}_cost_{cost}", seed, ratio),
-                            [f"--cost {cost}"] + _optional_cli_args(seed, ratio),
+                            _with_run_suffix(f"{outdir}_cost_{single_cost}", seed, ratio),
+                            [f"--cost {single_cost}"] + _optional_cli_args(seed, ratio),
                         ),
                     }
                 )
@@ -290,11 +325,11 @@ def run_baseline(c, session="simulation-baseline", seed=None, latency_std_dev_ra
                 model,
                 root,
                 config_path,
-                _with_run_suffix(f"{outdir}_cost_{cost}", seed, ratio),
-                [f"--cost {cost}"] + _optional_cli_args(seed, ratio),
+                _with_run_suffix(f"{outdir}_cost_{single_cost}", seed, ratio),
+                [f"--cost {single_cost}"] + _optional_cli_args(seed, ratio),
             )
             for ratio in latency_std_dev_ratios
-            for cost in COSTS
+            for single_cost in selected_costs
         ]
         num_jobs += len(cmds)
         
@@ -773,6 +808,8 @@ def run_seed_queue(
         fab run-seed-queue --seeds=11,22 --tasks=run-baseline,run-hetero-both
         fab run-seed-queue --seeds=11,22 --latency-std-dev-ratios=0.25,0.5
     """
+    max_parallel = _parse_optional_int(max_parallel)
+    poll_interval = _parse_optional_int(poll_interval)
     parsed_seeds = _parse_csv(seeds)
     registry = _task_registry()
     ratio_input = latency_std_dev_ratios if latency_std_dev_ratios is not None else latency_std_dev_ratio
