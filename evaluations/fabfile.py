@@ -111,6 +111,22 @@ def _parse_costs(value) -> list[str]:
     return parsed_costs or list(COSTS)
 
 
+def _parse_seeds(value) -> list[str | None]:
+    """Parse one or many seed values from CLI input."""
+    if value is None:
+        return [None]
+
+    parsed_seeds = []
+    seen = set()
+    for item in _parse_csv(value):
+        canonical = str(int(item))
+        if canonical not in seen:
+            parsed_seeds.append(canonical)
+            seen.add(canonical)
+
+    return parsed_seeds or [None]
+
+
 def _optional_cli_args(seed=None, latency_std_dev_ratio=None) -> list:
     """Build optional CLI arguments shared across evaluation tasks."""
     args = []
@@ -273,6 +289,7 @@ def run_baseline(c, session="simulation-baseline", seed=None, latency_std_dev_ra
         fab run-baseline                  # default session name is 'simulation-baseline'
         fab run-baseline --session=foo   # custom session name
         fab run-baseline --seed=12345    # run this batch with a fixed seed
+        fab run-baseline --seed=12345,23456 --cost=0.002 --max-parallel=8
         fab run-baseline --latency-std-dev-ratio=0.25
         fab run-baseline --latency-std-dev-ratio=0.25,0.5 --max-parallel=4
         fab run-baseline --seed=25871 --latency-std-dev-ratio=0.2,0.3,0.4 --cost=0.002 --max-parallel=8
@@ -280,31 +297,34 @@ def run_baseline(c, session="simulation-baseline", seed=None, latency_std_dev_ra
     # Resolve parent directory (equivalent to cd "$SCRIPT_DIR/..")
     script_dir = Path(__file__).resolve().parent
     root = script_dir.parent
-    session = _with_seed_session(session, seed)
+    parsed_seeds = _parse_seeds(seed)
+    if len(parsed_seeds) == 1:
+        session = _with_seed_session(session, parsed_seeds[0])
     latency_std_dev_ratios = _parse_latency_std_dev_ratios(latency_std_dev_ratio)
     selected_costs = _parse_costs(cost)
 
     jobs = []
 
     # Create a new window within the session
-    for model in ["SSP", "MSP"]:
-        config_path = f"params/{model}-baseline.yaml"
-        outdir = f"output/baseline/{model}/validators_1000_slots_10000"
+    for ratio in latency_std_dev_ratios:
+        for single_seed in parsed_seeds:
+            for model in ["SSP", "MSP"]:
+                config_path = f"params/{model}-baseline.yaml"
+                outdir = f"output/baseline/{model}/validators_1000_slots_10000"
 
-        for ratio in latency_std_dev_ratios:
-            for single_cost in selected_costs:
-                jobs.append(
-                    {
-                        "label": f"{model} cost={single_cost} seed={seed} latstd={ratio}",
-                        "cmd": _build_cmd(
-                            model,
-                            root,
-                            config_path,
-                            _with_run_suffix(f"{outdir}_cost_{single_cost}", seed, ratio),
-                            [f"--cost {single_cost}"] + _optional_cli_args(seed, ratio),
-                        ),
-                    }
-                )
+                for single_cost in selected_costs:
+                    jobs.append(
+                        {
+                            "label": f"{model} cost={single_cost} seed={single_seed} latstd={ratio}",
+                            "cmd": _build_cmd(
+                                model,
+                                root,
+                                config_path,
+                                _with_run_suffix(f"{outdir}_cost_{single_cost}", single_seed, ratio),
+                                [f"--cost {single_cost}"] + _optional_cli_args(single_seed, ratio),
+                            ),
+                        }
+                    )
 
     if max_parallel is not None:
         _run_jobs_with_worker_windows(c, session, jobs, max_parallel, poll_interval)
@@ -325,10 +345,11 @@ def run_baseline(c, session="simulation-baseline", seed=None, latency_std_dev_ra
                 model,
                 root,
                 config_path,
-                _with_run_suffix(f"{outdir}_cost_{single_cost}", seed, ratio),
-                [f"--cost {single_cost}"] + _optional_cli_args(seed, ratio),
+                _with_run_suffix(f"{outdir}_cost_{single_cost}", single_seed, ratio),
+                [f"--cost {single_cost}"] + _optional_cli_args(single_seed, ratio),
             )
             for ratio in latency_std_dev_ratios
+            for single_seed in parsed_seeds
             for single_cost in selected_costs
         ]
         num_jobs += len(cmds)

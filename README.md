@@ -49,6 +49,7 @@ fab run-baseline --seed=12345
 fab run-baseline --seed=12345 --latency-std-dev-ratio=0.25
 fab run-baseline --seed=12345 --latency-std-dev-ratio=0.25,0.5
 fab run-baseline --seed=12345 --latency-std-dev-ratio=0.25,0.5 --max-parallel=4
+fab run-baseline --seed=25871,25872 --latency-std-dev-ratio=0.2,0.3,0.4,0.6,0.7,0.8 --cost=0.002 --max-parallel=8
 fab run-baseline --seed=25871 --latency-std-dev-ratio=0.2,0.3,0.4,0.6,0.7,0.8 --cost=0.002 --max-parallel=8
 ```
 
