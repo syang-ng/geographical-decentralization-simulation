@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, startTransition } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { motion } from 'framer-motion'
-import { Activity, Ban, Clock3, Database, FlaskConical, Play, RotateCcw, Rows3, Sparkles } from 'lucide-react'
+import { Activity, Ban, Check, Clock3, Copy, Database, FlaskConical, Play, RotateCcw, Rows3, Sparkles } from 'lucide-react'
 import { BlockCanvas } from '../components/explore/BlockCanvas'
 import { cn } from '../lib/cn'
 import {
@@ -87,6 +87,8 @@ const SLOT_OPTIONS = [
   { label: '12s', value: 12 },
 ]
 
+const COPY_RESET_DELAY_MS = 1600
+
 function formatNumber(value: number, digits = 2): string {
   return value.toLocaleString(undefined, {
     maximumFractionDigits: digits,
@@ -104,6 +106,47 @@ function attestationCutoffMs(slotTime: number): number {
   if (slotTime === 6) return 3000
   if (slotTime === 8) return 4000
   return 4000
+}
+
+function paperScenarioLabels(config: SimulationConfig): string[] {
+  const labels: string[] = []
+
+  if (config.distribution === 'heterogeneous' && config.sourcePlacement !== 'homogeneous') {
+    labels.push('SE3 joint heterogeneity')
+  } else if (config.distribution === 'heterogeneous') {
+    labels.push('SE2 heterogeneous validators')
+  } else if (config.sourcePlacement === 'latency-aligned') {
+    labels.push('SE1 latency-aligned sources')
+  } else if (config.sourcePlacement === 'latency-misaligned') {
+    labels.push('SE1 latency-misaligned sources')
+  } else {
+    labels.push('Baseline geography/source setup')
+  }
+
+  if (config.slotTime === 6) {
+    labels.push('SE4b shorter slots')
+  } else if (Math.abs(config.attestationThreshold - 2 / 3) > 0.01) {
+    labels.push('SE4a gamma variation')
+  }
+
+  labels.push(config.paradigm === 'SSP' ? 'SSP exact mode' : 'MSP exact mode')
+  return labels
+}
+
+function buildRunSummary(manifest: { cacheHit: boolean; cacheKey: string; config: SimulationConfig; runtimeSeconds: number; summary: { finalAverageMev: number; finalSupermajoritySuccess: number } }): string {
+  return [
+    `Exact simulation run`,
+    `Paradigm: ${manifest.config.paradigm}`,
+    `Scenario: ${paperScenarioLabels(manifest.config).join(' | ')}`,
+    `Seed: ${manifest.config.seed}`,
+    `Validators: ${manifest.config.validators}`,
+    `Slots: ${manifest.config.slots}`,
+    `Runtime: ${formatNumber(manifest.runtimeSeconds, 2)}s`,
+    `Final average MEV: ${formatNumber(manifest.summary.finalAverageMev, 4)} ETH`,
+    `Final supermajority success: ${formatNumber(manifest.summary.finalSupermajoritySuccess, 2)}%`,
+    `Execution: ${manifest.cacheHit ? 'Exact cache hit' : 'Fresh exact run'}`,
+    `Cache key: ${manifest.cacheKey}`,
+  ].join('\n')
 }
 
 function selectDefaultArtifact(artifacts: readonly SimulationArtifact[]): string | null {
@@ -130,6 +173,7 @@ export function SimulationLabPage() {
   const [parsedBlocks, setParsedBlocks] = useState<readonly Block[]>([])
   const [parseError, setParseError] = useState<string | null>(null)
   const [isParsing, setIsParsing] = useState(false)
+  const [copyState, setCopyState] = useState<'config' | 'run' | null>(null)
 
   const workerRef = useRef<Worker | null>(null)
   const workerRequestIdRef = useRef(0)
@@ -288,6 +332,14 @@ export function SimulationLabPage() {
       setParsedBlocks([])
       setParseError(null)
     })
+  }
+
+  const copyToClipboard = async (text: string, kind: 'config' | 'run') => {
+    await navigator.clipboard.writeText(text)
+    setCopyState(kind)
+    window.setTimeout(() => {
+      setCopyState(previous => (previous === kind ? null : previous))
+    }, COPY_RESET_DELAY_MS)
   }
 
   const canCancel = jobQuery.data?.status === 'queued' || jobQuery.data?.status === 'running'
@@ -533,6 +585,7 @@ export function SimulationLabPage() {
               Exact mode only
             </div>
             <div>Slot cutoff: {attestationCutoffMs(config.slotTime)} ms</div>
+            <div>{paperScenarioLabels(config).join(' · ')}</div>
           </div>
         </div>
       </div>
@@ -624,6 +677,70 @@ export function SimulationLabPage() {
               </div>
               <div className="text-2xl font-semibold text-text-primary">
                 {manifest.summary.slotsRecorded.toLocaleString()}
+              </div>
+            </div>
+          </div>
+
+          <div className="glass-1 rounded-lg p-5 mb-6">
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+              <div>
+                <div className="text-[10px] text-muted uppercase tracking-wider font-medium mb-1">
+                  Run provenance
+                </div>
+                <div className="text-sm text-text-primary">
+                  {manifest.cacheHit ? 'Exact cache hit' : 'Fresh exact execution'}
+                </div>
+                <div className="text-xs text-muted mt-1 max-w-2xl">
+                  {manifest.cacheHit
+                    ? 'Reused an identical exact run from the shared exact cache. Outputs are unchanged for the same inputs.'
+                    : 'Executed the canonical exact simulator with the current configuration and seed.'}
+                </div>
+                <div className="flex flex-wrap gap-2 mt-3">
+                  {paperScenarioLabels(manifest.config).map(label => (
+                    <span
+                      key={label}
+                      className="inline-flex items-center gap-1 rounded-full border border-accent/20 bg-accent/10 px-2.5 py-1 text-[10px] font-medium uppercase tracking-wider text-accent"
+                    >
+                      {label}
+                    </span>
+                  ))}
+                </div>
+              </div>
+
+              <div className="flex flex-wrap gap-2">
+                <button
+                  onClick={() => copyToClipboard(JSON.stringify(manifest.config, null, 2), 'config')}
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-border-subtle bg-surface/60 px-3 py-2 text-xs text-text-primary hover:border-accent/30 transition-colors"
+                >
+                  {copyState === 'config' ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
+                  {copyState === 'config' ? 'Copied config' : 'Copy config JSON'}
+                </button>
+                <button
+                  onClick={() => copyToClipboard(buildRunSummary(manifest), 'run')}
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-border-subtle bg-surface/60 px-3 py-2 text-xs text-text-primary hover:border-accent/30 transition-colors"
+                >
+                  {copyState === 'run' ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
+                  {copyState === 'run' ? 'Copied summary' : 'Copy run summary'}
+                </button>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-4 text-xs text-muted">
+              <div>
+                <span className="block text-[10px] uppercase tracking-wider text-muted/70">Seed</span>
+                {manifest.config.seed}
+              </div>
+              <div>
+                <span className="block text-[10px] uppercase tracking-wider text-muted/70">Validators</span>
+                {manifest.config.validators.toLocaleString()}
+              </div>
+              <div>
+                <span className="block text-[10px] uppercase tracking-wider text-muted/70">Slots</span>
+                {manifest.config.slots.toLocaleString()}
+              </div>
+              <div>
+                <span className="block text-[10px] uppercase tracking-wider text-muted/70">Cache key</span>
+                {manifest.cacheKey.slice(0, 12)}
               </div>
             </div>
           </div>

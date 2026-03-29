@@ -115,7 +115,22 @@ export interface TopicCard {
   readonly id: string
   readonly title: string
   readonly description: string
+  readonly prompts: readonly string[]
   readonly blocks: readonly Block[]
+}
+
+export const OVERVIEW_CARD: TopicCard = {
+  id: 'overview',
+  title: 'Main findings',
+  description: 'A curated overview of the paper’s central results and caveats.',
+  prompts: [
+    'What are the main findings?',
+    'Give me a summary of the paper.',
+    'What does the paper find?',
+    'What is the main takeaway?',
+    'Give me the key findings.',
+  ],
+  blocks: DEFAULT_BLOCKS,
 }
 
 export const TOPIC_CARDS: readonly TopicCard[] = [
@@ -123,6 +138,12 @@ export const TOPIC_CARDS: readonly TopicCard[] = [
     id: 'ssp-vs-msp',
     title: 'SSP vs MSP: Which centralizes more?',
     description: 'Head-to-head comparison of external vs local block building under baseline conditions.',
+    prompts: [
+      'How does SSP compare to MSP?',
+      'Which paradigm centralizes more?',
+      'SSP vs MSP',
+      'Compare external and local block building.',
+    ],
     blocks: [
       {
         type: 'comparison',
@@ -159,6 +180,12 @@ export const TOPIC_CARDS: readonly TopicCard[] = [
     id: 'geographic-convergence',
     title: 'Where do validators end up?',
     description: 'Geographic convergence patterns across experiments and paradigms.',
+    prompts: [
+      'Where do validators concentrate geographically?',
+      'Where do validators end up?',
+      'Where do they converge?',
+      'What regions win out?',
+    ],
     blocks: [
       {
         type: 'table',
@@ -183,6 +210,12 @@ export const TOPIC_CARDS: readonly TopicCard[] = [
     id: 'source-placement',
     title: 'Does source placement matter?',
     description: 'SE1: How aligned vs misaligned information sources affect centralization.',
+    prompts: [
+      'Does source placement matter?',
+      'What happens with latency-aligned sources?',
+      'What happens with latency-misaligned sources?',
+      'How do source locations change centralization?',
+    ],
     blocks: [
       {
         type: 'insight',
@@ -200,6 +233,12 @@ export const TOPIC_CARDS: readonly TopicCard[] = [
     id: 'initial-distribution',
     title: 'What if validators start concentrated?',
     description: 'SE2: Using real Ethereum validator distribution from Chainbound/Dune data.',
+    prompts: [
+      'What if validators start concentrated?',
+      'What happens with real Ethereum validator distribution?',
+      'What if validators begin in US and Europe?',
+      'How does heterogeneous validator distribution change things?',
+    ],
     blocks: [
       {
         type: 'insight',
@@ -217,6 +256,12 @@ export const TOPIC_CARDS: readonly TopicCard[] = [
     id: 'attestation-threshold',
     title: 'The attestation threshold surprise',
     description: 'SE4a: Why higher γ centralizes SSP more but MSP less.',
+    prompts: [
+      'Why does attestation threshold have opposite effects?',
+      'What happens when gamma changes?',
+      'Explain the attestation threshold result.',
+      'How does higher gamma affect SSP and MSP?',
+    ],
     blocks: [
       {
         type: 'chart',
@@ -242,6 +287,12 @@ export const TOPIC_CARDS: readonly TopicCard[] = [
     id: 'shorter-slots',
     title: 'Shorter slot times (EIP-7782)',
     description: 'SE4b: What happens with 6-second slots instead of 12.',
+    prompts: [
+      'What happens with shorter slots?',
+      'What about EIP-7782?',
+      'What changes with 6-second slots?',
+      'How do shorter slot times affect centralization?',
+    ],
     blocks: [
       {
         type: 'insight',
@@ -259,6 +310,12 @@ export const TOPIC_CARDS: readonly TopicCard[] = [
     id: 'metrics-explained',
     title: 'Key metrics explained',
     description: 'Understanding Gini_g, HHI_g, CV_g, and LC_g.',
+    prompts: [
+      'Explain the paper metrics.',
+      'What are Gini_g, HHI_g, CV_g, and LC_g?',
+      'How should I read the metrics?',
+      'What metrics does the paper use?',
+    ],
     blocks: [
       {
         type: 'table',
@@ -282,6 +339,12 @@ export const TOPIC_CARDS: readonly TopicCard[] = [
     id: 'limitations',
     title: 'Limitations & what\'s next',
     description: 'What the authors acknowledge and open research directions.',
+    prompts: [
+      'What are the limitations?',
+      'What caveats should I keep in mind?',
+      'What assumptions does the paper make?',
+      'What are the next research directions?',
+    ],
     blocks: [
       {
         type: 'table',

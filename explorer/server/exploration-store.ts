@@ -1,24 +1,53 @@
 /**
- * In-memory exploration store with JSON file persistence.
- * Auto-saves to server/data/explorations.json after each mutation (debounced 1s).
+ * Durable exploration store with JSON file persistence.
+ * This keeps enough metadata for query reuse and provenance, even though the
+ * current backend still uses a local JSON file rather than an external DB.
  */
 
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { randomUUID } from 'node:crypto'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const DATA_DIR = join(__dirname, 'data')
 const DATA_FILE = join(DATA_DIR, 'explorations.json')
 
+const STOP_WORDS = new Set([
+  'a',
+  'an',
+  'and',
+  'are',
+  'does',
+  'do',
+  'for',
+  'how',
+  'in',
+  'is',
+  'it',
+  'of',
+  'on',
+  'or',
+  'the',
+  'to',
+  'what',
+  'when',
+  'where',
+  'which',
+  'why',
+  'with',
+])
+
 export interface Exploration {
   readonly id: string
   readonly query: string
+  readonly normalizedQuery: string
   readonly summary: string
   readonly blocks: unknown[]
   readonly followUps: string[]
   readonly model: string
   readonly cached: boolean
+  readonly source: 'generated'
   readonly votes: number
   readonly createdAt: string
   readonly paradigmTags: string[]
@@ -26,12 +55,21 @@ export interface Exploration {
   readonly verified: boolean
 }
 
+export interface ExplorationMatch {
+  readonly exploration: Exploration
+  readonly score: number
+  readonly reason: 'exact' | 'similar'
+}
+
 type SortOption = 'recent' | 'top'
 
-interface ListOptions {
+export interface ListOptions {
   readonly sort?: SortOption
   readonly limit?: number
   readonly search?: string
+  readonly paradigm?: 'SSP' | 'MSP'
+  readonly experiment?: string
+  readonly verifiedOnly?: boolean
 }
 
 function extractParadigmTags(blocks: unknown[]): string[] {
@@ -49,12 +87,74 @@ function extractExperimentTags(blocks: unknown[]): string[] {
   return [...new Set(matches)].sort()
 }
 
-function matchesSearch(exploration: Exploration, query: string): boolean {
-  const lower = query.toLowerCase()
-  return (
-    exploration.query.toLowerCase().includes(lower) ||
-    exploration.summary.toLowerCase().includes(lower)
+export function normalizeQuery(query: string): string {
+  return query
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+function tokenizeNormalized(normalized: string): string[] {
+  if (!normalized) return []
+  return normalized
+    .split(' ')
+    .filter(token => token.length > 1 && !STOP_WORDS.has(token))
+}
+
+function uniqueTokens(text: string): string[] {
+  return [...new Set(tokenizeNormalized(normalizeQuery(text)))]
+}
+
+function overlapScore(left: readonly string[], right: readonly string[]): number {
+  if (left.length === 0 || right.length === 0) return 0
+  const rightSet = new Set(right)
+  let intersection = 0
+  for (const token of left) {
+    if (rightSet.has(token)) intersection += 1
+  }
+  return intersection / Math.max(left.length, right.length)
+}
+
+function buildSearchScore(
+  exploration: Exploration,
+  normalizedSearch: string,
+  searchTokens: readonly string[],
+): number {
+  if (!normalizedSearch) return 0
+  if (exploration.normalizedQuery === normalizedSearch) return 1
+
+  const queryTokens = uniqueTokens(exploration.query)
+  const summaryTokens = uniqueTokens(exploration.summary)
+  const includesScore = (
+    exploration.normalizedQuery.includes(normalizedSearch)
+    || normalizedSearch.includes(exploration.normalizedQuery)
+  ) ? 0.88 : 0
+
+  return Math.max(
+    includesScore,
+    overlapScore(searchTokens, queryTokens),
+    overlapScore(searchTokens, summaryTokens) * 0.8,
   )
+}
+
+function hydrateExploration(raw: Partial<Exploration> & Pick<Exploration, 'query' | 'summary' | 'blocks'>): Exploration {
+  return {
+    id: raw.id ?? randomUUID(),
+    query: raw.query,
+    normalizedQuery: raw.normalizedQuery ?? normalizeQuery(raw.query),
+    summary: raw.summary,
+    blocks: raw.blocks,
+    followUps: raw.followUps ?? [],
+    model: raw.model ?? '',
+    cached: raw.cached ?? false,
+    source: 'generated',
+    votes: raw.votes ?? 0,
+    createdAt: raw.createdAt ?? new Date().toISOString(),
+    paradigmTags: raw.paradigmTags ?? extractParadigmTags(raw.blocks),
+    experimentTags: raw.experimentTags ?? extractExperimentTags(raw.blocks),
+    verified: raw.verified ?? false,
+  }
 }
 
 export class ExplorationStore {
@@ -73,20 +173,21 @@ export class ExplorationStore {
     readonly model: string
     readonly cached: boolean
   }): Exploration {
-    const exploration: Exploration = {
-      id: crypto.randomUUID(),
+    const normalizedQuery = normalizeQuery(data.query)
+    const existing = this.findExactQuery(data.query)
+    if (existing) {
+      return existing
+    }
+
+    const exploration = hydrateExploration({
       query: data.query,
+      normalizedQuery,
       summary: data.summary,
       blocks: data.blocks,
       followUps: data.followUps,
       model: data.model,
       cached: data.cached,
-      votes: 0,
-      createdAt: new Date().toISOString(),
-      paradigmTags: extractParadigmTags(data.blocks),
-      experimentTags: extractExperimentTags(data.blocks),
-      verified: false,
-    }
+    })
 
     this.explorations = [exploration, ...this.explorations]
     this.schedulePersist()
@@ -96,25 +197,81 @@ export class ExplorationStore {
   list(options?: ListOptions): Exploration[] {
     const sort = options?.sort ?? 'recent'
     const limit = options?.limit ?? 50
-    const search = options?.search
+    const search = options?.search?.trim()
 
-    let results = search
-      ? this.explorations.filter(e => matchesSearch(e, search))
-      : [...this.explorations]
-
-    if (sort === 'top') {
-      results = results.toSorted((a, b) => b.votes - a.votes)
-    } else {
-      results = results.toSorted(
-        (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
-      )
+    // Apply tag and verified filters first
+    let pool = this.explorations
+    if (options?.paradigm) {
+      pool = pool.filter(e => e.paradigmTags.includes(options.paradigm!))
+    }
+    if (options?.experiment) {
+      pool = pool.filter(e => e.experimentTags.includes(options.experiment!))
+    }
+    if (options?.verifiedOnly) {
+      pool = pool.filter(e => e.verified)
     }
 
-    return results.slice(0, limit)
+    if (search) {
+      const normalizedSearch = normalizeQuery(search)
+      const searchTokens = tokenizeNormalized(normalizedSearch)
+      const scored = pool
+        .map(exploration => ({
+          exploration,
+          score: buildSearchScore(exploration, normalizedSearch, searchTokens),
+        }))
+        .filter(entry => entry.score >= 0.26)
+        .toSorted((left, right) => {
+          if (right.score !== left.score) return right.score - left.score
+          if (sort === 'top' && right.exploration.votes !== left.exploration.votes) {
+            return right.exploration.votes - left.exploration.votes
+          }
+          return new Date(right.exploration.createdAt).getTime() - new Date(left.exploration.createdAt).getTime()
+        })
+      return scored.slice(0, limit).map(entry => entry.exploration)
+    }
+
+    const results = [...pool]
+    if (sort === 'top') {
+      return results
+        .toSorted((a, b) => b.votes - a.votes)
+        .slice(0, limit)
+    }
+
+    return results
+      .toSorted((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+      .slice(0, limit)
+  }
+
+  findExactQuery(query: string): Exploration | null {
+    const normalized = normalizeQuery(query)
+    return this.explorations.find(exploration => exploration.normalizedQuery === normalized) ?? null
+  }
+
+  findBestMatch(query: string, minimumScore = 0.72): ExplorationMatch | null {
+    const normalizedQuery = normalizeQuery(query)
+    if (!normalizedQuery) return null
+
+    const exact = this.findExactQuery(query)
+    if (exact) {
+      return { exploration: exact, score: 1, reason: 'exact' }
+    }
+
+    const queryTokens = tokenizeNormalized(normalizedQuery)
+    let best: ExplorationMatch | null = null
+
+    for (const exploration of this.explorations) {
+      const score = buildSearchScore(exploration, normalizedQuery, queryTokens)
+      if (score < minimumScore) continue
+      if (!best || score > best.score) {
+        best = { exploration, score, reason: 'similar' }
+      }
+    }
+
+    return best
   }
 
   vote(id: string, delta: 1 | -1): Exploration | null {
-    const index = this.explorations.findIndex(e => e.id === id)
+    const index = this.explorations.findIndex(exploration => exploration.id === id)
     if (index === -1) return null
 
     const updated: Exploration = {
@@ -122,7 +279,9 @@ export class ExplorationStore {
       votes: this.explorations[index].votes + delta,
     }
 
-    this.explorations = this.explorations.map((e, i) => (i === index ? updated : e))
+    this.explorations = this.explorations.map((exploration, currentIndex) =>
+      currentIndex === index ? updated : exploration,
+    )
     this.schedulePersist()
     return updated
   }
@@ -138,7 +297,7 @@ export class ExplorationStore {
   }
 
   getById(id: string): Exploration | null {
-    return this.explorations.find(e => e.id === id) ?? null
+    return this.explorations.find(exploration => exploration.id === id) ?? null
   }
 
   private loadFromDisk(): void {
@@ -147,10 +306,11 @@ export class ExplorationStore {
       const raw = readFileSync(DATA_FILE, 'utf-8')
       const parsed = JSON.parse(raw) as unknown
       if (Array.isArray(parsed)) {
-        this.explorations = parsed as Exploration[]
+        this.explorations = parsed.map(item => hydrateExploration(item as Exploration))
       }
-    } catch {
-      // Start fresh if file is corrupt
+    } catch (error) {
+      // eslint-disable-next-line no-console
+      console.warn('Failed to load exploration history from disk, starting with an empty store.', error)
       this.explorations = []
     }
   }
@@ -166,8 +326,9 @@ export class ExplorationStore {
         mkdirSync(DATA_DIR, { recursive: true })
       }
       writeFileSync(DATA_FILE, JSON.stringify(this.explorations, null, 2), 'utf-8')
-    } catch {
-      // Silently fail — in-memory store remains authoritative
+    } catch (error) {
+      // eslint-disable-next-line no-console
+      console.warn('Failed to persist exploration history to disk.', error)
     }
   }
 }

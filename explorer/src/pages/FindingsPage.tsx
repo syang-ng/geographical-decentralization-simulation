@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react'
+import { useState, useCallback, useEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { ArrowRight, ArrowLeft } from 'lucide-react'
 import { cn } from '../lib/cn'
@@ -8,44 +8,53 @@ import { QueryBar } from '../components/explore/QueryBar'
 import { QueryHistory, type HistoryEntry } from '../components/explore/QueryHistory'
 import { ShimmerLoading } from '../components/explore/ShimmerBlock'
 import { ErrorDisplay } from '../components/explore/ErrorDisplay'
-import { explore, type ExploreError } from '../lib/api'
+import { explore, type ExploreError, type ExploreProvenance, type ExploreResponse } from '../lib/api'
 import { SPRING } from '../lib/theme'
-import type { Block } from '../types/blocks'
 
-interface AiResponse {
-  readonly summary: string
-  readonly blocks: readonly Block[]
-  readonly followUps: readonly string[]
+function upsertHistory(previous: HistoryEntry[], next: HistoryEntry): HistoryEntry[] {
+  return [
+    next,
+    ...previous.filter(entry => entry.query !== next.query),
+  ].slice(0, 8)
 }
 
-interface FindingsPageProps {
-  readonly initialQuery?: string | null
+function provenanceClasses(source: ExploreProvenance['source'], canonical: boolean): string {
+  if (source === 'curated') {
+    return canonical
+      ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300'
+      : 'border-emerald-500/20 bg-emerald-500/5 text-emerald-300'
+  }
+  if (source === 'history') {
+    return 'border-amber-500/30 bg-amber-500/10 text-amber-300'
+  }
+  return 'border-accent/30 bg-accent/10 text-accent'
 }
 
-export function FindingsPage({ initialQuery }: FindingsPageProps) {
+function fallbackCuratedProvenance(label: string, detail: string): ExploreProvenance {
+  return {
+    source: 'curated',
+    label,
+    detail,
+    canonical: true,
+  }
+}
+
+export function FindingsPage({ initialQuery = null }: { initialQuery?: string | null }) {
   const [activeTopic, setActiveTopic] = useState<TopicCard | null>(null)
 
-  // AI exploration state
-  const [aiResponse, setAiResponse] = useState<AiResponse | null>(null)
+  const [aiResponse, setAiResponse] = useState<ExploreResponse | null>(null)
   const [activeQuery, setActiveQuery] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<ExploreError | null>(null)
   const [history, setHistory] = useState<HistoryEntry[]>([])
-
-  // Auto-execute shared query from URL ?q= param
-  useEffect(() => {
-    if (initialQuery?.trim()) {
-      handleQuery(initialQuery.trim())
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []) // Run once on mount only
+  const initialQueryHandledRef = useRef(false)
 
   const handleTopicClick = (card: TopicCard) => {
-    // Clear AI state when browsing topic cards
     setAiResponse(null)
     setActiveQuery(null)
     setError(null)
-    setActiveTopic(prev => prev?.id === card.id ? null : card)
+    setLoading(false)
+    setActiveTopic(previous => (previous?.id === card.id ? null : card))
   }
 
   const handleBackToOverview = () => {
@@ -53,6 +62,7 @@ export function FindingsPage({ initialQuery }: FindingsPageProps) {
     setAiResponse(null)
     setActiveQuery(null)
     setError(null)
+    setLoading(false)
   }
 
   const handleQuery = useCallback(async (query: string) => {
@@ -64,53 +74,68 @@ export function FindingsPage({ initialQuery }: FindingsPageProps) {
 
     const result = await explore(
       query,
-      history.map(h => ({ query: h.query, summary: h.summary })),
+      history.map(entry => ({ query: entry.query, summary: entry.summary })),
     )
 
     setLoading(false)
 
     if (result.ok) {
-      setAiResponse({
+      setAiResponse(result.data)
+      setHistory(previous => upsertHistory(previous, {
+        query,
         summary: result.data.summary,
-        blocks: result.data.blocks,
-        followUps: result.data.followUps,
-      })
-      setHistory(prev => [
-        ...prev,
-        { query, summary: result.data.summary, timestamp: Date.now() },
-      ])
+        response: result.data,
+        timestamp: Date.now(),
+      }))
     } else {
       setError(result.error)
     }
   }, [history])
 
   const handleHistorySelect = useCallback((entry: HistoryEntry) => {
-    handleQuery(entry.query)
-  }, [handleQuery])
+    setActiveTopic(null)
+    setActiveQuery(entry.query)
+    setAiResponse(entry.response)
+    setError(null)
+    setLoading(false)
+  }, [])
 
   const handleRetry = useCallback(() => {
     if (activeQuery) handleQuery(activeQuery)
   }, [activeQuery, handleQuery])
 
-  // Determine what to show in the block canvas area
+  useEffect(() => {
+    if (!initialQuery || initialQueryHandledRef.current) return
+    initialQueryHandledRef.current = true
+    void handleQuery(initialQuery)
+  }, [handleQuery, initialQuery])
+
   const showAi = aiResponse !== null || loading || error !== null
   const showTopic = activeTopic !== null && !showAi
 
+  const heading = aiResponse
+    ? aiResponse.summary
+    : showTopic && activeTopic
+      ? activeTopic.title
+      : 'Key findings at a glance'
+
+  const displayProvenance = aiResponse?.provenance
+    ?? (showTopic && activeTopic
+      ? fallbackCuratedProvenance('Curated topic card', 'Editorial paper finding selected from the curated findings library.')
+      : fallbackCuratedProvenance('Curated overview', 'Editorial overview assembled from the paper’s main findings and caveats.'))
+
   return (
     <div>
-      {/* Query bar */}
       <div className="mb-6">
         <QueryBar onSubmit={handleQuery} loading={loading} />
       </div>
 
-      {/* Query history */}
       <QueryHistory
         entries={history}
         onSelect={handleHistorySelect}
         activeQuery={activeQuery ?? undefined}
       />
 
-      {/* Topic cards section */}
       <div className="mb-8">
         <div className="flex items-center justify-between mb-3">
           <span className="text-xs text-muted uppercase tracking-wider font-medium">
@@ -169,18 +194,25 @@ export function FindingsPage({ initialQuery }: FindingsPageProps) {
         </div>
       </div>
 
-      {/* Divider */}
       <div className="border-t border-dashed border-border-subtle mb-6" />
 
-      {/* Block canvas area */}
-      <div className="mb-3">
+      <div className="flex flex-col gap-2 mb-4 sm:flex-row sm:items-start sm:justify-between">
         <span className="text-xs text-muted uppercase tracking-wider font-medium">
-          {aiResponse
-            ? aiResponse.summary
-            : showTopic && activeTopic
-              ? activeTopic.title
-              : 'Key findings at a glance'}
+          {heading}
         </span>
+        <div className="flex flex-col items-start sm:items-end gap-1">
+          <span
+            className={cn(
+              'inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[10px] font-medium uppercase tracking-wider',
+              provenanceClasses(displayProvenance.source, displayProvenance.canonical),
+            )}
+          >
+            {displayProvenance.label}
+          </span>
+          <span className="text-[11px] text-muted max-w-xl text-left sm:text-right">
+            {displayProvenance.detail}
+          </span>
+        </div>
       </div>
 
       <AnimatePresence mode="wait">
@@ -213,20 +245,19 @@ export function FindingsPage({ initialQuery }: FindingsPageProps) {
             transition={SPRING}
           >
             <BlockCanvas blocks={aiResponse.blocks} />
-            {/* Follow-up suggestions */}
             {aiResponse.followUps.length > 0 && (
               <div className="mt-6 pt-4 border-t border-dashed border-border-subtle">
                 <span className="text-[10px] text-muted uppercase tracking-wider font-medium mb-2 block">
                   Keep exploring
                 </span>
                 <div className="flex flex-wrap gap-1.5">
-                  {aiResponse.followUps.map((q, i) => (
+                  {aiResponse.followUps.map((query, index) => (
                     <button
-                      key={i}
-                      onClick={() => handleQuery(q)}
+                      key={`${query}-${index}`}
+                      onClick={() => handleQuery(query)}
                       className="px-2.5 py-1 rounded-full text-[10px] text-muted/70 border border-border-subtle hover:border-accent/30 hover:text-accent transition-all"
                     >
-                      {q}
+                      {query}
                     </button>
                   ))}
                 </div>

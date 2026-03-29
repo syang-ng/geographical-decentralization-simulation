@@ -2,11 +2,13 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { Clock, ChevronRight } from 'lucide-react'
 import { cn } from '../../lib/cn'
 import { SPRING } from '../../lib/theme'
+import type { ExploreResponse } from '../../lib/api'
 
 export interface HistoryEntry {
   readonly query: string
   readonly summary: string
   readonly timestamp: number
+  readonly response: ExploreResponse
 }
 
 interface QueryHistoryProps {
@@ -38,6 +40,7 @@ export function QueryHistory({ entries, onSelect, activeQuery }: QueryHistoryPro
                 exit={{ opacity: 0, scale: 0.9 }}
                 transition={{ ...SPRING, delay: i * 0.03 }}
                 onClick={() => onSelect(entry)}
+                title={`${entry.summary} · ${entry.response.provenance.label}`}
                 className={cn(
                   'flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] transition-all',
                   'border max-w-[200px] truncate',

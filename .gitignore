@@ -232,6 +232,7 @@ explorer/dist/
 explorer/.claude/
 explorer/%USERPROFILE%/
 explorer/server/__pycache__/
+explorer/server/data/
 
 # Explorer source config files intentionally committed despite the global *.json rule
 !explorer/package.json
@@ -240,3 +241,6 @@ explorer/server/__pycache__/
 !explorer/tsconfig.app.json
 !explorer/tsconfig.node.json
 !explorer/server/tsconfig.json
+
+# Railway deployment config
+!railway.json

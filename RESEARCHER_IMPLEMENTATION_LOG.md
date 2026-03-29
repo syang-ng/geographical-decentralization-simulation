@@ -78,6 +78,9 @@ This log records engineering changes made to improve exact-mode runtime and play
 - `simulation.py`
   Removed the unused `measure.py` import from the CLI entrypoint. That import was not used in this file and only added startup dependency overhead.
 
+- `explorer/server/catalog.ts`, `explorer/server/index.ts`, `explorer/server/study-context.ts`
+  Split the Claude tool layer into smaller atomic tools while keeping `render_blocks` as the final presentation step. The explorer can now explicitly search curated topic cards, retrieve curated cards by ID, search prior explorations, retrieve a prior exploration, suggest underexplored follow-up topics, and compose bounded exact-mode simulation configs without executing them. This changes the website's reasoning workflow and provenance control, but it does not alter the upstream simulation math or the `/api/explore` response shape consumed by the frontend.
+
 ## Flags
 
 - `--full-history` / `--no-full-history`
@@ -112,3 +115,8 @@ This log records engineering changes made to improve exact-mode runtime and play
 - The explorer/runtime additions should be understood as a delivery layer around the same exact simulation engine, not as a replacement research model. They improve interactivity, concurrency, and web responsiveness, but they are not intended to redefine the canonical paper path.
 - For highest-confidence research runs, prefer the direct Python CLI in exact mode. Use `--no-cache-results` if a fully fresh execution is desired, and `--full-history` if the legacy Mesa collector history is needed for inspection.
 - The repeatable benchmark/regression harness was added specifically so performance work can be checked against fixed-seed outputs. The expectation is that any future optimization should continue to prove that published artifacts are unchanged before being trusted.
+- A later website-focused pass prioritized product correctness before further caching work. The Findings tab now routes questions through curated topic cards first, then strong prior-history matches, and only falls through to a fresh model call when neither of those fits.
+- Query/session provenance is now explicit in the UI: curated findings, reused public-history answers, fresh Claude generations, and exact simulation results are labeled differently so users can tell what is canonical versus generated.
+- The local exploration store was upgraded with normalized-query metadata and stronger search semantics so the website can reuse prior answers in a principled way. It still uses local JSON persistence in this repo, but the structure now reflects the intended public-history behavior and can be swapped to a shared backing store later.
+- The Simulation Lab UI was hardened for trust rather than speed: exact-run provenance, paper-scenario labels, and copyable config/run summaries make it easier to understand and reproduce what a given result actually represents.
+- The later atomic-tool pass was also truth-preserving by design: it gives the model more explicit search/composition steps before presentation, but it does not change the paper facts, the exact simulation engine, or the frontend response contract. The goal was to make the website behave more like a careful research assistant, not to make it more improvisational.

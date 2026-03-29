@@ -178,6 +178,11 @@ function ExplorationCard({
           </p>
 
           <div className="flex flex-wrap items-center gap-2 mt-3">
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium bg-accent/10 text-accent">
+              <BadgeCheck className="w-3 h-3" />
+              Fresh Claude
+            </span>
+
             {exploration.verified && (
               <span className="flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium bg-emerald-500/10 text-emerald-400">
                 <BadgeCheck className="w-3 h-3" />
@@ -202,6 +207,11 @@ function ExplorationCard({
               <Clock className="w-3 h-3" />
               {timeAgo}
             </span>
+          </div>
+
+          <div className="flex flex-wrap gap-2 mt-2 text-[10px] text-muted">
+            {exploration.model && <span>{exploration.model}</span>}
+            <span>{exploration.cached ? 'prompt cache hit' : 'new generation'}</span>
           </div>
         </button>
 

@@ -7,7 +7,9 @@ import { fileURLToPath } from 'node:url'
 
 const SERVER_DIR = path.dirname(fileURLToPath(import.meta.url))
 const EXPLORER_ROOT = path.resolve(SERVER_DIR, '..')
-const REPO_ROOT = path.resolve(EXPLORER_ROOT, '..')
+const REPO_ROOT = process.env.SIMULATION_REPO_ROOT
+  ? path.resolve(process.env.SIMULATION_REPO_ROOT)
+  : path.resolve(EXPLORER_ROOT, '..')
 const WORKER_PATH = path.join(SERVER_DIR, 'simulation_worker.py')
 const DEFAULT_WORKER_POOL_SIZE = Math.max(1, Math.min(Number(process.env.SIMULATION_WORKERS ?? 2), 4))
 const DEFAULT_QUEUED_JOB_TTL_MS = Math.max(60_000, Number(process.env.SIMULATION_QUEUE_TTL_MS ?? 10 * 60_000))
