@@ -1,5 +1,6 @@
 # Multi-stage build: Node frontend → Python+Node runtime
 # Build context: repo root (needs Python files + explorer/)
+# Railway deployment: NIXPACKS builder with dockerfilePath
 
 # --- Stage 1: Build frontend assets ---
 FROM node:22-slim AS frontend-build
