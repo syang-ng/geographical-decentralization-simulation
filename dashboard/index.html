@@ -257,7 +257,7 @@ To make these results accessible without requiring users to re-run large experim
         MSP: ["cost_0.002_latency_latency-aligned", "cost_0.002_latency_latency-misaligned"],
         SSP: ["cost_0.002_latency_latency-aligned", "cost_0.002_latency_latency-misaligned"]
       },
-      heterogeneous_validator: {
+      heterogeneous_validators: {
         MSP: ["cost_0.0_validators_heterogeneous", "cost_0.002_validators_heterogeneous"],
         SSP: ["cost_0.0_validators_heterogeneous", "cost_0.002_validators_heterogeneous"]
       },
@@ -269,7 +269,7 @@ To make these results accessible without requiring users to re-run large experim
         MSP: ["cost_0.002_gamma_0.3333", "cost_0.002_gamma_0.5", "cost_0.002_gamma_0.6667", "cost_0.002_gamma_0.8"],
         SSP: ["cost_0.002_gamma_0.3333", "cost_0.002_gamma_0.5", "cost_0.002_gamma_0.6667", "cost_0.002_gamma_0.8"]
       },
-      eip7702: {
+      eip7782: {
         MSP: ["cost_0.002_delta_6000_cutoff_3000"],
         SSP: ["cost_0.002_delta_6000_cutoff_3000"]
       }
@@ -347,7 +347,10 @@ To make these results accessible without requiring users to re-run large experim
       density_radius: parseFloat(document.getElementById('radius').value || '0.20')
     };
     try { localStorage.setItem('app_settings', JSON.stringify(settings)); } catch (_) {}
-    const params = new URLSearchParams(settings);
+    const params = new URLSearchParams({
+      ...settings,
+      radius: String(settings.density_radius),
+    });
     window.location.href = `${TARGET_PAGE}?${params.toString()}`;
   }
   document.getElementById('launch').addEventListener('click', saveSettings);

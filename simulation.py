@@ -1,9 +1,12 @@
 import argparse
+import dataclasses
+import hashlib
 import json
 import numpy as np
 import os
 import pandas as pd
 import random
+import shutil
 import time
 import traceback
 import yaml  # Import yaml library
@@ -12,12 +15,171 @@ from collections import defaultdict, Counter
 from constants import LinearMEVUtility
 from consensus import ConsensusSettings
 from distribution import parse_gcp_latency
-from measure import *  # Assuming measure.py contains necessary measurement functions
 from models import SingleSourceParadigm, MultiSourceParadigm
 from source_agent import initialize_relays, initialize_signals
 
 
 DEFAULT_SIMULATION_SEED = 0x06511
+SIMULATION_CACHE_VERSION = 1
+SIMULATION_CACHE_DIRNAME = ".simulation_cache"
+SIMULATION_CODE_FILES = (
+    "simulation.py",
+    "models.py",
+    "validator_agent.py",
+    "source_agent.py",
+    "distribution.py",
+    "consensus.py",
+    "constants.py",
+)
+
+
+def normalize_for_hash(value):
+    if dataclasses.is_dataclass(value):
+        return normalize_for_hash(dataclasses.asdict(value))
+    if isinstance(value, dict):
+        return {str(k): normalize_for_hash(v) for k, v in sorted(value.items(), key=lambda item: str(item[0]))}
+    if isinstance(value, (list, tuple)):
+        return [normalize_for_hash(v) for v in value]
+    if isinstance(value, set):
+        return sorted(normalize_for_hash(v) for v in value)
+    if isinstance(value, pd.DataFrame):
+        return dataframe_hash(value)
+    if isinstance(value, np.ndarray):
+        return value.tolist()
+    if isinstance(value, np.generic):
+        return value.item()
+    if callable(value):
+        callable_payload = {
+            "name": getattr(value, "__qualname__", getattr(value, "__name__", type(value).__name__)),
+        }
+        code = getattr(value, "__code__", None)
+        if code is not None:
+            callable_payload["code"] = {
+                "co_code": code.co_code.hex(),
+                "co_consts": normalize_for_hash(code.co_consts),
+                "co_names": list(code.co_names),
+                "co_varnames": list(code.co_varnames),
+            }
+        defaults = getattr(value, "__defaults__", None)
+        if defaults is not None:
+            callable_payload["defaults"] = normalize_for_hash(defaults)
+        closure = getattr(value, "__closure__", None)
+        if closure:
+            callable_payload["closure"] = [
+                normalize_for_hash(cell.cell_contents) for cell in closure
+            ]
+        return {"callable": callable_payload}
+    if hasattr(value, "name") and hasattr(value, "value"):
+        return {"enum": value.__class__.__name__, "name": value.name}
+    return value
+
+
+def dataframe_hash(df):
+    hasher = hashlib.sha256()
+    hasher.update(json.dumps(list(df.columns)).encode("utf-8"))
+    hasher.update(json.dumps([str(dtype) for dtype in df.dtypes]).encode("utf-8"))
+    row_hashes = pd.util.hash_pandas_object(df, index=True, categorize=True).to_numpy(
+        dtype=np.uint64
+    )
+    hasher.update(row_hashes.tobytes())
+    return hasher.hexdigest()
+
+
+def file_sha256(path):
+    hasher = hashlib.sha256()
+    with open(path, "rb") as file:
+        for chunk in iter(lambda: file.read(1024 * 1024), b""):
+            hasher.update(chunk)
+    return hasher.hexdigest()
+
+
+def compute_simulation_cache_key(cache_context):
+    normalized = normalize_for_hash(cache_context)
+    encoded = json.dumps(normalized, sort_keys=True, separators=(",", ":")).encode(
+        "utf-8"
+    )
+    return hashlib.sha256(encoded).hexdigest()
+
+
+def copy_directory_contents(source_dir, destination_dir, exclude_names=None):
+    exclude_names = set(exclude_names or [])
+    os.makedirs(destination_dir, exist_ok=True)
+    for entry in os.listdir(source_dir):
+        if entry in exclude_names:
+            continue
+        source_path = os.path.join(source_dir, entry)
+        destination_path = os.path.join(destination_dir, entry)
+        if os.path.isdir(source_path):
+            shutil.copytree(source_path, destination_path, dirs_exist_ok=True)
+        else:
+            shutil.copy2(source_path, destination_path)
+
+
+def build_export_payloads(model_standard):
+    avg_mev_series = [
+        slot["Average_MEV_Earned"] for slot in model_standard.slot_model_history
+    ]
+    supermaj_series = [
+        slot["Supermajority_Success_Rate"] for slot in model_standard.slot_model_history
+    ]
+    failed_block_proposals = [
+        slot["Failed_Block_Proposals"] for slot in model_standard.slot_model_history
+    ]
+    utility_increase_series = [
+        slot["Utility_Increase"] for slot in model_standard.slot_model_history
+    ]
+
+    mev_by_slot = []
+    estimated_mev_by_slot = []
+    attest_by_slot = []
+    proposal_time_by_slot = []
+    region_counter_per_slot = defaultdict(list)
+
+    for slot_index, slot_records in enumerate(model_standard.slot_validator_history):
+        mev_by_slot.append([record["MEV_Captured_Slot"] for record in slot_records])
+        estimated_mev_by_slot.append(
+            [record["Estimated_Profit"] for record in slot_records]
+        )
+        attest_by_slot.append([record["Attestation_Rate"] for record in slot_records])
+        proposal_time_by_slot.append(
+            [record["Proposal Time"] for record in slot_records]
+        )
+        region_counts = Counter(record["GCP_Region"] for record in slot_records)
+        region_counter_per_slot[slot_index] = region_counts.most_common()
+
+    proposal_time_avg = []
+    attestation_sum = []
+    for proposal_times, attestations in zip(proposal_time_by_slot, attest_by_slot):
+        positive_proposal_times = [value for value in proposal_times if value > 0]
+        proposal_time_avg.append(
+            (sum(positive_proposal_times) / len(positive_proposal_times))
+            if positive_proposal_times
+            else 0.0
+        )
+        attestation_sum.append(sum(attestations))
+
+    final_region_slot = max(region_counter_per_slot.keys(), default=None)
+    top_regions_final = (
+        region_counter_per_slot[final_region_slot]
+        if final_region_slot is not None
+        else []
+    )
+
+    return {
+        "avg_mev": avg_mev_series,
+        "supermajority_success": supermaj_series,
+        "failed_block_proposals": failed_block_proposals,
+        "utility_increase": utility_increase_series,
+        "mev_by_slot": mev_by_slot,
+        "estimated_mev_by_slot": estimated_mev_by_slot,
+        "attest_by_slot": attest_by_slot,
+        "proposal_time_by_slot": proposal_time_by_slot,
+        "proposal_time_avg": proposal_time_avg,
+        "attestation_sum": attestation_sum,
+        "proposer_strategy_and_mev": list(model_standard.slot_proposer_history),
+        "region_counter_per_slot": region_counter_per_slot,
+        "top_regions_final": top_regions_final,
+    }
 
 
 # --- Simulation Initialization Functions ---
@@ -32,7 +194,7 @@ def load_simulation_config(config_file_path):
     try:
         with open(config_file_path, "r", encoding="utf-8") as file:
             config = yaml.safe_load(file)
-        print(f"✅ Successfully loaded configuration from: {config_file_path}")
+        print(f"Successfully loaded configuration from: {config_file_path}")
         return config
     except yaml.YAMLError as e:
         raise ValueError(f"Error parsing YAML file: {e}")
@@ -147,6 +309,8 @@ def simulation(
     fast_mode=False,  # Fast mode for latency computation
     cost=0.0001,  # Cost for migration, default to 0.0001
     seed=DEFAULT_SIMULATION_SEED,
+    collect_full_history=False,
+    verbose=False,
 ):
     # --- Simulation Execution ---
     random.seed(seed)  # For reproducibility
@@ -184,6 +348,8 @@ def simulation(
         "time_window": time_window,  # Time window for migration checks
         "fast_mode": fast_mode,  # Fast mode for latency computation
         "cost": cost,  # Cost for migration
+        "collect_full_history": collect_full_history,
+        "verbose": verbose,
     }
 
     # --- Create and Run the Model ---
@@ -191,143 +357,99 @@ def simulation(
     print(f"Simulation seed: {seed}")
     start_time = time.time()
 
-    if model == "SSP":
-        model_standard = SingleSourceParadigm(**model_params_standard_nomig)
-    else:
-        model_standard = MultiSourceParadigm(**model_params_standard_nomig)
+    model_standard = None
+    try:
+        if model == "SSP":
+            model_standard = SingleSourceParadigm(**model_params_standard_nomig)
+        else:
+            model_standard = MultiSourceParadigm(**model_params_standard_nomig)
 
-    for i in range(TOTAL_TIME_STEPS):
-        model_standard.step()
-        if not model_standard.running:
+        for _ in range(TOTAL_TIME_STEPS):
+            model_standard.step()
+            if not model_standard.running:
+                print(
+                    f"Stopping simulation as no validators moved within the time window ({time_window})."
+                )
+                break
+        
+        if model_standard.running:
             print(
-                f"Stopping simulation as no validators moved within the time window ({time_window})."
+                f"Stopping simulation after reaching the maximum time steps: {TOTAL_TIME_STEPS}."
             )
-            break
-    
-    if model_standard.running:
+
+        print(f"Simulation completed in {time.time() - start_time:.2f} seconds.")
+
+        # --- Final Analysis & Plotting ---
+        print("\n--- Final Results Summary ---")
+        print(f"Total Slots: {model_standard.current_slot_idx + 1}")
+        print(f"Total MEV Earned: {model_standard.total_mev_earned:.4f} ETH")
+        completed_slots = max(model_standard.current_slot_idx, 1)
         print(
-            f"Stopping simulation after reaching the maximum time steps: {TOTAL_TIME_STEPS}."
+            f"Avg MEV Earned per Slot: {model_standard.total_mev_earned / completed_slots:.4f} ETH"
         )
 
-    print(f"Simulation completed in {time.time() - start_time:.2f} seconds.")
+        # profiles:
+        for profiles, output_name in [
+            (relay_profiles, "relay_names.json"),
+            (signal_profiles, "signal_names.json"),
+        ]:
+            names = [(profile["unique_id"], profile["gcp_region"]) for profile in profiles]
+            with open(f"{output_folder}/{output_name}", "w") as f:
+                json.dump(names, f)
 
-    # --- Final Analysis & Plotting ---
-    print("\n--- Final Results Summary ---")
-    # `dir` already holds the specific output path for this simulation run
+        export_payloads = build_export_payloads(model_standard)
 
-    print(f"Total Slots: {model_standard.current_slot_idx + 1}")
-    print(f"Total MEV Earned: {model_standard.total_mev_earned:.4f} ETH")
-    print(
-        f"Avg MEV Earned per Slot: {model_standard.total_mev_earned / (model_standard.current_slot_idx):.4f} ETH"
-    )
-    model_data = model_standard.datacollector.get_model_vars_dataframe()
+        gcp_region_profits = pd.DataFrame(model_standard.region_profits)
+        gcp_region_profits.to_csv(f"{output_folder}/region_profits.csv", index=False)
 
-    print("\n--- Collected Model Data ---")
-    print(model_data.head())
-    print(model_data.tail())
+        with open(f"{output_folder}/avg_mev.json", "w") as f:
+            json.dump(export_payloads["avg_mev"], f)
 
-    # profiles:
-    for profiles, output_name in [
-        (relay_profiles, "relay_names.json"),
-        (signal_profiles, "signal_names.json"),
-    ]:
-        names = [(profile["unique_id"], profile["gcp_region"]) for profile in profiles]
-        with open(f"{output_folder}/{output_name}", "w") as f:
-            json.dump(names, f)
+        with open(f"{output_folder}/supermajority_success.json", "w") as f:
+            json.dump(export_payloads["supermajority_success"], f)
 
-    avg_mev_series = model_data["Average_MEV_Earned"].tolist()
-    supermaj_series = model_data["Supermajority_Success_Rate"].tolist()
-    failed_block_proposals = model_data["Failed_Block_Proposals"].tolist()
-    utility_increase_series = model_data["Utility_Increase"].tolist()
+        with open(f"{output_folder}/failed_block_proposals.json", "w") as f:
+            json.dump(export_payloads["failed_block_proposals"], f)
 
-    gcp_region_profits = pd.DataFrame(model_standard.region_profits)
-    gcp_region_profits.to_csv(f"{output_folder}/region_profits.csv", index=False)
+        with open(f"{output_folder}/utility_increase.json", "w") as f:
+            json.dump(export_payloads["utility_increase"], f)
 
-    with open(f"{output_folder}/avg_mev.json", "w") as f:
-        json.dump(avg_mev_series, f)
+        action_reasons = model_standard.action_reasons
+        action_reasons_df = pd.DataFrame(
+            action_reasons, columns=["Action_Reason", "Previous_Region", "New_Region"]
+        )
+        action_reasons_df.to_csv(f"{output_folder}/action_reasons.csv", index=False)
 
-    with open(f"{output_folder}/supermajority_success.json", "w") as f:
-        json.dump(supermaj_series, f)
+        with open(f"{output_folder}/mev_by_slot.json", "w") as f:
+            json.dump(export_payloads["mev_by_slot"], f)
+        with open(f"{output_folder}/estimated_mev_by_slot.json", "w") as f:
+            json.dump(export_payloads["estimated_mev_by_slot"], f)
+        with open(f"{output_folder}/attest_by_slot.json", "w") as f:
+            json.dump(export_payloads["attest_by_slot"], f)
+        with open(f"{output_folder}/proposal_time_by_slot.json", "w") as f:
+            json.dump(export_payloads["proposal_time_by_slot"], f)
+        with open(f"{output_folder}/proposal_time_avg.json", "w") as f:
+            json.dump(export_payloads["proposal_time_avg"], f)
+        with open(f"{output_folder}/attestation_sum.json", "w") as f:
+            json.dump(export_payloads["attestation_sum"], f)
+        with open(f"{output_folder}/proposer_strategy_and_mev.json", "w") as f:
+            json.dump(export_payloads["proposer_strategy_and_mev"], f)
+        with open(f"{output_folder}/region_counter_per_slot.json", "w") as f:
+            json.dump(export_payloads["region_counter_per_slot"], f)
+        with open(f"{output_folder}/top_regions_final.json", "w") as f:
+            json.dump(export_payloads["top_regions_final"], f)
 
-    with open(f"{output_folder}/failed_block_proposals.json", "w") as f:
-        json.dump(failed_block_proposals, f)
-
-    with open(f"{output_folder}/utility_increase.json", "w") as f:
-        json.dump(utility_increase_series, f)
-
-    action_reasons = model_standard.action_reasons
-    action_reasons_df = pd.DataFrame(
-        action_reasons, columns=["Action_Reason", "Previous_Region", "New_Region"]
-    )
-    action_reasons_df.to_csv(f"{output_folder}/action_reasons.csv", index=False)
-
-    agent_data = model_standard.datacollector.get_agent_vars_dataframe()
-
-    print("\n--- Agent Data Collected ---")
-    print("DataFrame Head:")
-    print(agent_data.head())
-
-    print("\nDataFrame Tail:")
-    print(agent_data.tail())
-
-    print("\nDataFrame Info:")
-    agent_data.info()
-    if isinstance(agent_data.index, pd.MultiIndex):
-        agent_data = agent_data.reset_index()
-
-    validator_agent_data = agent_data[(agent_data["Role"] != "relay_agent") & (agent_data["Role"] != "signal_agent")].reindex()
-    
-    # Group by slot and collect lists of per-agent values:
-    mev_by_slot = (
-        validator_agent_data.groupby("Slot")["MEV_Captured_Slot"].apply(list).tolist()
-    )
-    estimated_mev_by_slot = (
-        validator_agent_data.groupby("Slot")["Estimated_Profit"].apply(list).tolist()
-    )
-    attest_by_slot = (
-        validator_agent_data.groupby("Slot")["Attestation_Rate"].apply(list).tolist()
-    )
-    proposal_time_by_slot = (
-        validator_agent_data.groupby("Slot")["Proposal Time"].apply(list).tolist()
-    )
-
-    latest_steps = (
-        validator_agent_data.sort_values("Step")
-        .groupby(["Slot", "AgentID"], as_index=False)
-        .last()
-    )
-    region_counter_per_slot = defaultdict(list)
-    for slot, slot_df in latest_steps.groupby("Slot"):
-        region_counts = Counter(slot_df["GCP_Region"])
-        region_counter_per_slot[int(slot)] = region_counts.most_common()
-
-    # Proposer data
-    proposer_data = agent_data[agent_data["Role"] == "proposer"]
-    proposer_strategy_and_mev = proposer_data[
-        ["Slot", "Location_Strategy", "MEV_Captured_Slot"]
-    ].to_dict(orient="records")
-
-    with open(f"{output_folder}/mev_by_slot.json", "w") as f:
-        json.dump(mev_by_slot, f)
-    with open(f"{output_folder}/estimated_mev_by_slot.json", "w") as f:
-        json.dump(estimated_mev_by_slot, f)
-    with open(f"{output_folder}/attest_by_slot.json", "w") as f:
-        json.dump(attest_by_slot, f)
-    with open(f"{output_folder}/proposal_time_by_slot.json", "w") as f:
-        json.dump(proposal_time_by_slot, f)
-    with open(f"{output_folder}/proposer_strategy_and_mev.json", "w") as f:
-        json.dump(proposer_strategy_and_mev, f)
-    with open(f"{output_folder}/region_counter_per_slot.json", "w") as f:
-        json.dump(region_counter_per_slot, f)
-
-    print("Saved data in JSON files in the output directory.")
-    print("Information Sources:")
-    if model == "SSP":
-        print("Relays:")
-        print("\n".join([f"{i['unique_id']} ({i['gcp_region']})" for i in relay_profiles]))
-    else:
-        print("Signals:")
-        print("\n".join([f"{r['unique_id']} ({r['gcp_region']})" for r in signal_profiles]))
+        print("Saved data in JSON files in the output directory.")
+        print("Information Sources:")
+        if model == "SSP":
+            print("Relays:")
+            print("\n".join([f"{i['unique_id']} ({i['gcp_region']})" for i in relay_profiles]))
+        else:
+            print("Signals:")
+            print("\n".join([f"{r['unique_id']} ({r['gcp_region']})" for r in signal_profiles]))
+    finally:
+        if model_standard is not None:
+            model_standard.close()
 
 
 if __name__ == "__main__":
@@ -385,7 +507,6 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--fast",
-        type=bool,
         default=False,
         action=argparse.BooleanOptionalAction,
         help="Enable fast mode for latency computation (default: False)",
@@ -427,6 +548,24 @@ if __name__ == "__main__":
         type=int,
         default=None,
         help=f"Random seed for the simulation (default: YAML seed or {DEFAULT_SIMULATION_SEED})",
+    )
+    parser.add_argument(
+        "--full-history",
+        default=False,
+        action=argparse.BooleanOptionalAction,
+        help="Enable Mesa DataCollector history in addition to the lightweight slot summaries (default: False)",
+    )
+    parser.add_argument(
+        "--cache-results",
+        default=True,
+        action=argparse.BooleanOptionalAction,
+        help="Reuse cached simulation outputs when the inputs, seed, and code version match (default: True)",
+    )
+    parser.add_argument(
+        "--verbose",
+        default=False,
+        action=argparse.BooleanOptionalAction,
+        help="Enable verbose slot and migration logging (default: False)",
     )
 
     args = parser.parse_args()
@@ -524,10 +663,56 @@ if __name__ == "__main__":
             "location_strategies", [{"type": "best_relay"}]
         )
 
+        cache_context = {
+            "cache_version": SIMULATION_CACHE_VERSION,
+            "model": model,
+            "num_slots": num_slots,
+            "num_validators": num_validators,
+            "distribution": args.distribution,
+            "info_distribution": args.info_distribution,
+            "time_window": time_window,
+            "fast_mode": fast_mode,
+            "cost": cost,
+            "seed": seed,
+            "consensus_settings": vars(consensus_settings),
+            "timing_strategies": timing_strategies,
+            "location_strategies": location_strategies,
+            "config": {
+                key: value
+                for key, value in config.items()
+                if key != "output_folder"
+            },
+            "input_hashes": {
+                "gcp_regions.csv": file_sha256(os.path.join(input_folder, "gcp_regions.csv")),
+                "gcp_latency.csv": file_sha256(os.path.join(input_folder, "gcp_latency.csv")),
+            },
+            "code_hashes": {
+                path: file_sha256(path) for path in SIMULATION_CODE_FILES
+            },
+        }
+        if args.distribution == "heterogeneous":
+            cache_context["input_hashes"]["validators.csv"] = file_sha256(
+                os.path.join(input_folder, "validators.csv")
+            )
+
+        cache_dir = os.path.join(
+            SIMULATION_CACHE_DIRNAME,
+            compute_simulation_cache_key(cache_context),
+        )
+
         # Ensure the output directory exists
         if not os.path.exists(output_folder):
             os.makedirs(output_folder)
             print(f"Created base output directory: {output_folder}")
+
+        if args.cache_results and os.path.isdir(cache_dir):
+            print(f"Using cached simulation outputs from: {cache_dir}")
+            copy_directory_contents(
+                cache_dir,
+                output_folder,
+                exclude_names={"cache_manifest.json"},
+            )
+            raise SystemExit(0)
 
         # Run the simulation with parameters from YAML and CSVs
         simulation(
@@ -548,11 +733,21 @@ if __name__ == "__main__":
             fast_mode=fast_mode,
             cost=cost,
             seed=seed,
+            collect_full_history=args.full_history,
+            verbose=args.verbose,
         )
+
+        if args.cache_results:
+            os.makedirs(cache_dir, exist_ok=True)
+            copy_directory_contents(output_folder, cache_dir)
+            with open(os.path.join(cache_dir, "cache_manifest.json"), "w", encoding="utf-8") as f:
+                json.dump(cache_context, f, indent=2)
 
     except (FileNotFoundError, ValueError, RuntimeError) as e:
         traceback.print_exc()
-        print(f"\n❌ Fatal error during simulation setup or execution: {e}")
+        print(f"\nFatal error during simulation setup or execution: {e}")
+    except SystemExit:
+        raise
     except Exception as e:
         traceback.print_exc()
-        print(f"\n❌ An unexpected error occurred: {e}")
+        print(f"\nAn unexpected error occurred: {e}")

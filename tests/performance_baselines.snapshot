@@ -1,0 +1,131 @@
+{
+  "config_path": "params\\basic-config.yaml",
+  "scenarios": {
+    "msp_homogeneous_medium": {
+      "aggregate_output_hash": "f2454193986c899a15f533db2c9b4e99f0a7ee26bd47bdaa7231b85af1c56917",
+      "file_hashes": {
+        "action_reasons.csv": "4eaaec2617c09a80cadbd5b9ed7ee4a06febe279775ed837247f1fa99f4a63fb",
+        "attest_by_slot.json": "047c89a51c11f6bd69ea9713030553ebf85b47a12489fd062c9108c7849e0e05",
+        "avg_mev.json": "82be0efcb852aec777625db337d7462a8b5a9db4c84d3ef7542a7a384b5a926a",
+        "estimated_mev_by_slot.json": "f653b9df6be4d89d347c0404849aa1627a7731d24b25e22bb1f02959d562886d",
+        "failed_block_proposals.json": "a90d007c2fc57df6e0f2928df79a54a9677f79afcbd89399d8a7da5010264237",
+        "mev_by_slot.json": "2c688497cc90e6ab3a183435c67ee7d347eb998a76c232b095705f891d095934",
+        "proposal_time_by_slot.json": "0283dd2a28e996807ec81799bc5bed51c59b7b7695b5ff123875c4eb2b934c5f",
+        "proposer_strategy_and_mev.json": "2e73f902a2181252589463ad9ef50a3b2b31ca43b9bebcd55f0fa9239eebadd3",
+        "region_counter_per_slot.json": "2f1cebc3a7543287c1f8c022230f0e9de09aa036048357fcd19ab7f1afaa9bd2",
+        "region_profits.csv": "9d6131674f64add92fc25aa813059fbfb6b87dc6a464782135fec415c1f5f81c",
+        "relay_names.json": "9f24eba6c079666b6b3255845a12838a3c8e64d9050ade24d856d8240f033039",
+        "signal_names.json": "7f3c59d9f194fa7759f622d2a9e030131dd2085a3fb2bb7217a93d291c11ab6d",
+        "supermajority_success.json": "e9c9219b32fe04fa2ea923f5824b67d21c9bf55a87af503706ea042a9ab06fc3",
+        "utility_increase.json": "0ea74fa5863e0fc82021578b7438951005defe22625e0881ba2d427639e568fc"
+      },
+      "scenario": {
+        "cost": 0.0001,
+        "cutoff": 4000,
+        "delta": 12000,
+        "distribution": "homogeneous",
+        "gamma": 0.6667,
+        "info_distribution": "homogeneous",
+        "model": "MSP",
+        "name": "msp_homogeneous_medium",
+        "seed": 123,
+        "slots": 4,
+        "time_window": 10,
+        "validators": 48
+      },
+      "summary": {
+        "final_avg_mev": 0.5529205,
+        "final_failed_block_proposals": 0,
+        "final_supermajority_success": 100.0,
+        "final_utility_increase": 0.0028334755658230293,
+        "proposer_records": 4,
+        "region_slots": 4,
+        "slots_recorded": 4
+      }
+    },
+    "ssp_heterogeneous_medium": {
+      "aggregate_output_hash": "cdb604c409dd1d52f7a7efa3c2a1989bb85170b54e3bc308f124933ab6a7866a",
+      "file_hashes": {
+        "action_reasons.csv": "cb3dc412aba6f3e5f479cb4bd1c9e430e75090c1aeabd26cb8f346388296ffbd",
+        "attest_by_slot.json": "3c6741e006ca2b05660bfb6b124286f37c22389751de8f4502cb786db3572f62",
+        "avg_mev.json": "f4c4d81d8b0d28a3c9dda4fbc4a321515738cecffecd19a546e61d6b6b41a438",
+        "estimated_mev_by_slot.json": "21a8e5075ba34b93c947efb18db1723269cad2bc6a5b0a9af0673db176ccd347",
+        "failed_block_proposals.json": "f374340b09f26f5f466e5100242a498e5a644885210171fa76c0ef0897132cbd",
+        "mev_by_slot.json": "da46b008ba2b2e1366f4cdbe2302d2762bad5c2e0cb731b26cb2b8fa25c0fb12",
+        "proposal_time_by_slot.json": "7e161d0c0760b45c3b47275ca5501320bfdff6029f39cec9502e88dc23b3a7b1",
+        "proposer_strategy_and_mev.json": "4481b96bd970bfe8db15939a22e701e3ab7f4980088d3ab280d9b5aec9501516",
+        "region_counter_per_slot.json": "72f9cce3844f88f65b635a68d6bd1e3f73c9db314122fcadf2abfaa81d4c9a19",
+        "region_profits.csv": "6d8d2c682ffaa843ed89cdf81166106549ad595b1224ac26b09a34917df1b5d3",
+        "relay_names.json": "9f24eba6c079666b6b3255845a12838a3c8e64d9050ade24d856d8240f033039",
+        "signal_names.json": "7f3c59d9f194fa7759f622d2a9e030131dd2085a3fb2bb7217a93d291c11ab6d",
+        "supermajority_success.json": "245d77b4c491183df5bcf24b7ce46d43cafd0a0d5c9e7c7c52aabda8d61f74c5",
+        "utility_increase.json": "43b0400da4ebd5fd19d20bc84c0374c779bc6ef07615ab686dcaccbe941e0094"
+      },
+      "scenario": {
+        "cost": 0.0001,
+        "cutoff": 4000,
+        "delta": 12000,
+        "distribution": "heterogeneous",
+        "gamma": 0.6667,
+        "info_distribution": "homogeneous",
+        "model": "SSP",
+        "name": "ssp_heterogeneous_medium",
+        "seed": 123,
+        "slots": 6,
+        "time_window": 10,
+        "validators": 96
+      },
+      "summary": {
+        "final_avg_mev": 0.5580075,
+        "final_failed_block_proposals": 0,
+        "final_supermajority_success": 100.0,
+        "final_utility_increase": 0.0004289999999999017,
+        "proposer_records": 6,
+        "region_slots": 6,
+        "slots_recorded": 6
+      }
+    },
+    "ssp_homogeneous_small": {
+      "aggregate_output_hash": "e28f5bd96ab518a4d633b0d243c084f9b5ff86ae81789df642b9a760cdc20aa7",
+      "file_hashes": {
+        "action_reasons.csv": "c73d66cdaf8ea637dc996d0f917ae5208f75891ad9bd54e6df8282c841ddc42e",
+        "attest_by_slot.json": "e1e89ff646d00c3cb3cf7030c6f4a85c545b9deee09eecd9f78bef3c2404d363",
+        "avg_mev.json": "926d52abdfd9ed2e64bce8be87c384c981e171e4d668a3a413caabeb93a320e0",
+        "estimated_mev_by_slot.json": "9504f7f6ebe87798ea9bb03eb4297df3f6527f3b578305883c777233ae883738",
+        "failed_block_proposals.json": "a90d007c2fc57df6e0f2928df79a54a9677f79afcbd89399d8a7da5010264237",
+        "mev_by_slot.json": "7b1a7831e057342293c26c2c87f11e47bce9aa69817c5100121d3449a4994623",
+        "proposal_time_by_slot.json": "b3823b8b8bf286fd1f2978f371f52f44889ae92456fe9e20da108c93fb9a14bc",
+        "proposer_strategy_and_mev.json": "edee5107115284e67396b21452fec1aa60a387b1ad8a44e563a1f75c08649c66",
+        "region_counter_per_slot.json": "5f78a3980f1fc7f0ee6e91f966370dea88868773c6b923561a0d5b4f753455ff",
+        "region_profits.csv": "fe1ba38ad77dcb90462bd4ec2028c0a66389cbb7f9f8c03144701192301cda64",
+        "relay_names.json": "9f24eba6c079666b6b3255845a12838a3c8e64d9050ade24d856d8240f033039",
+        "signal_names.json": "7f3c59d9f194fa7759f622d2a9e030131dd2085a3fb2bb7217a93d291c11ab6d",
+        "supermajority_success.json": "e9c9219b32fe04fa2ea923f5824b67d21c9bf55a87af503706ea042a9ab06fc3",
+        "utility_increase.json": "cb0c80b0d4e90ee117d999f5df6468042a3b5ee0e571b535784ec84ae7c5fef3"
+      },
+      "scenario": {
+        "cost": 0.0001,
+        "cutoff": 4000,
+        "delta": 12000,
+        "distribution": "homogeneous",
+        "gamma": 0.6667,
+        "info_distribution": "homogeneous",
+        "model": "SSP",
+        "name": "ssp_homogeneous_small",
+        "seed": 123,
+        "slots": 4,
+        "time_window": 10,
+        "validators": 48
+      },
+      "summary": {
+        "final_avg_mev": 0.555879,
+        "final_failed_block_proposals": 0,
+        "final_supermajority_success": 100.0,
+        "final_utility_increase": 0.0016410000000000036,
+        "proposer_records": 4,
+        "region_slots": 4,
+        "slots_recorded": 4
+      }
+    }
+  }
+}

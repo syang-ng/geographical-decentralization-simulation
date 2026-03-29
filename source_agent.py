@@ -108,6 +108,10 @@ class SourceAgent(Agent):
 
     def get_mev_offer(self):
         """Provides the current best MEV offer to a Proposer."""
+        current_slot_time_ms = (
+            self.model.steps * self.model.consensus_settings.time_granularity_ms
+        ) % self.model.consensus_settings.slot_duration_ms
+        self.current_mev_offer = self.get_mev_offer_at_time(current_slot_time_ms)
         return self.current_mev_offer
 
 
@@ -122,10 +126,9 @@ class SourceAgent(Agent):
 
     def step(self):
         """
-        The Signal Agent's behavior in each simulation step.
-        Here, it just updates its MEV offer based on the current slot time.
+        Source offers are queried lazily by proposers at the time they need them.
         """
-        self.update_mev_offer()
+        return
 
 
 # --- Singal Agent Class Definition ---
@@ -209,7 +212,7 @@ def initialize_signals(signal_profiles_data):
         utility_func_config = profile_data.get('utility_function')
 
         if not all([unique_id, gcp_region, lat, lon, utility_func_config]):
-            print(f"⚠️ Warning: signal profile for '{unique_id}' is missing required fields. Skipping.")
+            print(f"Warning: signal profile for '{unique_id}' is missing required fields. Skipping.")
             continue
 
         try:
@@ -223,9 +226,9 @@ def initialize_signals(signal_profiles_data):
             }
             signal_profiles.append(info_profile)
         except ValueError as e:
-            print(f"❌ Failed to initialize Signal '{unique_id}': {e}")
+            print(f"Failed to initialize Signal '{unique_id}': {e}")
         except Exception as e:
-            print(f"❌ Unknown error occurred while initializing Signal '{unique_id}': {e}")
+            print(f"Unknown error occurred while initializing Signal '{unique_id}': {e}")
     return signal_profiles
 
 
@@ -243,7 +246,7 @@ def initialize_relays(relay_profiles_data):
         threshold = profile_data.get('threshold', 0.0)  # Default threshold to 0.0 if not provided
 
         if not all([unique_id, gcp_region, lat, lon, utility_func_config, relay_type_str]):
-            print(f"⚠️ Warning: Relay profile for '{unique_id}' is missing required fields. Skipping.")
+            print(f"Warning: Relay profile for '{unique_id}' is missing required fields. Skipping.")
             continue
 
         try:
@@ -263,9 +266,9 @@ def initialize_relays(relay_profiles_data):
             }
             relay_profiles.append(relay_profile)
         except ValueError as e:
-            print(f"❌ Failed to initialize Relay '{unique_id}': {e}")
+            print(f"Failed to initialize Relay '{unique_id}': {e}")
         except KeyError:
-            print(f"❌ Invalid Relay type '{relay_type_str}' for Relay '{unique_id}'. Check RelayType in constants.py.")
+            print(f"Invalid Relay type '{relay_type_str}' for Relay '{unique_id}'. Check RelayType in constants.py.")
         except Exception as e:
-            print(f"❌ Unknown error occurred while initializing Relay '{unique_id}': {e}")
+            print(f"Unknown error occurred while initializing Relay '{unique_id}': {e}")
     return relay_profiles

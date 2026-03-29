@@ -218,3 +218,25 @@ figures/
 latency_figures/
 
 .DS_Store
+
+# Local simulation and benchmark outputs
+.simulation_cache/
+.benchmarks/
+tests/.artifacts/
+tests/__pycache__/
+tests/performance_results.json
+
+# Explorer build and local dev state
+explorer/node_modules/
+explorer/dist/
+explorer/.claude/
+explorer/%USERPROFILE%/
+explorer/server/__pycache__/
+
+# Explorer source config files intentionally committed despite the global *.json rule
+!explorer/package.json
+!explorer/package-lock.json
+!explorer/tsconfig.json
+!explorer/tsconfig.app.json
+!explorer/tsconfig.node.json
+!explorer/server/tsconfig.json

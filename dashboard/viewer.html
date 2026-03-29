@@ -136,8 +136,14 @@ function readSettings() {
   let ls = null;
   try { ls = JSON.parse(localStorage.getItem('app_settings') || 'null'); } catch (_) {}
 
+  function parseFiniteNumber(value) {
+    if (value == null || value === '') return undefined;
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : undefined;
+  }
+
   const base = {
-    dataset: 'simulations/test/data.json',
+    dataset: 'simulations/test/SSP/data/data.json',
     theme: 'auto',    // 'auto'|'light'|'dark'
     step: 1,
     autoplay: false,
@@ -145,12 +151,12 @@ function readSettings() {
     density_radius: 0.2
   };
   const fromQS = {
-    dataset: qs.get('dataset') || "data.json",
+    dataset: qs.get('dataset') || undefined,
     theme: qs.get('theme') || undefined,
-    step: qs.get('step') ? Number(qs.get('step')) : undefined,
+    step: parseFiniteNumber(qs.get('step')),
     autoplay: qs.get('autoplay') ? (qs.get('autoplay') === 'true') : undefined,
-    decimation: qs.get('decimation') ? Number(qs.get('decimation')) : undefined,
-    density_radius: qs.get('radius') ? Number(qs.get('radius')) : undefined
+    decimation: parseFiniteNumber(qs.get('decimation')),
+    density_radius: parseFiniteNumber(qs.get('density_radius') ?? qs.get('radius'))
   };
   return Object.assign(base, ls || {}, fromQS);
 }
@@ -182,6 +188,7 @@ let globeReady = false;
 let RAW_GEOJSON = null;
 let RAW_GCP_CSV = null;
 let RAW_DATA_JSON = null;
+let GLOBE_CACHE = new Map();
 
 /* ============================
    Theme helpers for Plotly
@@ -248,31 +255,63 @@ function decimate(coords, step) {
   return out;
 }
 
-function calculateDensity(points, radius = 0.2) {
-    const n = points.length;
-    const densities = new Array(n).fill(0);
-    
-    // We use the square of the radius to avoid calculating Math.sqrt() 
-    // inside the loop, which significantly improves performance.
-    const thresholdSq = radius * radius;
+function buildGlobeSeries(slotIndex, radius = 0.2) {
+  const normalizedRadius = Number.isFinite(radius) && radius > 0 ? radius : 0.2;
+  const cacheKey = `${slotIndex}|${normalizedRadius}`;
+  const cached = GLOBE_CACHE.get(cacheKey);
+  if (cached) return cached;
 
-    for (let i = 0; i < n; i++) {
-        for (let j = i + 1; j < n; j++) {
-            // Calculate squared Euclidean distance between point i and point j
-            const dx = points[i][0] - points[j][0];
-            const dy = points[i][1] - points[j][1];
-            const dz = points[i][2] - points[j][2];
-            
-            const distSq = dx * dx + dy * dy + dz * dz;
+  const thresholdSq = normalizedRadius * normalizedRadius;
+  const regionEntries = [];
 
-            // If the distance is within the threshold, increment density for both points
-            if (distSq <= thresholdSq) {
-                densities[i]++;
-                densities[j]++;
-            }
-        }
+  for (const [region, rawCount] of (DATA.slots[slotIndex] || [])) {
+    const xyz = DATA.gcpXYZ.get(String(region));
+    const count = Number(rawCount) || 0;
+    if (!xyz || count <= 0) continue;
+
+    regionEntries.push({
+      x: xyz[0],
+      y: xyz[1],
+      z: xyz[2],
+      count,
+    });
+  }
+
+  // Density only depends on occupied regions, not on every validator pair.
+  const regionDensities = regionEntries.map(entry => Math.max(0, entry.count - 1));
+  for (let i = 0; i < regionEntries.length; i++) {
+    for (let j = i + 1; j < regionEntries.length; j++) {
+      const dx = regionEntries[i].x - regionEntries[j].x;
+      const dy = regionEntries[i].y - regionEntries[j].y;
+      const dz = regionEntries[i].z - regionEntries[j].z;
+      const distSq = dx * dx + dy * dy + dz * dz;
+
+      if (distSq <= thresholdSq) {
+        regionDensities[i] += regionEntries[j].count;
+        regionDensities[j] += regionEntries[i].count;
+      }
     }
-    return densities;
+  }
+
+  const xs = [];
+  const ys = [];
+  const zs = [];
+  const dens = [];
+
+  for (let i = 0; i < regionEntries.length; i++) {
+    const entry = regionEntries[i];
+    const density = regionDensities[i];
+    for (let k = 0; k < entry.count; k++) {
+      xs.push(entry.x);
+      ys.push(entry.y);
+      zs.push(entry.z);
+      dens.push(density);
+    }
+  }
+
+  const result = { xs, ys, zs, dens };
+  GLOBE_CACHE.set(cacheKey, result);
+  return result;
 }
 
 /* ============================
@@ -318,6 +357,7 @@ async function loadData() {
   if (!resp.ok) throw new Error(`Failed to load ${SETTINGS.dataset}`);
   RAW_DATA_JSON = await resp.text();
   DATA = JSON.parse(RAW_DATA_JSON);
+  GLOBE_CACHE = new Map();
 
   DATA.gcpData = await loadGCPData();
 
@@ -358,7 +398,7 @@ async function loadData() {
 
 async function loadWorldBorders() {
   if (WORLD_BORDER_TRACES) return WORLD_BORDER_TRACES;
-  const url = 'https://raw.githubusercontent.com/johan/world.geo.json/master/countries.geo.json';
+  const url = './data/world_countries.geo.json';
   const resp = await fetch(url, { cache: 'force-cache' });
   if (!resp.ok) throw new Error('Failed to load countries.geo.json');
   const gj = await resp.json();
@@ -392,22 +432,7 @@ async function loadWorldBorders() {
    Plot builders
    ============================ */
 function drawGlobe(i) {
-  const { slots, meta, sources } = DATA;
-  const xs = [], ys = [], zs = [];
-  const pts = [];
-  for (const [region, count] of (slots[i] || [])) {
-    const xyz = DATA.gcpXYZ.get(String(region));
-    if (!xyz) continue;
-
-    const x = xyz[0], y = xyz[1], z = xyz[2];
-    const n = Number(count) || 0;
-    for (let k = 0; k < n; k++) {
-      xs.push(x); ys.push(y); zs.push(z);
-      pts.push([x, y, z]);
-    }
-  }
-
-  const dens = calculateDensity(pts, SETTINGS.density_radius || 0.2);
+  const { xs, ys, zs, dens } = buildGlobeSeries(i, SETTINGS.density_radius);
 
   if (!globeReady) {
     const validators = {

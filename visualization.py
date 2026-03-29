@@ -15,7 +15,6 @@ from distribution import *
 from measure import *
 
 from dash import callback_context
-import urllib.request
 import os
 
 
@@ -221,17 +220,13 @@ def create_app(
                 hoverinfo="skip",
             )
         )
-        # Load GeoJSON of countries (low‐res version for speed)
+        # Load country borders from the repo so the viewer does not depend on GitHub at runtime.
         if not os.path.exists("./data/world_countries.geo.json"):
-            url = "https://raw.githubusercontent.com/johan/world.geo.json/master/countries.geo.json"
-            with urllib.request.urlopen(url) as resp:
-                world = json.load(resp)
-                # Save the world data to a local file for future use
-                with open("./data/world_countries.geo.json", "w") as f:
-                    json.dump(world, f)
-        else:
-            with open("./data/world_countries.geo.json", "r") as f:
-                world = json.load(f)
+            raise FileNotFoundError(
+                "./data/world_countries.geo.json is required for the dashboard viewer."
+            )
+        with open("./data/world_countries.geo.json", "r") as f:
+            world = json.load(f)
 
         country_line_color = "white" if not dark_mode_enabled else "#888888"
 
