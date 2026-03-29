@@ -33,7 +33,7 @@ export interface SimulationRequest {
   readonly paradigm: 'SSP' | 'MSP'
   readonly validators: number
   readonly slots: number
-  readonly distribution: 'uniform' | 'heterogeneous' | 'random'
+  readonly distribution: 'homogeneous' | 'homogeneous-gcp' | 'heterogeneous' | 'random'
   readonly sourcePlacement: 'homogeneous' | 'latency-aligned' | 'latency-misaligned'
   readonly migrationCost: number
   readonly attestationThreshold: number
@@ -159,6 +159,19 @@ function roundTo(value: number, digits: number): number {
   return Number(value.toFixed(digits))
 }
 
+function normalizeDistribution(raw: unknown): SimulationRequest['distribution'] | null {
+  if (raw === 'uniform') return 'homogeneous-gcp'
+  if (
+    raw === 'homogeneous'
+    || raw === 'homogeneous-gcp'
+    || raw === 'heterogeneous'
+    || raw === 'random'
+  ) {
+    return raw
+  }
+  return null
+}
+
 function normalizeConfig(config: SimulationRequest): SimulationRequest {
   return {
     paradigm: config.paradigm,
@@ -182,7 +195,7 @@ export function parseSimulationRequest(raw: unknown): SimulationRequest | null {
   const body = raw as Record<string, unknown>
 
   const paradigm = body.paradigm
-  const distribution = body.distribution
+  const distribution = normalizeDistribution(body.distribution)
   const sourcePlacement = body.sourcePlacement
   const validators = Number(body.validators)
   const slots = Number(body.slots)
@@ -192,10 +205,10 @@ export function parseSimulationRequest(raw: unknown): SimulationRequest | null {
   const seed = Number(body.seed)
 
   if (paradigm !== 'SSP' && paradigm !== 'MSP') return null
-  if (distribution !== 'uniform' && distribution !== 'heterogeneous' && distribution !== 'random') return null
+  if (!distribution) return null
   if (sourcePlacement !== 'homogeneous' && sourcePlacement !== 'latency-aligned' && sourcePlacement !== 'latency-misaligned') return null
-  if (!Number.isInteger(validators) || validators < 25 || validators > 1000) return null
-  if (!Number.isInteger(slots) || slots < 50 || slots > 10000) return null
+  if (!Number.isInteger(validators) || validators < 1 || validators > 1000) return null
+  if (!Number.isInteger(slots) || slots < 1 || slots > 10000) return null
   if (!Number.isFinite(migrationCost) || migrationCost < 0 || migrationCost > 0.02) return null
   if (!Number.isFinite(attestationThreshold) || attestationThreshold <= 0 || attestationThreshold >= 1) return null
   if (!Number.isInteger(slotTime) || ![6, 8, 12].includes(slotTime)) return null

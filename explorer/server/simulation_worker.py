@@ -36,6 +36,7 @@ from simulation import (
     SIMULATION_CODE_FILES,
     compute_simulation_cache_key,
     file_sha256,
+    homogeneous_validators,
     homogeneous_validators_per_gcp,
     random_validators,
     simulation as run_simulation,
@@ -223,7 +224,7 @@ def normalize_request_config(raw_config: dict[str, Any]) -> dict[str, Any]:
         "paradigm": raw_config.get("paradigm", "SSP"),
         "validators": int(raw_config.get("validators", 100)),
         "slots": int(raw_config.get("slots", 1000)),
-        "distribution": raw_config.get("distribution", "uniform"),
+        "distribution": raw_config.get("distribution", "homogeneous"),
         "sourcePlacement": raw_config.get("sourcePlacement", "homogeneous"),
         "migrationCost": round_to(float(raw_config.get("migrationCost", 0.0001)), 6),
         "attestationThreshold": round_to(float(raw_config.get("attestationThreshold", 2 / 3)), 6),
@@ -277,8 +278,10 @@ def select_validators(config: dict[str, Any]) -> tuple[pd.DataFrame, int]:
     random.seed(seed)
     np.random.seed(seed)
 
-    if distribution == "uniform":
+    if distribution in {"uniform", "homogeneous-gcp"}:
         validators = homogeneous_validators_per_gcp(GCP_REGIONS, requested_validators)
+    elif distribution == "homogeneous":
+        validators = homogeneous_validators(GCP_REGIONS, requested_validators)
     elif distribution == "random":
         validators = random_validators(GCP_REGIONS, requested_validators)
     elif distribution == "heterogeneous":

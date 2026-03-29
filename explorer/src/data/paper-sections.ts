@@ -85,7 +85,7 @@ export const PAPER_SECTIONS: readonly PaperSection[] = [
     id: 'baseline-results',
     number: '§5.1',
     title: 'Baseline Results',
-    description: 'Convergence analysis with uniform initial distribution.',
+    description: 'Convergence analysis with the homogeneous initial distribution.',
     blocks: [
       {
         type: 'comparison',

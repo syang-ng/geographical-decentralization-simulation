@@ -9,8 +9,10 @@ import {
   getSimulationArtifact,
   getSimulationManifest,
   getSimulationJob,
+  submitSimulationCopilot,
   submitSimulationForClient,
   type SimulationArtifact,
+  type SimulationCopilotResponse,
   type SimulationConfig,
   type SimulationJob,
 } from '../lib/simulation-api'
@@ -31,9 +33,9 @@ interface WorkerFailure {
 
 const DEFAULT_CONFIG: SimulationConfig = {
   paradigm: 'SSP',
-  validators: 100,
+  validators: 1000,
   slots: 1000,
-  distribution: 'uniform',
+  distribution: 'homogeneous',
   sourcePlacement: 'homogeneous',
   migrationCost: 0.0001,
   attestationThreshold: 2 / 3,
@@ -44,13 +46,13 @@ const DEFAULT_CONFIG: SimulationConfig = {
 const PRESETS: Array<{ label: string; description: string; config: Partial<SimulationConfig> }> = [
   {
     label: 'Baseline SSP',
-    description: 'External block building with uniform validator geography.',
-    config: { paradigm: 'SSP', distribution: 'uniform', sourcePlacement: 'homogeneous' },
+    description: 'External block building with the upstream homogeneous baseline.',
+    config: { paradigm: 'SSP', distribution: 'homogeneous', sourcePlacement: 'homogeneous' },
   },
   {
     label: 'Baseline MSP',
-    description: 'Local block building with the same exact engine.',
-    config: { paradigm: 'MSP', distribution: 'uniform', sourcePlacement: 'homogeneous' },
+    description: 'Local block building with the same upstream baseline geography.',
+    config: { paradigm: 'MSP', distribution: 'homogeneous', sourcePlacement: 'homogeneous' },
   },
   {
     label: 'Latency-aligned',
@@ -115,6 +117,8 @@ function paperScenarioLabels(config: SimulationConfig): string[] {
     labels.push('SE3 joint heterogeneity')
   } else if (config.distribution === 'heterogeneous') {
     labels.push('SE2 heterogeneous validators')
+  } else if (config.distribution === 'homogeneous-gcp') {
+    labels.push('Equal per-GCP validator start')
   } else if (config.sourcePlacement === 'latency-aligned') {
     labels.push('SE1 latency-aligned sources')
   } else if (config.sourcePlacement === 'latency-misaligned') {
@@ -174,6 +178,8 @@ export function SimulationLabPage() {
   const [parseError, setParseError] = useState<string | null>(null)
   const [isParsing, setIsParsing] = useState(false)
   const [copyState, setCopyState] = useState<'config' | 'run' | null>(null)
+  const [copilotQuestion, setCopilotQuestion] = useState('')
+  const [copilotResponse, setCopilotResponse] = useState<SimulationCopilotResponse | null>(null)
 
   const workerRef = useRef<Worker | null>(null)
   const workerRequestIdRef = useRef(0)
@@ -237,6 +243,17 @@ export function SimulationLabPage() {
     mutationFn: cancelSimulationJob,
     onSuccess: job => {
       queryClient.setQueryData(['simulation-job', job.id], job)
+    },
+  })
+
+  const copilotMutation = useMutation({
+    mutationFn: (question: string) => submitSimulationCopilot({
+      question,
+      currentJobId,
+      currentConfig: manifest?.config ?? config,
+    }),
+    onSuccess: response => {
+      setCopilotResponse(response)
     },
   })
 
@@ -343,6 +360,19 @@ export function SimulationLabPage() {
   }
 
   const canCancel = jobQuery.data?.status === 'queued' || jobQuery.data?.status === 'running'
+  const copilotPromptSuggestions = copilotResponse?.suggestedPrompts?.length
+    ? copilotResponse.suggestedPrompts
+    : manifest
+      ? [
+          'Show the MEV and supermajority charts from this run.',
+          'Explain why these regions dominate in this exact result.',
+          'What is the nearest paper-aligned follow-up to run next?',
+        ]
+      : [
+          'Set up the baseline SSP run from the paper.',
+          'Suggest an MSP comparison that stays within exact bounds.',
+          'What can I vary without leaving the supported model?',
+        ]
 
   return (
     <div>
@@ -406,7 +436,8 @@ export function SimulationLabPage() {
               onChange={event => updateConfig('distribution', event.target.value as SimulationConfig['distribution'])}
               className="w-full bg-surface/50 border border-border-subtle rounded-lg px-3 py-1.5 text-xs text-text-primary outline-none focus:border-accent/30"
             >
-              <option value="uniform">Uniform (40 regions equal)</option>
+              <option value="homogeneous">Homogeneous (upstream baseline default)</option>
+              <option value="homogeneous-gcp">Homogeneous per GCP region</option>
               <option value="heterogeneous">Heterogeneous (real ETH data)</option>
               <option value="random">Random</option>
             </select>
@@ -414,7 +445,7 @@ export function SimulationLabPage() {
 
           <div>
             <label className="text-[10px] text-muted uppercase tracking-wider font-medium mb-1.5 block">
-              Source Placement
+              Information Source Placement
             </label>
             <select
               value={config.sourcePlacement}
@@ -443,40 +474,34 @@ export function SimulationLabPage() {
 
           <div>
             <label className="text-[10px] text-muted uppercase tracking-wider font-medium mb-1.5 block">
-              Validators: {config.validators}
+              Validators
             </label>
             <input
-              type="range"
-              min={50}
-              max={250}
-              step={10}
+              type="number"
+              min={1}
+              max={1000}
+              step={1}
               value={config.validators}
               onChange={event => updateConfig('validators', Number(event.target.value))}
-              className="w-full accent-accent"
+              className="w-full bg-surface/50 border border-border-subtle rounded-lg px-3 py-1.5 text-xs text-text-primary outline-none focus:border-accent/30"
             />
-            <div className="flex justify-between text-[9px] text-muted/40">
-              <span>50</span>
-              <span>250</span>
-            </div>
+            <div className="mt-1 text-[10px] text-muted">Upstream defaults and paper baselines use 1,000 validators.</div>
           </div>
 
           <div>
             <label className="text-[10px] text-muted uppercase tracking-wider font-medium mb-1.5 block">
-              Slots: {config.slots}
+              Slots
             </label>
             <input
-              type="range"
-              min={500}
-              max={3000}
-              step={100}
+              type="number"
+              min={1}
+              max={10000}
+              step={1}
               value={config.slots}
               onChange={event => updateConfig('slots', Number(event.target.value))}
-              className="w-full accent-accent"
+              className="w-full bg-surface/50 border border-border-subtle rounded-lg px-3 py-1.5 text-xs text-text-primary outline-none focus:border-accent/30"
             />
-            <div className="flex justify-between text-[9px] text-muted/40">
-              <span>500</span>
-              <span>3000</span>
-            </div>
+            <div className="mt-1 text-[10px] text-muted">The upstream presets run up to 10,000 slots; shorter runs remain exact but are noisier.</div>
           </div>
 
           <div>
@@ -636,6 +661,126 @@ export function SimulationLabPage() {
           )}
         </motion.div>
       )}
+
+      <div className="glass-1 rounded-lg p-5 mb-6">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+          <div>
+            <div className="text-[10px] text-muted uppercase tracking-wider font-medium mb-1">
+              Simulation copilot
+            </div>
+            <div className="text-sm text-text-primary">
+              {manifest
+                ? 'Ask about the current exact run, or ask for a bounded next experiment.'
+                : 'Ask for a paper-aligned exact run, or get redirected toward what the simulator can actually answer.'}
+            </div>
+          </div>
+          <div className="max-w-xl text-xs text-muted">
+            The copilot can reorder supported charts, add narrative, and suggest bounded configs.
+            It cannot invent metrics or change the exact engine.
+          </div>
+        </div>
+
+        <div className="mt-4 flex flex-col gap-3 lg:flex-row">
+          <textarea
+            value={copilotQuestion}
+            onChange={event => setCopilotQuestion(event.target.value)}
+            rows={3}
+            placeholder={manifest
+              ? 'Example: Show avg_mev, then supermajority_success, then explain the top regions.'
+              : 'Example: What exact run should I use to compare SSP and MSP under shorter slot times?'}
+            className="min-h-[92px] flex-1 resize-y bg-surface/50 border border-border-subtle rounded-lg px-3 py-2 text-sm text-text-primary outline-none focus:border-accent/30"
+          />
+
+          <div className="flex flex-col gap-2 lg:w-48">
+            <button
+              onClick={() => copilotMutation.mutate(copilotQuestion.trim())}
+              disabled={!copilotQuestion.trim() || copilotMutation.isPending}
+              className={cn(
+                'flex items-center justify-center gap-2 rounded-lg px-4 py-2 text-xs font-medium transition-all',
+                'bg-accent text-white hover:bg-accent/80 disabled:opacity-60 disabled:cursor-not-allowed',
+              )}
+            >
+              <Sparkles className="w-3 h-3" />
+              {copilotMutation.isPending ? 'Thinking...' : 'Ask copilot'}
+            </button>
+
+            {copilotResponse?.proposedConfig && (
+              <button
+                onClick={() => setConfig({ ...copilotResponse.proposedConfig! })}
+                className="rounded-lg border border-border-subtle bg-surface/60 px-3 py-2 text-xs text-text-primary hover:border-accent/30 transition-colors"
+              >
+                Apply proposed config
+              </button>
+            )}
+          </div>
+        </div>
+
+        <div className="mt-3 flex flex-wrap gap-2">
+          {copilotPromptSuggestions.map(prompt => (
+            <button
+              key={prompt}
+              onClick={() => {
+                setCopilotQuestion(prompt)
+                copilotMutation.mutate(prompt)
+              }}
+              className="rounded-full border border-border-subtle bg-surface/60 px-3 py-1.5 text-[11px] text-muted hover:border-accent/30 hover:text-text-primary transition-colors"
+            >
+              {prompt}
+            </button>
+          ))}
+        </div>
+
+        {copilotMutation.error && (
+          <div className="mt-4 rounded-lg border border-danger/30 bg-danger/10 px-3 py-2 text-xs text-danger">
+            {(copilotMutation.error as Error).message}
+          </div>
+        )}
+
+        {copilotResponse && (
+          <div className="mt-5 space-y-4">
+            <div className="rounded-xl border border-border-subtle bg-surface/40 px-4 py-3">
+              <div className="text-[10px] text-muted uppercase tracking-wider font-medium mb-1">
+                Copilot summary
+              </div>
+              <div className="text-sm text-text-primary">{copilotResponse.summary}</div>
+              {copilotResponse.guidance && (
+                <div className="mt-2 text-xs text-muted">{copilotResponse.guidance}</div>
+              )}
+              <div className="mt-2 text-[10px] text-muted">
+                {copilotResponse.mode === 'proposed-run'
+                  ? 'Proposed bounded run'
+                  : copilotResponse.mode === 'guidance'
+                    ? 'Guidance only'
+                    : 'Current exact result'}
+                {copilotResponse.cached ? ' - cached prompt context' : ''}
+              </div>
+            </div>
+
+            {copilotResponse.proposedConfig && (
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs text-muted">
+                <div>
+                  <span className="block text-[10px] uppercase tracking-wider text-muted/70">Paradigm</span>
+                  {copilotResponse.proposedConfig.paradigm}
+                </div>
+                <div>
+                  <span className="block text-[10px] uppercase tracking-wider text-muted/70">Distribution</span>
+                  {copilotResponse.proposedConfig.distribution}
+                </div>
+                <div>
+                  <span className="block text-[10px] uppercase tracking-wider text-muted/70">Validators</span>
+                  {copilotResponse.proposedConfig.validators.toLocaleString()}
+                </div>
+                <div>
+                  <span className="block text-[10px] uppercase tracking-wider text-muted/70">Slots</span>
+                  {copilotResponse.proposedConfig.slots.toLocaleString()}
+                </div>
+              </div>
+            )}
+
+            <BlockCanvas blocks={copilotResponse.blocks} />
+          </div>
+        )}
+      </div>
 
       {manifest && (
         <>

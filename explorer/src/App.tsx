@@ -83,7 +83,7 @@ function App() {
               exit={{ opacity: 0, x: -20 }}
               transition={SPRING_SOFT}
             >
-              <ExploreHistoryPage />
+              <ExploreHistoryPage onGoToFindings={() => handleTabChange('findings')} />
             </motion.div>
           )}
 

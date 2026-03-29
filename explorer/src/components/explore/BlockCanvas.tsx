@@ -4,7 +4,6 @@ import { Download } from 'lucide-react'
 import type { Block } from '../../types/blocks'
 import { BlockRenderer } from '../blocks/BlockRenderer'
 import { SPRING } from '../../lib/theme'
-import { cn } from '../../lib/cn'
 
 interface BlockCanvasProps {
   readonly blocks: readonly Block[]
@@ -37,20 +36,14 @@ export function BlockCanvas({ blocks, showExport = true }: BlockCanvasProps) {
     <div className="space-y-3">
       {showExport && blocks.length > 0 && (
         <div className="flex justify-end">
-          <motion.button
+          <button
             onClick={handleExport}
-            whileHover={{ y: -1, scale: 1.02 }}
-            whileTap={{ scale: 0.98 }}
-            className={cn(
-              'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-medium',
-              'text-muted hover:text-text-primary',
-              'bg-surface border border-border-subtle hover:border-accent/30',
-              'transition-colors',
-            )}
+            className="flex items-center gap-1 px-2 py-1 rounded text-[9px] text-muted/50 hover:text-muted transition-colors"
+            title="Export block data as JSON"
           >
-            <Download className="w-3 h-3" />
-            Export JSON
-          </motion.button>
+            <Download className="w-2.5 h-2.5" />
+            JSON
+          </button>
         </div>
       )}
 

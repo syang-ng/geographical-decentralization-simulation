@@ -19,7 +19,9 @@ function summarizeSection(section: PaperSection): string[] {
 }
 
 export function DeepDivePage() {
-  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set())
+  const [expandedIds, setExpandedIds] = useState<Set<string>>(
+    () => new Set(PAPER_SECTIONS.length > 0 ? [PAPER_SECTIONS[0].id] : []),
+  )
 
   const toggle = (id: string) => {
     setExpandedIds(prev => {

@@ -9,7 +9,7 @@ import { SPRING, SPRING_SOFT } from '../lib/theme'
 
 type SortMode = 'recent' | 'top'
 
-export function ExploreHistoryPage() {
+export function ExploreHistoryPage({ onGoToFindings }: { readonly onGoToFindings?: () => void } = {}) {
   const [sort, setSort] = useState<SortMode>('recent')
   const [search, setSearch] = useState('')
   const [expandedId, setExpandedId] = useState<string | null>(null)
@@ -53,7 +53,7 @@ export function ExploreHistoryPage() {
   }
 
   if (explorations.length === 0 && !search) {
-    return <EmptyState />
+    return <EmptyState onGoToFindings={onGoToFindings} />
   }
 
   return (
@@ -303,15 +303,24 @@ function FollowUpList({ followUps }: { readonly followUps: readonly string[] }) 
   )
 }
 
-function EmptyState() {
+function EmptyState({ onGoToFindings }: { readonly onGoToFindings?: () => void }) {
   return (
     <div className="flex flex-col items-center justify-center py-24 text-center">
       <Tag className="w-8 h-8 text-muted/40 mb-4" />
       <h2 className="text-lg font-medium text-text-primary mb-2">No explorations yet</h2>
-      <p className="text-sm text-muted max-w-md">
+      <p className="text-sm text-muted max-w-md mb-5">
         Ask a question on the Findings tab to get started. Every Claude response is
-        automatically saved here.
+        automatically saved here for the community to browse and vote on.
       </p>
+      {onGoToFindings && (
+        <button
+          onClick={onGoToFindings}
+          className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-accent text-white hover:bg-accent/80 transition-colors"
+        >
+          <Search className="w-4 h-4" />
+          Start exploring
+        </button>
+      )}
     </div>
   )
 }

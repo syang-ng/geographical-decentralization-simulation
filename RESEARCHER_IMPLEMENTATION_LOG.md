@@ -143,3 +143,10 @@ This log records engineering changes made to improve exact-mode runtime and play
 - The local exploration store was upgraded with normalized-query metadata and stronger search semantics so the website can reuse prior answers in a principled way. It still uses local JSON persistence in this repo, but the structure now reflects the intended public-history behavior and can be swapped to a shared backing store later.
 - The Simulation Lab UI was hardened for trust rather than speed: exact-run provenance, paper-scenario labels, and copyable config/run summaries make it easier to understand and reproduce what a given result actually represents.
 - The later atomic-tool pass was also truth-preserving by design: it gives the model more explicit search/composition steps before presentation, but it does not change the paper facts, the exact simulation engine, or the frontend response contract. The goal was to make the website behave more like a careful research assistant, not to make it more improvisational.
+## 2026-03-29: Upstream-Surface Alignment For Simulation Lab
+
+- Restored the explorer baseline validator geography to the upstream `homogeneous` default instead of the website-only `uniform` alias that mapped to `homogeneous-gcp`.
+- Removed the website-imposed slot floor so the API accepts `1..10000` slots, which is closer to the original CLI and allows the tiny regression scenarios again.
+- Widened the public controls toward the upstream defaults: `1000` validators by default, numeric validator/slot inputs, and explicit distribution options for `homogeneous`, `homogeneous-gcp`, `heterogeneous`, and `random`.
+- Kept backward compatibility for older `uniform` requests by normalizing them to `homogeneous-gcp` server-side rather than breaking existing clients.
+- This change is about restoring fidelity to the original simulation surface, not speeding it up; the goal was to avoid website-specific engineering defaults from silently shifting research behavior.

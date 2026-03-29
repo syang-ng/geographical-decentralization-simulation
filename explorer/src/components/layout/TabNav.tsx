@@ -10,19 +10,19 @@ interface TabNavProps {
   onTabChange: (tab: TabId) => void
 }
 
-const tabs: { id: TabId; label: string; icon: typeof FlaskConical }[] = [
-  { id: 'findings', label: 'Findings', icon: FlaskConical },
-  { id: 'history', label: 'Explore History', icon: Clock },
-  { id: 'paper', label: 'Paper', icon: FileText },
-  { id: 'deep-dive', label: 'Deep Dive', icon: BookOpen },
-  { id: 'simulation', label: 'Simulation Lab', icon: Cpu },
+const tabs: { id: TabId; label: string; shortLabel: string; icon: typeof FlaskConical }[] = [
+  { id: 'findings', label: 'Findings', shortLabel: 'Findings', icon: FlaskConical },
+  { id: 'history', label: 'Explore History', shortLabel: 'History', icon: Clock },
+  { id: 'paper', label: 'Paper', shortLabel: 'Paper', icon: FileText },
+  { id: 'deep-dive', label: 'Deep Dive', shortLabel: 'Dive', icon: BookOpen },
+  { id: 'simulation', label: 'Simulation Lab', shortLabel: 'Sim', icon: Cpu },
 ]
 
 export function TabNav({ activeTab, onTabChange }: TabNavProps) {
   return (
     <div className="sticky top-0 z-20 border-b border-border-subtle bg-canvas/80 backdrop-blur-sm">
       <div className="max-w-5xl mx-auto px-4 sm:px-6">
-        <nav className="flex gap-1">
+        <nav className="flex gap-0.5 sm:gap-1" aria-label="Explorer sections">
           {tabs.map(tab => {
             const Icon = tab.icon
             const isActive = activeTab === tab.id
@@ -30,15 +30,17 @@ export function TabNav({ activeTab, onTabChange }: TabNavProps) {
               <button
                 key={tab.id}
                 onClick={() => onTabChange(tab.id)}
+                aria-label={tab.label}
+                aria-current={isActive ? 'page' : undefined}
                 className={cn(
-                  'relative flex items-center gap-2 px-4 py-3 text-sm transition-colors',
+                  'relative flex items-center gap-1.5 px-2.5 py-3 text-sm transition-colors sm:gap-2 sm:px-4',
                   isActive
                     ? 'text-text-primary'
                     : 'text-muted hover:text-text-primary',
                 )}
               >
-                <Icon className="w-4 h-4" />
-                <span className="hidden sm:inline">{tab.label}</span>
+                <Icon className="w-4 h-4 shrink-0" />
+                <span className="text-[10px] sm:text-sm">{tab.shortLabel}</span>
                 {isActive && (
                   <motion.div
                     layoutId="tab-indicator"

@@ -18,6 +18,7 @@ import {
   mapBlockSchema,
   timeSeriesBlockSchema,
 } from '../src/types/blocks.ts'
+import { simulationViewSpecSchema } from '../src/types/simulation-view.ts'
 
 /** Convert a Zod schema to a clean JSON Schema object (no $schema, no $ref) */
 function toToolSchema(schema: z.ZodType): Record<string, unknown> {
@@ -40,6 +41,7 @@ export function buildTools(): Anthropic.Messages.Tool[] {
     mapBlockSchema,
     timeSeriesBlockSchema,
   ].map(s => toToolSchema(s))
+  const simulationViewSchema = toToolSchema(simulationViewSpecSchema)
 
   return [
     {
@@ -189,8 +191,8 @@ export function buildTools(): Anthropic.Messages.Tool[] {
           },
           distribution: {
             type: 'string',
-            enum: ['uniform', 'heterogeneous', 'random'],
-            description: 'Initial validator distribution.',
+            enum: ['homogeneous', 'homogeneous-gcp', 'heterogeneous', 'random'],
+            description: 'Initial validator distribution. Use homogeneous to match the upstream baseline default.',
           },
           sourcePlacement: {
             type: 'string',
@@ -217,6 +219,15 @@ export function buildTools(): Anthropic.Messages.Tool[] {
         },
         required: [],
       },
+    },
+    {
+      name: 'render_simulation_view_spec',
+      description:
+        'Compose a simulation-specific view specification without inventing UI code or raw chart data. ' +
+        'Use this as the FINAL step for Simulation Lab questions. ' +
+        'Reference only supported metrics and known artifact names from the exact simulation manifest. ' +
+        'If the question is outside bounds, return guidance and suggested prompts instead of fabricating a run.',
+      input_schema: simulationViewSchema,
     },
     {
       name: 'render_blocks',

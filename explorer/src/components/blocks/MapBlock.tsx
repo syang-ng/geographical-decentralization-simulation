@@ -192,7 +192,7 @@ export function MapBlock({ block }: MapBlockProps) {
         <span className="ml-auto flex items-center gap-3">
           {block.regions.length} GCP regions
           <a
-            href="/dash"
+            href="https://geo-decentralization.github.io/"
             target="_blank"
             rel="noopener noreferrer"
             className={cn(

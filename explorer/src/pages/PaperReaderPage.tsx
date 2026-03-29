@@ -33,7 +33,7 @@ const PAPER_NARRATIVE: Record<string, PaperNarrative> = {
     figureCaption: 'The simulation design is intentionally legible: 40 measured regions, 100 validators, and repeated migration under bounded exact-mode assumptions.',
   },
   'baseline-results': {
-    lede: 'Under uniform starting conditions, both paradigms centralize. The interesting part is how differently they get there.',
+    lede: 'Under the homogeneous starting baseline, both paradigms centralize. The interesting part is how differently they get there.',
     paragraphs: [
       'MSP moves faster and ends more concentrated in the baseline runs. The paper attributes that to the additive nature of local block building: value can accumulate from many distributed sources, so the optimization landscape rewards locations that sit at the overlap between source proximity and attester reachability.',
       'SSP still centralizes, but the locus is shaped by relay geography and the proposer-relay-attester chain. That makes the final map look different even when the underlying force is still latency-driven concentration.',

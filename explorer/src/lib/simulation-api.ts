@@ -2,11 +2,14 @@ const API_BASE = import.meta.env.VITE_API_BASE_URL
   ? `${import.meta.env.VITE_API_BASE_URL}/api`
   : '/api'
 
+import type { Block } from '../types/blocks'
+import type { SimulationViewSpec } from '../types/simulation-view'
+
 export interface SimulationConfig {
   readonly paradigm: 'SSP' | 'MSP'
   readonly validators: number
   readonly slots: number
-  readonly distribution: 'uniform' | 'heterogeneous' | 'random'
+  readonly distribution: 'homogeneous' | 'homogeneous-gcp' | 'heterogeneous' | 'random'
   readonly sourcePlacement: 'homogeneous' | 'latency-aligned' | 'latency-misaligned'
   readonly migrationCost: number
   readonly attestationThreshold: number
@@ -63,6 +66,18 @@ export interface SimulationJob {
   readonly error: string | null
   readonly config: SimulationConfig
   readonly manifest?: SimulationManifest
+}
+
+export interface SimulationCopilotResponse {
+  readonly summary: string
+  readonly mode: SimulationViewSpec['mode']
+  readonly guidance?: string
+  readonly suggestedPrompts: readonly string[]
+  readonly proposedConfig?: SimulationConfig
+  readonly viewSpec: SimulationViewSpec
+  readonly blocks: readonly Block[]
+  readonly model: string
+  readonly cached: boolean
 }
 
 interface ApiErrorBody {
@@ -127,4 +142,22 @@ export async function getSimulationArtifact(jobId: string, artifactName: string)
     throw await parseError(res)
   }
   return await res.text()
+}
+
+export async function submitSimulationCopilot(request: {
+  question: string
+  currentJobId?: string | null
+  currentConfig?: SimulationConfig | null
+}): Promise<SimulationCopilotResponse> {
+  const res = await fetch(`${API_BASE}/simulation-copilot`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(request),
+  })
+
+  if (!res.ok) {
+    throw await parseError(res)
+  }
+
+  return await res.json() as SimulationCopilotResponse
 }

@@ -76,7 +76,7 @@ export const DEFAULT_BLOCKS: readonly Block[] = [
       name: r.id,
       lat: r.lat,
       lon: r.lon,
-      value: 25, // uniform initial distribution
+      value: 25, // homogeneous initial distribution
       label: r.city.split(',')[0],
     })),
     colorScale: 'binary',
@@ -166,7 +166,7 @@ export const TOPIC_CARDS: readonly TopicCard[] = [
             { key: 'Convergence locus', value: 'NA primary, EU secondary' },
           ],
         },
-        verdict: 'Both centralize, but MSP is faster and more severe under baseline uniform conditions.',
+        verdict: 'Both centralize, but MSP is faster and more severe under baseline homogeneous conditions.',
       },
       {
         type: 'insight',
