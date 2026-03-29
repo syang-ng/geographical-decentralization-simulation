@@ -103,3 +103,12 @@ This log records engineering changes made to improve exact-mode runtime and play
 - The explorer service changes are intentionally architectural rather than mathematical: they reduce process startup, duplicate work, and client-side parsing overhead while keeping the exact simulation codepath canonical.
 - The deeper Python changes in this batch were limited to memoization, precomputation, and derived-output generation. More invasive model changes such as event-driven simulation or approximation modes were intentionally not introduced here.
 - The dashboard/world-map note is separate from the simulation math: the viewer now uses the static checked-in GeoJSON for rendering country borders only. It is not live market data or live simulation data.
+
+## Truth-First Summary
+
+- The guiding constraint for this work was truth preservation over raw speed. Performance changes were only accepted when they could be defended as exact-preserving engineering changes rather than approximations.
+- In practice this meant: no `--fast` defaulting, no timestep coarsening, no relaxed threshold math, no probabilistic shortcuts, and no architectural rewrites that would make the model harder to trust without a stronger regression story.
+- The Python-side optimizations in this batch were limited to caching, precomputation, redundant-work removal, lighter export plumbing, and derived frontend artifacts computed from the same raw outputs.
+- The explorer/runtime additions should be understood as a delivery layer around the same exact simulation engine, not as a replacement research model. They improve interactivity, concurrency, and web responsiveness, but they are not intended to redefine the canonical paper path.
+- For highest-confidence research runs, prefer the direct Python CLI in exact mode. Use `--no-cache-results` if a fully fresh execution is desired, and `--full-history` if the legacy Mesa collector history is needed for inspection.
+- The repeatable benchmark/regression harness was added specifically so performance work can be checked against fixed-seed outputs. The expectation is that any future optimization should continue to prove that published artifacts are unchanged before being trusted.
