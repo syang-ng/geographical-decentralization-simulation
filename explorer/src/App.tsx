@@ -5,6 +5,7 @@ import { TabNav, type TabId } from './components/layout/TabNav'
 import { Footer } from './components/layout/Footer'
 import { FindingsPage } from './pages/FindingsPage'
 import { ExploreHistoryPage } from './pages/ExploreHistoryPage'
+import { cn } from './lib/cn'
 import { SPRING_SOFT } from './lib/theme'
 
 const DeepDivePage = lazy(async () => {
@@ -12,12 +13,17 @@ const DeepDivePage = lazy(async () => {
   return { default: module.DeepDivePage }
 })
 
+const PaperReaderPage = lazy(async () => {
+  const module = await import('./pages/PaperReaderPage')
+  return { default: module.PaperReaderPage }
+})
+
 const SimulationLabPage = lazy(async () => {
   const module = await import('./pages/SimulationLabPage')
   return { default: module.SimulationLabPage }
 })
 
-const VALID_TABS: readonly TabId[] = ['findings', 'history', 'deep-dive', 'simulation']
+const VALID_TABS: readonly TabId[] = ['findings', 'history', 'paper', 'deep-dive', 'simulation']
 
 function getInitialTab(): TabId {
   const params = new URLSearchParams(window.location.search)
@@ -50,7 +56,12 @@ function App() {
       <Header />
       <TabNav activeTab={activeTab} onTabChange={handleTabChange} />
 
-      <main className="max-w-5xl mx-auto px-4 sm:px-6 py-8">
+      <main
+        className={cn(
+          'mx-auto px-4 py-8 sm:px-6',
+          activeTab === 'paper' ? 'max-w-7xl' : 'max-w-5xl',
+        )}
+      >
         <AnimatePresence mode="wait">
           {activeTab === 'findings' && (
             <motion.div
@@ -73,6 +84,20 @@ function App() {
               transition={SPRING_SOFT}
             >
               <ExploreHistoryPage />
+            </motion.div>
+          )}
+
+          {activeTab === 'paper' && (
+            <motion.div
+              key="paper"
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -20 }}
+              transition={SPRING_SOFT}
+            >
+              <Suspense fallback={<TabLoading title="Loading Paper Reader" description="Preparing the editorial reading view of the paper." />}>
+                <PaperReaderPage />
+              </Suspense>
             </motion.div>
           )}
 

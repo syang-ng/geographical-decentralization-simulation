@@ -234,6 +234,9 @@ explorer/%USERPROFILE%/
 explorer/server/__pycache__/
 explorer/server/data/
 
+# Explorer src/lib/ is a legitimate source directory (not Python C-extension output)
+!explorer/src/lib/
+
 # Explorer source config files intentionally committed despite the global *.json rule
 !explorer/package.json
 !explorer/package-lock.json

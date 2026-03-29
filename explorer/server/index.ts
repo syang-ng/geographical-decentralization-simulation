@@ -810,7 +810,7 @@ const DIST_DIR = path.join(__dirname, '..', 'dist')
 if (existsSync(DIST_DIR)) {
   app.use(express.static(DIST_DIR))
   // SPA fallback: serve index.html for any non-API route
-  app.get('*', (_req, res) => {
+  app.get(/^\/(?!api(?:\/|$)).*/, (_req, res) => {
     res.sendFile(path.join(DIST_DIR, 'index.html'))
   })
 }

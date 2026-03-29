@@ -39,17 +39,46 @@ function getDotColor(value: number, maxValue: number, colorScale?: string): stri
 export function MapBlock({ block }: MapBlockProps) {
   const [tooltip, setTooltip] = useState<{ x: number; y: number; label: string; value: number } | null>(null)
   const maxValue = Math.max(...block.regions.map(r => r.value), 1)
+  const topRegions = [...block.regions]
+    .toSorted((left, right) => right.value - left.value)
+    .slice(0, 3)
 
   const svgW = 800
   const svgH = 420
 
   return (
-    <div className="bg-surface border border-border-subtle rounded-xl p-5">
-      <h3 className="text-sm font-medium text-text-primary mb-3">
-        {block.title}
-      </h3>
+    <div className="overflow-hidden rounded-2xl border border-border-subtle bg-surface/95 shadow-[0_20px_60px_rgba(0,0,0,0.24)]">
+      <div className="border-b border-border-subtle bg-white/[0.02] px-5 py-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h3 className="text-sm font-medium text-text-primary">
+              {block.title}
+            </h3>
+            <p className="mt-1 text-[11px] text-muted">
+              Geographic distribution rendered directly from the block&apos;s region values.
+            </p>
+          </div>
 
-      <div className="relative overflow-hidden rounded-lg bg-[#0a0a0a]" style={{ minHeight: 280 }}>
+          <div className="flex flex-wrap items-center gap-2">
+            {topRegions.map(region => (
+              <span
+                key={region.name}
+                className="rounded-full border border-white/8 bg-black/15 px-2.5 py-1 text-[10px] text-muted"
+              >
+                {region.label ?? region.name}
+                <span className="ml-1.5 font-medium tabular-nums text-text-primary">
+                  {region.value}
+                </span>
+              </span>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      <div className="px-5 py-5">
+        <div className="relative overflow-hidden rounded-xl border border-white/6 bg-[#0a0a0a]" style={{ minHeight: 280 }}>
+          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(59,130,246,0.12),transparent_42%),radial-gradient(circle_at_bottom_right,rgba(45,212,191,0.08),transparent_35%)]" />
+          <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.02),transparent_25%,transparent_75%,rgba(255,255,255,0.03))]" />
         <svg
           viewBox={`0 0 ${svgW} ${svgH}`}
           className="w-full"
@@ -61,6 +90,30 @@ export function MapBlock({ block }: MapBlockProps) {
           <rect x={0} y={0} width={svgW} height={svgH} fill="none" stroke="#1a1a1a" strokeWidth={1} />
           <line x1={0} y1={svgH / 2} x2={svgW} y2={svgH / 2} stroke="#1a1a1a" strokeWidth={0.5} strokeDasharray="4 4" />
           <line x1={svgW / 2} y1={0} x2={svgW / 2} y2={svgH} stroke="#1a1a1a" strokeWidth={0.5} strokeDasharray="4 4" />
+          {[0.25, 0.75].map(frac => (
+            <line
+              key={`lat-${frac}`}
+              x1={0}
+              y1={svgH * frac}
+              x2={svgW}
+              y2={svgH * frac}
+              stroke="#151515"
+              strokeWidth={0.5}
+              strokeDasharray="3 6"
+            />
+          ))}
+          {[0.25, 0.75].map(frac => (
+            <line
+              key={`lon-${frac}`}
+              x1={svgW * frac}
+              y1={0}
+              x2={svgW * frac}
+              y2={svgH}
+              stroke="#151515"
+              strokeWidth={0.5}
+              strokeDasharray="3 6"
+            />
+          ))}
 
           {/* Region dots */}
           {block.regions.map((region, i) => {
@@ -69,29 +122,40 @@ export function MapBlock({ block }: MapBlockProps) {
             const color = getDotColor(region.value, maxValue, block.colorScale)
 
             return (
-              <motion.circle
-                key={region.name}
-                cx={x}
-                cy={y}
-                r={r}
-                fill={color}
-                fillOpacity={0.7}
-                stroke={color}
-                strokeWidth={1}
-                strokeOpacity={0.3}
-                initial={{ scale: 0, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                transition={{ ...SPRING, delay: i * 0.02 }}
-                style={{ cursor: 'pointer' }}
-                aria-label={`${region.label ?? region.name}: ${region.value} validators`}
-                onMouseEnter={() => setTooltip({
-                  x, y,
-                  label: region.label ?? region.name,
-                  value: region.value,
-                })}
-                onMouseLeave={() => setTooltip(null)}
-                whileHover={{ scale: 1.3 }}
-              />
+              <g key={region.name}>
+                <motion.circle
+                  cx={x}
+                  cy={y}
+                  r={r * 1.9}
+                  fill={color}
+                  fillOpacity={0.08}
+                  initial={{ scale: 0, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  transition={{ ...SPRING, delay: i * 0.02 }}
+                />
+                <motion.circle
+                  cx={x}
+                  cy={y}
+                  r={r}
+                  fill={color}
+                  fillOpacity={0.78}
+                  stroke={color}
+                  strokeWidth={1}
+                  strokeOpacity={0.35}
+                  initial={{ scale: 0, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  transition={{ ...SPRING, delay: i * 0.02 }}
+                  style={{ cursor: 'pointer' }}
+                  aria-label={`${region.label ?? region.name}: ${region.value} validators`}
+                  onMouseEnter={() => setTooltip({
+                    x, y,
+                    label: region.label ?? region.name,
+                    value: region.value,
+                  })}
+                  onMouseLeave={() => setTooltip(null)}
+                  whileHover={{ scale: 1.28 }}
+                />
+              </g>
             )
           })}
         </svg>
@@ -112,17 +176,18 @@ export function MapBlock({ block }: MapBlockProps) {
           </div>
         )}
       </div>
+      </div>
 
       {/* Legend + 3D viewer link */}
-      <div className="flex items-center gap-4 mt-3 text-[10px] text-muted">
+      <div className="flex flex-wrap items-center gap-4 border-t border-border-subtle px-5 py-3 text-[10px] text-muted">
         <span className="flex items-center gap-1">
-          <span className="w-2 h-2 rounded-full bg-success" /> {'<10'}
+          <span className="h-2 w-2 rounded-full bg-success" /> {'<10'}
         </span>
         <span className="flex items-center gap-1">
-          <span className="w-3 h-3 rounded-full bg-warning" /> 10–50
+          <span className="h-3 w-3 rounded-full bg-warning" /> 10–50
         </span>
         <span className="flex items-center gap-1">
-          <span className="w-4 h-4 rounded-full bg-danger" /> 50+
+          <span className="h-4 w-4 rounded-full bg-danger" /> 50+
         </span>
         <span className="ml-auto flex items-center gap-3">
           {block.regions.length} GCP regions
@@ -131,12 +196,11 @@ export function MapBlock({ block }: MapBlockProps) {
             target="_blank"
             rel="noopener noreferrer"
             className={cn(
-              'flex items-center gap-1 px-2 py-0.5 rounded',
-              'text-accent hover:text-accent/80 border border-accent/20 hover:border-accent/40',
-              'transition-colors',
+              'flex items-center gap-1 rounded border border-accent/20 px-2 py-0.5',
+              'text-accent transition-colors hover:border-accent/40 hover:text-accent/80',
             )}
           >
-            <ExternalLink className="w-3 h-3" />
+            <ExternalLink className="h-3 w-3" />
             Open in 3D Viewer
           </a>
         </span>

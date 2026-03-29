@@ -3,248 +3,20 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { ChevronDown, BookOpen } from 'lucide-react'
 import { BlockCanvas } from '../components/explore/BlockCanvas'
 import { SPRING } from '../lib/theme'
-import type { Block } from '../types/blocks'
+import { PAPER_SECTIONS, type PaperSection } from '../data/paper-sections'
 
-interface Section {
-  readonly id: string
-  readonly number: string
-  readonly title: string
-  readonly description: string
-  readonly blocks: readonly Block[]
+function summarizeSection(section: PaperSection): string[] {
+  const tags: string[] = []
+  const blockTypes = new Set(section.blocks.map(block => block.type))
+  if (blockTypes.has('chart') || blockTypes.has('timeseries')) tags.push('charts')
+  if (blockTypes.has('table')) tags.push('tables')
+  if (blockTypes.has('comparison')) tags.push('comparisons')
+  if (section.blocks.some(block => block.type === 'insight' && block.emphasis === 'surprising')) {
+    tags.push('surprising result')
+  }
+  if (section.blocks.some(block => block.type === 'caveat')) tags.push('caveat')
+  return tags.slice(0, 3)
 }
-
-const SECTIONS: readonly Section[] = [
-  {
-    id: 'system-model',
-    number: '§3',
-    title: 'System Model',
-    description: 'Geography, consensus, MEV extraction, and information sources.',
-    blocks: [
-      {
-        type: 'insight',
-        emphasis: 'key-finding',
-        title: 'Two-layer geographic game',
-        text: 'Validators choose GCP regions to minimize latency on two critical paths: (1) **value capture** — proximity to MEV information sources (relays in SSP, orderflow providers in MSP), and (2) **consensus** — proximity to other validators for fast attestation propagation. The tension between these two forces shapes geographic equilibrium.',
-      },
-      {
-        type: 'table',
-        title: 'Latency-Critical Paths by Paradigm',
-        headers: ['Path', 'SSP', 'MSP'],
-        rows: [
-          ['Value capture', 'Proposer → Relay', 'Sources → Proposer'],
-          ['Consensus', 'Relay → Attesters', 'Proposer → Attesters'],
-          ['Hops', '2 (via relay)', '1 (direct)'],
-          ['Optimization target', 'Single best relay', 'Sum over all sources'],
-        ],
-        highlight: [3],
-      },
-    ],
-  },
-  {
-    id: 'simulation-design',
-    number: '§4',
-    title: 'Simulation Design',
-    description: 'Agent-based model setup, migration dynamics, and metric definitions.',
-    blocks: [
-      {
-        type: 'stat',
-        value: '40',
-        label: 'GCP Regions',
-        sublabel: 'Real inter-region latency measurements',
-      },
-      {
-        type: 'stat',
-        value: '1,000',
-        label: 'Simulation Slots',
-        sublabel: 'Default convergence window',
-      },
-      {
-        type: 'stat',
-        value: '100',
-        label: 'Validators',
-        sublabel: 'Default population size',
-      },
-      {
-        type: 'insight',
-        text: 'Each slot, validators compare expected rewards across all 40 regions and migrate if the net benefit exceeds the migration cost (default 0.0001 ETH). The MEV function is **deterministic and linear** in latency — a simplifying assumption acknowledged as a limitation. Fast mode uses expected-value calculations instead of Monte Carlo sampling.',
-      },
-    ],
-  },
-  {
-    id: 'baseline-results',
-    number: '§5.1',
-    title: 'Baseline Results',
-    description: 'Convergence analysis with uniform initial distribution.',
-    blocks: [
-      {
-        type: 'comparison',
-        title: 'Baseline Convergence: SSP vs MSP',
-        left: {
-          label: 'SSP (External)',
-          items: [
-            { key: 'Final Gini_g', value: '~0.40' },
-            { key: 'Final HHI_g', value: '~0.06' },
-            { key: 'Final LC_g', value: '~8 regions' },
-            { key: 'Convergence speed', value: 'Gradual' },
-            { key: 'Locus', value: 'NA + Middle East' },
-          ],
-        },
-        right: {
-          label: 'MSP (Local)',
-          items: [
-            { key: 'Final Gini_g', value: '~0.55' },
-            { key: 'Final HHI_g', value: '~0.10' },
-            { key: 'Final LC_g', value: '~4 regions' },
-            { key: 'Convergence speed', value: 'Rapid' },
-            { key: 'Locus', value: 'NA + EU' },
-          ],
-        },
-        verdict: 'MSP centralizes 37-80% more across all metrics, reaching liveness threshold faster.',
-      },
-    ],
-  },
-  {
-    id: 'se1-source-placement',
-    number: '§5.2.1',
-    title: 'SE1: Information-Source Placement',
-    description: 'Latency-aligned vs misaligned sources and their paradigm-specific effects.',
-    blocks: [
-      {
-        type: 'table',
-        title: 'Source Placement Effects',
-        headers: ['Configuration', 'SSP Effect', 'MSP Effect'],
-        rows: [
-          ['Latency-aligned', 'Moderate centralization', 'HIGHER centralization'],
-          ['Latency-misaligned', 'HIGHER centralization', 'Lower CV_g (balanced trade-offs)'],
-        ],
-        highlight: [1],
-      },
-      {
-        type: 'insight',
-        emphasis: 'surprising',
-        title: 'Opposite paradigm sensitivities',
-        text: 'The same infrastructure change has **opposite effects** depending on the paradigm. MSP benefits from aligned sources (reinforces geographic advantages), while SSP suffers more from misaligned sources (creates a large co-location premium for the poorly-connected relay).',
-      },
-    ],
-  },
-  {
-    id: 'se2-distribution',
-    number: '§5.2.2',
-    title: 'SE2: Heterogeneous Validator Distribution',
-    description: 'Starting from real Ethereum validator distribution (Chainbound/Dune data).',
-    blocks: [
-      {
-        type: 'insight',
-        emphasis: 'key-finding',
-        title: 'Initial conditions dominate',
-        text: 'When validators start already concentrated in US + EU (matching real Ethereum), both paradigms converge rapidly. **The starting distribution matters more than the paradigm choice** — metrics start elevated and quickly reach co-location equilibrium. SSP shows stronger amplification of reward disparities relative to its own baseline.',
-      },
-    ],
-  },
-  {
-    id: 'se3-joint',
-    number: '§5.2.3',
-    title: 'SE3: Joint Heterogeneity',
-    description: 'Combined source placement + distribution effects, including transient decentralization.',
-    blocks: [
-      {
-        type: 'insight',
-        emphasis: 'surprising',
-        title: 'Transient decentralization — the only case where Gini decreases',
-        text: 'MSP + misaligned sources + heterogeneous distribution is the **only configuration** where the Gini coefficient temporarily decreases (early slots show lower concentration). This happens because misaligned sources create competing geographic pulls that temporarily scatter validators. But it is NOT a steady state — eventually re-centralizes.',
-      },
-      {
-        type: 'caveat',
-        text: 'This transient decentralization effect is fragile and parameter-dependent. It should not be interpreted as a decentralization mechanism — it is a temporary artifact of competing forces before equilibrium.',
-      },
-    ],
-  },
-  {
-    id: 'se4a-attestation',
-    number: '§5.3.1',
-    title: 'SE4a: Attestation Threshold (γ)',
-    description: 'The paper\'s most surprising finding — opposite effects across paradigms.',
-    blocks: [
-      {
-        type: 'chart',
-        title: 'Centralization vs Attestation Threshold',
-        data: [
-          { label: 'γ = 1/3', value: 30, category: 'SSP' },
-          { label: 'γ = 1/2', value: 45, category: 'SSP' },
-          { label: 'γ = 2/3', value: 65, category: 'SSP' },
-          { label: 'γ = 4/5', value: 80, category: 'SSP' },
-        ],
-        unit: '% centralization index',
-        chartType: 'bar',
-      },
-      {
-        type: 'insight',
-        emphasis: 'surprising',
-        title: 'The only protocol parameter with opposite effects',
-        text: 'SSP: higher γ → **more** centralization (tighter timing amplifies relay latency importance). MSP: higher γ → **less** centralization (forces balance between attester proximity for quorum and signal proximity for value — these point in **different geographic directions**). This makes attestation threshold the most paradigm-sensitive protocol parameter.',
-      },
-    ],
-  },
-  {
-    id: 'se4b-slots',
-    number: '§5.3.2',
-    title: 'SE4b: Shorter Slot Times (EIP-7782)',
-    description: 'Impact of 6-second slots vs the current 12-second slots.',
-    blocks: [
-      {
-        type: 'insight',
-        emphasis: 'key-finding',
-        title: 'Same trajectories, higher reward variance',
-        text: 'Centralization trajectories (Gini, HHI, LC) remain largely **unchanged** under 6s slots. But CV_g (reward variance) is **higher** — the same latency advantage becomes a larger fraction of the shortened timing window. Implication: further slot time reductions amplify inequality without changing the geographic equilibrium.',
-      },
-    ],
-  },
-  {
-    id: 'discussion',
-    number: '§6',
-    title: 'Discussion & Mitigations',
-    description: 'Policy implications and potential mitigation strategies.',
-    blocks: [
-      {
-        type: 'table',
-        title: 'Potential Mitigation Directions',
-        headers: ['Strategy', 'Mechanism', 'Trade-off'],
-        rows: [
-          ['Geographic diversity incentives', 'Reward validators in underrepresented regions', 'May reduce overall network efficiency'],
-          ['Relay/source decentralization', 'Mandate geographic distribution of infrastructure', 'Harder to enforce in practice'],
-          ['Latency equalization', 'Protocol-level latency compensation', 'Complex to implement fairly'],
-          ['Migration cost tuning', 'Increase switching costs to slow centralization', 'Reduces validator flexibility'],
-        ],
-      },
-      {
-        type: 'caveat',
-        text: 'The authors do not advocate for specific mitigations. These are research directions, not recommendations. The paper\'s contribution is diagnostic (measuring the problem) rather than prescriptive (solving it).',
-      },
-    ],
-  },
-  {
-    id: 'limitations',
-    number: '§7',
-    title: 'Limitations',
-    description: 'Acknowledged assumptions and their potential impact.',
-    blocks: [
-      {
-        type: 'table',
-        title: 'Paper Limitations',
-        headers: ['Assumption', 'Impact', 'Extension'],
-        rows: [
-          ['GCP-only latency', 'Other providers may differ', 'Multi-cloud dataset'],
-          ['Deterministic linear MEV', 'Real MEV is stochastic', 'Stochastic model'],
-          ['Fungible sources', 'Real suppliers differ', 'Heterogeneous values'],
-          ['Full information', 'Proposers may not know all latencies', 'Partial info model'],
-          ['Constant migration cost', 'Real costs vary', 'Time-varying costs'],
-          ['No strategic behavior', 'Coalitions may form', 'Game-theoretic model'],
-          ['No multi-paradigm coexistence', 'SSP and MSP may coexist', 'Hybrid model'],
-        ],
-      },
-    ],
-  },
-]
 
 export function DeepDivePage() {
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set())
@@ -259,7 +31,7 @@ export function DeepDivePage() {
   }
 
   const expandAll = () => {
-    setExpandedIds(new Set(SECTIONS.map(s => s.id)))
+    setExpandedIds(new Set(PAPER_SECTIONS.map(section => section.id)))
   }
 
   const collapseAll = () => {
@@ -268,56 +40,114 @@ export function DeepDivePage() {
 
   return (
     <div>
-      {/* Header */}
-      <div className="flex items-center justify-between mb-6">
-        <div className="flex items-center gap-2">
-          <BookOpen className="w-4 h-4 text-accent" />
-          <span className="text-xs text-muted uppercase tracking-wider font-medium">
-            Paper deep dive — {SECTIONS.length} sections
-          </span>
+      <div className="mb-6 overflow-hidden rounded-2xl border border-border-subtle bg-surface/80 shadow-[0_24px_80px_rgba(0,0,0,0.18)]">
+        <div className="border-b border-border-subtle bg-[radial-gradient(circle_at_top_left,rgba(59,130,246,0.10),transparent_42%),radial-gradient(circle_at_top_right,rgba(217,119,87,0.08),transparent_35%)] px-4 py-4 sm:px-5">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+            <div className="max-w-2xl">
+              <div className="flex items-center gap-2">
+                <BookOpen className="h-4 w-4 text-accent" />
+                <span className="text-xs font-medium uppercase tracking-wider text-muted">
+                  Paper deep dive
+                </span>
+              </div>
+              <h1 className="mt-2 text-xl font-medium text-text-primary sm:text-2xl">
+                Walk the paper section by section.
+              </h1>
+              <p className="mt-2 text-sm leading-relaxed text-muted">
+                Each accordion mirrors a section of the study and preserves the same blocks, metrics, and caveats used elsewhere in the explorer.
+              </p>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <button
+                onClick={expandAll}
+                className="rounded-full border border-border-subtle bg-surface/70 px-3 py-1.5 text-[10px] uppercase tracking-[0.18em] text-muted transition-colors hover:border-white/10 hover:text-text-primary"
+              >
+                Expand all
+              </button>
+              <button
+                onClick={collapseAll}
+                className="rounded-full border border-border-subtle bg-surface/70 px-3 py-1.5 text-[10px] uppercase tracking-[0.18em] text-muted transition-colors hover:border-white/10 hover:text-text-primary"
+              >
+                Collapse all
+              </button>
+            </div>
+          </div>
         </div>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={expandAll}
-            className="text-[10px] text-muted hover:text-text-primary transition-colors"
-          >
-            Expand all
-          </button>
-          <span className="text-muted/30">|</span>
-          <button
-            onClick={collapseAll}
-            className="text-[10px] text-muted hover:text-text-primary transition-colors"
-          >
-            Collapse all
-          </button>
+
+        <div className="grid gap-px bg-border-subtle sm:grid-cols-3">
+          <div className="bg-surface px-4 py-3 sm:px-5">
+            <div className="text-[10px] uppercase tracking-[0.18em] text-muted">Sections</div>
+            <div className="mt-1 text-sm text-text-primary">{PAPER_SECTIONS.length} paper checkpoints</div>
+          </div>
+          <div className="bg-surface px-4 py-3 sm:px-5">
+            <div className="text-[10px] uppercase tracking-[0.18em] text-muted">Expanded</div>
+            <div className="mt-1 text-sm text-text-primary">{expandedIds.size} currently open</div>
+          </div>
+          <div className="bg-surface px-4 py-3 sm:px-5">
+            <div className="text-[10px] uppercase tracking-[0.18em] text-muted">Coverage</div>
+            <div className="mt-1 text-sm text-text-primary">Model, experiments, results, and caveats</div>
+          </div>
         </div>
       </div>
 
-      {/* Sections */}
       <div className="space-y-2">
-        {SECTIONS.map(section => {
+        {PAPER_SECTIONS.map(section => {
           const isExpanded = expandedIds.has(section.id)
+          const summaryTags = summarizeSection(section)
           return (
-            <div key={section.id} className="glass-1 rounded-lg overflow-hidden">
+            <motion.div
+              key={section.id}
+              layout
+              whileHover={{ y: -2 }}
+              className="overflow-hidden rounded-xl border border-border-subtle bg-surface/70 shadow-[0_14px_40px_rgba(0,0,0,0.12)]"
+            >
               <button
                 onClick={() => toggle(section.id)}
-                className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-white/[0.02] transition-colors"
+                className="w-full px-4 py-4 text-left transition-colors hover:bg-white/[0.02]"
               >
-                <span className="text-[10px] text-accent font-mono shrink-0 w-8">
-                  {section.number}
-                </span>
-                <div className="flex-1 min-w-0">
-                  <h3 className="text-sm font-medium text-text-primary truncate">
-                    {section.title}
-                  </h3>
-                  <p className="text-[10px] text-muted truncate">{section.description}</p>
+                <div className="flex items-start gap-3">
+                  <span className="mt-0.5 w-8 shrink-0 text-[10px] font-mono text-accent">
+                    {section.number}
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <h3 className="truncate text-sm font-medium text-text-primary">
+                          {section.title}
+                        </h3>
+                        <p className="mt-1 text-[11px] text-muted">
+                          {section.description}
+                        </p>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <span className="rounded-full border border-border-subtle bg-black/10 px-2 py-1 text-[10px] uppercase tracking-[0.18em] text-muted">
+                          {section.blocks.length} blocks
+                        </span>
+                        <motion.div
+                          animate={{ rotate: isExpanded ? 180 : 0 }}
+                          transition={SPRING}
+                        >
+                          <ChevronDown className="h-4 w-4 shrink-0 text-muted/50" />
+                        </motion.div>
+                      </div>
+                    </div>
+
+                    {summaryTags.length > 0 && (
+                      <div className="mt-3 flex flex-wrap gap-1.5">
+                        {summaryTags.map(tag => (
+                          <span
+                            key={`${section.id}-${tag}`}
+                            className="rounded-full border border-white/8 bg-white/[0.03] px-2 py-0.5 text-[10px] text-muted"
+                          >
+                            {tag}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 </div>
-                <motion.div
-                  animate={{ rotate: isExpanded ? 180 : 0 }}
-                  transition={SPRING}
-                >
-                  <ChevronDown className="w-4 h-4 text-muted/40 shrink-0" />
-                </motion.div>
               </button>
 
               <AnimatePresence>
@@ -329,13 +159,16 @@ export function DeepDivePage() {
                     transition={SPRING}
                     className="overflow-hidden"
                   >
-                    <div className="px-4 pb-4 pt-1 border-t border-border-subtle/50">
+                    <div className="border-t border-border-subtle/50 px-4 pb-4 pt-3">
+                      <div className="mb-4 rounded-xl border border-white/6 bg-black/10 px-3 py-3 text-[11px] text-muted">
+                        <span className="font-medium text-text-primary">Section focus:</span> {section.description}
+                      </div>
                       <BlockCanvas blocks={section.blocks} />
                     </div>
                   </motion.div>
                 )}
               </AnimatePresence>
-            </div>
+            </motion.div>
           )
         })}
       </div>

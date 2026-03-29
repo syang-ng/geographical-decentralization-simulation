@@ -100,6 +100,23 @@ This log records engineering changes made to improve exact-mode runtime and play
 - `tests/simulation_benchmark.py`
   Optional CLI flags are detected per target repo before invocation so older comparison snapshots can still be benchmarked even if they do not support every newer simulation flag.
 
+## Explorer Hardening And Presentation
+
+- `explorer/scripts/smoke-explorer.ts`
+  Added a local explorer smoke harness that seeds temporary exploration history, boots the API server, checks `/api/health`, verifies curated-first Findings routing, verifies history reuse for a non-curated query, and checks exploration search. The launcher path was made Windows-safe by invoking the local `tsx` CLI through `node` rather than spawning `tsx.cmd` directly.
+
+- `explorer/server/index.ts`
+  The SPA fallback route now uses a regex catch-all for non-API paths instead of `app.get('*')`, which was not compatible with the installed Express 5 path matcher in this workspace. This is a server-startup compatibility fix only.
+
+- `explorer/src/components/explore/BlockCanvas.tsx`, `explorer/src/components/blocks/ChartBlock.tsx`, `explorer/src/components/blocks/TimeSeriesBlock.tsx`, `explorer/src/components/blocks/MapBlock.tsx`
+  Refined explorer animations and chart/map presentation without changing the block schemas, underlying values, or simulation outputs. The updates are intentionally presentation-only: stronger card hierarchy, slightly more deliberate reveal motion, clearer legends/labels, safer empty-state handling, and richer but still exact chart/map rendering from the same block data.
+
+- `explorer/src/components/explore/QueryHistory.tsx`, `explorer/src/pages/FindingsPage.tsx`, `explorer/src/pages/DeepDivePage.tsx`
+  Added page-level presentation polish for the Findings and Deep Dive flows: clearer framing of curated/history/generated provenance, more readable session-history recall, stronger section/card hierarchy, and more intentional paper-walkthrough affordances. This pass does not change query routing, block contents, or simulation-derived values; it only changes how the existing information is presented.
+
+- `explorer/src/data/paper-sections.ts`, `explorer/src/pages/PaperReaderPage.tsx`, `explorer/src/pages/DeepDivePage.tsx`, `explorer/src/App.tsx`, `explorer/src/components/layout/TabNav.tsx`
+  Added a dedicated editorial paper-reading route that reuses the same canonical section/block content as the Deep Dive page. The new page introduces a long-form reading layout, sticky table of contents, abstract/claim framing, and section-by-section figure placement, but it intentionally remains a presentation layer over the same paper facts and block data rather than a second source of research truth.
+
 ## Notes
 
 - These changes are intended to be exact-preserving for the existing simulation logic in non-fast mode.

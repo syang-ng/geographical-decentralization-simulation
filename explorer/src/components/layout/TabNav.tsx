@@ -1,9 +1,9 @@
 import { motion } from 'framer-motion'
-import { FlaskConical, Clock, BookOpen, Cpu } from 'lucide-react'
+import { FlaskConical, Clock, BookOpen, Cpu, FileText } from 'lucide-react'
 import { cn } from '../../lib/cn'
 import { SPRING } from '../../lib/theme'
 
-export type TabId = 'findings' | 'history' | 'deep-dive' | 'simulation'
+export type TabId = 'findings' | 'history' | 'paper' | 'deep-dive' | 'simulation'
 
 interface TabNavProps {
   activeTab: TabId
@@ -13,6 +13,7 @@ interface TabNavProps {
 const tabs: { id: TabId; label: string; icon: typeof FlaskConical }[] = [
   { id: 'findings', label: 'Findings', icon: FlaskConical },
   { id: 'history', label: 'Explore History', icon: Clock },
+  { id: 'paper', label: 'Paper', icon: FileText },
   { id: 'deep-dive', label: 'Deep Dive', icon: BookOpen },
   { id: 'simulation', label: 'Simulation Lab', icon: Cpu },
 ]

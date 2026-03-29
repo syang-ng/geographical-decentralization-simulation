@@ -37,8 +37,10 @@ export function BlockCanvas({ blocks, showExport = true }: BlockCanvasProps) {
     <div className="space-y-3">
       {showExport && blocks.length > 0 && (
         <div className="flex justify-end">
-          <button
+          <motion.button
             onClick={handleExport}
+            whileHover={{ y: -1, scale: 1.02 }}
+            whileTap={{ scale: 0.98 }}
             className={cn(
               'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-medium',
               'text-muted hover:text-text-primary',
@@ -48,7 +50,7 @@ export function BlockCanvas({ blocks, showExport = true }: BlockCanvasProps) {
           >
             <Download className="w-3 h-3" />
             Export JSON
-          </button>
+          </motion.button>
         </div>
       )}
 
@@ -57,7 +59,7 @@ export function BlockCanvas({ blocks, showExport = true }: BlockCanvasProps) {
         animate="visible"
         variants={{
           hidden: {},
-          visible: { transition: { staggerChildren: 0.06 } },
+          visible: { transition: { staggerChildren: 0.08, delayChildren: 0.04 } },
         }}
         className="space-y-3"
       >
@@ -69,8 +71,8 @@ export function BlockCanvas({ blocks, showExport = true }: BlockCanvasProps) {
               <motion.div
                 key={i}
                 variants={{
-                  hidden: { opacity: 0, y: 12 },
-                  visible: { opacity: 1, y: 0, transition: SPRING },
+                  hidden: { opacity: 0, y: 16, filter: 'blur(6px)' },
+                  visible: { opacity: 1, y: 0, filter: 'blur(0px)', transition: SPRING },
                 }}
               >
                 <BlockRenderer block={block} />
@@ -82,8 +84,8 @@ export function BlockCanvas({ blocks, showExport = true }: BlockCanvasProps) {
             <motion.div
               key={i + 3}
               variants={{
-                hidden: { opacity: 0, y: 12 },
-                visible: { opacity: 1, y: 0, transition: SPRING },
+                hidden: { opacity: 0, y: 16, filter: 'blur(6px)' },
+                visible: { opacity: 1, y: 0, filter: 'blur(0px)', transition: SPRING },
               }}
             >
               <BlockRenderer block={block} />
@@ -95,8 +97,8 @@ export function BlockCanvas({ blocks, showExport = true }: BlockCanvasProps) {
           <motion.div
             key={i}
             variants={{
-              hidden: { opacity: 0, y: 12 },
-              visible: { opacity: 1, y: 0, transition: SPRING },
+              hidden: { opacity: 0, y: 16, filter: 'blur(6px)' },
+              visible: { opacity: 1, y: 0, filter: 'blur(0px)', transition: SPRING },
             }}
           >
             <BlockRenderer block={block} />

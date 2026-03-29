@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useId, useState } from 'react'
 import { motion } from 'framer-motion'
 import { BLOCK_COLORS } from '../../lib/theme'
 import type { TimeSeriesBlock as TimeSeriesBlockType } from '../../types/blocks'
@@ -9,6 +9,7 @@ interface TimeSeriesBlockProps {
 
 export function TimeSeriesBlock({ block }: TimeSeriesBlockProps) {
   const [hover, setHover] = useState<{ x: number; svgX: number } | null>(null)
+  const gradientBaseId = useId().replace(/:/g, '')
 
   const padding = { top: 20, right: 60, bottom: 35, left: 45 }
   const svgW = 600
@@ -18,6 +19,15 @@ export function TimeSeriesBlock({ block }: TimeSeriesBlockProps) {
 
   // Compute axis bounds across all series
   const allPoints = block.series.flatMap(s => s.data)
+  if (allPoints.length === 0) {
+    return (
+      <div className="rounded-2xl border border-border-subtle bg-surface/95 p-5">
+        <h3 className="text-sm font-medium text-text-primary">{block.title}</h3>
+        <p className="mt-3 text-sm text-muted">No time series data to display.</p>
+      </div>
+    )
+  }
+
   const minX = Math.min(...allPoints.map(p => p.x))
   const maxX = Math.max(...allPoints.map(p => p.x))
   const minY = Math.min(...allPoints.map(p => p.y))
@@ -39,124 +49,250 @@ export function TimeSeriesBlock({ block }: TimeSeriesBlockProps) {
   const xTicks = Array.from({ length: 5 }, (_, i) => Math.round(minX + (rangeX * i) / 4))
 
   return (
-    <div className="bg-surface border border-border-subtle rounded-xl p-5">
-      <div className="flex items-center justify-between mb-3">
-        <h3 className="text-sm font-medium text-text-primary">
-          {block.title}
-        </h3>
-        {/* Legend */}
-        <div className="flex items-center gap-3">
-          {block.series.map((s, i) => (
-            <span key={s.label} className="flex items-center gap-1.5 text-[10px] text-muted">
-              <span
-                className="w-2.5 h-2.5 rounded-full"
-                style={{ backgroundColor: s.color ?? BLOCK_COLORS[i % BLOCK_COLORS.length] }}
-              />
-              {s.label}
-            </span>
-          ))}
+    <div className="overflow-hidden rounded-2xl border border-border-subtle bg-surface/95 shadow-[0_20px_60px_rgba(0,0,0,0.24)]">
+      <div className="border-b border-border-subtle bg-white/[0.02] px-5 py-4">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h3 className="text-sm font-medium text-text-primary">
+              {block.title}
+            </h3>
+            <p className="mt-1 text-[11px] text-muted">
+              Exact series values, with annotations preserved from the generated block.
+            </p>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            {block.series.map((s, i) => {
+              const latest = s.data[s.data.length - 1]
+              const color = s.color ?? BLOCK_COLORS[i % BLOCK_COLORS.length]
+              return (
+                <span
+                  key={s.label}
+                  className="inline-flex items-center gap-2 rounded-full border border-white/8 bg-black/15 px-2.5 py-1 text-[10px] text-muted"
+                >
+                  <span
+                    className="h-2.5 w-2.5 rounded-full"
+                    style={{ backgroundColor: color, boxShadow: `0 0 12px ${color}66` }}
+                  />
+                  {s.label}
+                  {latest && (
+                    <span className="font-medium tabular-nums text-text-primary">
+                      {latest.y.toFixed(2)}
+                    </span>
+                  )}
+                </span>
+              )
+            })}
+          </div>
         </div>
       </div>
 
-      <svg
-        viewBox={`0 0 ${svgW} ${svgH}`}
-        className="w-full"
-        preserveAspectRatio="xMidYMid meet"
-        onMouseMove={(e) => {
-          const rect = e.currentTarget.getBoundingClientRect()
-          const relX = ((e.clientX - rect.left) / rect.width) * svgW
-          if (relX >= padding.left && relX <= svgW - padding.right) {
-            setHover({ x: minX + ((relX - padding.left) / chartW) * rangeX, svgX: relX })
-          }
-        }}
-        onMouseLeave={() => setHover(null)}
-      >
-        {/* Grid lines */}
-        {yTicks.map(tick => {
-          const { sy } = toSvg(0, tick)
-          return (
-            <g key={tick}>
-              <line x1={padding.left} y1={sy} x2={svgW - padding.right} y2={sy}
-                stroke="#222222" strokeWidth={0.5} />
-              <text x={padding.left - 6} y={sy + 3} textAnchor="end"
-                className="fill-muted text-[9px]">
-                {tick.toFixed(2)}
-              </text>
-            </g>
-          )
-        })}
+      <div className="px-5 py-5">
+        <svg
+          viewBox={`0 0 ${svgW} ${svgH}`}
+          className="w-full rounded-xl border border-white/6 bg-black/10 p-2"
+          preserveAspectRatio="xMidYMid meet"
+          onMouseMove={(e) => {
+            const rect = e.currentTarget.getBoundingClientRect()
+            const relX = ((e.clientX - rect.left) / rect.width) * svgW
+            if (relX >= padding.left && relX <= svgW - padding.right) {
+              setHover({ x: minX + ((relX - padding.left) / chartW) * rangeX, svgX: relX })
+            }
+          }}
+          onMouseLeave={() => setHover(null)}
+        >
+          <defs>
+            {block.series.map((s, i) => {
+              const color = s.color ?? BLOCK_COLORS[i % BLOCK_COLORS.length]
+              return (
+                <linearGradient
+                  key={s.label}
+                  id={`${gradientBaseId}-${i}`}
+                  x1="0%"
+                  x2="0%"
+                  y1="0%"
+                  y2="100%"
+                >
+                  <stop offset="0%" stopColor={color} stopOpacity="0.28" />
+                  <stop offset="100%" stopColor={color} stopOpacity="0.02" />
+                </linearGradient>
+              )
+            })}
+          </defs>
 
-        {/* X-axis labels */}
-        {xTicks.map(tick => {
-          const { sx } = toSvg(tick, 0)
-          return (
-            <text key={tick} x={sx} y={svgH - 5} textAnchor="middle"
-              className="fill-muted text-[9px]">
-              {tick}
+          {/* Grid lines */}
+          {yTicks.map(tick => {
+            const { sy } = toSvg(0, tick)
+            return (
+              <g key={tick}>
+                <line
+                  x1={padding.left}
+                  y1={sy}
+                  x2={svgW - padding.right}
+                  y2={sy}
+                  stroke="#222222"
+                  strokeWidth={0.5}
+                />
+                <text
+                  x={padding.left - 6}
+                  y={sy + 3}
+                  textAnchor="end"
+                  className="fill-muted text-[9px]"
+                >
+                  {tick.toFixed(2)}
+                </text>
+              </g>
+            )
+          })}
+
+          {/* X-axis labels */}
+          {xTicks.map(tick => {
+            const { sx } = toSvg(tick, minY)
+            return (
+              <text
+                key={tick}
+                x={sx}
+                y={svgH - 5}
+                textAnchor="middle"
+                className="fill-muted text-[9px]"
+              >
+                {tick}
+              </text>
+            )
+          })}
+
+          {/* Axis labels */}
+          {block.yLabel && (
+            <text
+              x={12}
+              y={padding.top + chartH / 2}
+              textAnchor="middle"
+              className="fill-muted text-[9px]"
+              transform={`rotate(-90, 12, ${padding.top + chartH / 2})`}
+            >
+              {block.yLabel}
             </text>
-          )
-        })}
+          )}
+          {block.xLabel && (
+            <text
+              x={padding.left + chartW / 2}
+              y={svgH - 2}
+              textAnchor="middle"
+              className="fill-muted text-[9px]"
+            >
+              {block.xLabel}
+            </text>
+          )}
 
-        {/* Axis labels */}
-        {block.yLabel && (
-          <text x={12} y={padding.top + chartH / 2} textAnchor="middle"
-            className="fill-muted text-[9px]"
-            transform={`rotate(-90, 12, ${padding.top + chartH / 2})`}>
-            {block.yLabel}
-          </text>
-        )}
-        {block.xLabel && (
-          <text x={padding.left + chartW / 2} y={svgH - 2} textAnchor="middle"
-            className="fill-muted text-[9px]">
-            {block.xLabel}
-          </text>
-        )}
+          {/* Series fills + lines */}
+          {block.series.map((s, i) => {
+            const color = s.color ?? BLOCK_COLORS[i % BLOCK_COLORS.length]
+            const coordinates = s.data.map(point => toSvg(point.x, point.y))
+            const pathD = coordinates
+              .map((point, index) => `${index === 0 ? 'M' : 'L'} ${point.sx} ${point.sy}`)
+              .join(' ')
+            const baselineY = padding.top + chartH
+            const areaD = coordinates.length > 0
+              ? `${pathD} L ${coordinates[coordinates.length - 1].sx} ${baselineY} L ${coordinates[0].sx} ${baselineY} Z`
+              : ''
+            const latest = coordinates[coordinates.length - 1]
 
-        {/* Series lines */}
-        {block.series.map((s, i) => {
-          const color = s.color ?? BLOCK_COLORS[i % BLOCK_COLORS.length]
-          const pathD = s.data
-            .map((p, j) => {
-              const { sx, sy } = toSvg(p.x, p.y)
-              return `${j === 0 ? 'M' : 'L'} ${sx} ${sy}`
-            })
-            .join(' ')
+            return (
+              <g key={s.label}>
+                {areaD && (
+                  <motion.path
+                    d={areaD}
+                    fill={`url(#${gradientBaseId}-${i})`}
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    transition={{ duration: 0.45, ease: 'easeOut', delay: i * 0.08 }}
+                  />
+                )}
+                <motion.path
+                  d={pathD}
+                  fill="none"
+                  stroke={color}
+                  strokeWidth={2.2}
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  initial={{ pathLength: 0 }}
+                  animate={{ pathLength: 1 }}
+                  transition={{ duration: 0.8, ease: 'easeOut', delay: i * 0.12 }}
+                  style={{ filter: `drop-shadow(0 0 10px ${color}33)` }}
+                />
+                {coordinates.map((point, index) => (
+                  <circle
+                    key={`${s.label}-${index}`}
+                    cx={point.sx}
+                    cy={point.sy}
+                    r={2.5}
+                    fill={color}
+                    opacity={0.85}
+                  />
+                ))}
+                {latest && (
+                  <>
+                    <circle cx={latest.sx} cy={latest.sy} r={5} fill={color} opacity={0.15} />
+                    <circle cx={latest.sx} cy={latest.sy} r={3} fill={color} />
+                  </>
+                )}
+              </g>
+            )
+          })}
 
-          return (
-            <motion.path
-              key={s.label}
-              d={pathD}
-              fill="none"
-              stroke={color}
-              strokeWidth={2}
-              initial={{ pathLength: 0 }}
-              animate={{ pathLength: 1 }}
-              transition={{ duration: 0.8, ease: 'easeOut', delay: i * 0.15 }}
+          {/* Annotations */}
+          {block.annotations?.map(ann => {
+            const { sx } = toSvg(ann.x, minY)
+            return (
+              <g key={ann.x}>
+                <line
+                  x1={sx}
+                  y1={padding.top}
+                  x2={sx}
+                  y2={padding.top + chartH}
+                  stroke="#87867f"
+                  strokeWidth={1}
+                  strokeDasharray="3 3"
+                />
+                <text
+                  x={sx}
+                  y={padding.top - 5}
+                  textAnchor="middle"
+                  className="fill-muted text-[8px]"
+                >
+                  {ann.label}
+                </text>
+              </g>
+            )
+          })}
+
+          {/* Hover crosshair */}
+          {hover && (
+            <line
+              x1={hover.svgX}
+              y1={padding.top}
+              x2={hover.svgX}
+              y2={padding.top + chartH}
+              stroke="#87867f"
+              strokeWidth={0.5}
+              strokeDasharray="2 2"
             />
-          )
-        })}
+          )}
+        </svg>
 
-        {/* Annotations */}
-        {block.annotations?.map(ann => {
-          const { sx } = toSvg(ann.x, 0)
-          return (
-            <g key={ann.x}>
-              <line x1={sx} y1={padding.top} x2={sx} y2={padding.top + chartH}
-                stroke="#87867f" strokeWidth={1} strokeDasharray="3 3" />
-              <text x={sx} y={padding.top - 5} textAnchor="middle"
-                className="fill-muted text-[8px]">
-                {ann.label}
-              </text>
-            </g>
-          )
-        })}
-
-        {/* Hover crosshair */}
-        {hover && (
-          <line x1={hover.svgX} y1={padding.top} x2={hover.svgX} y2={padding.top + chartH}
-            stroke="#87867f" strokeWidth={0.5} strokeDasharray="2 2" />
+        {block.annotations && block.annotations.length > 0 && (
+          <div className="mt-3 flex flex-wrap gap-2">
+            {block.annotations.map(annotation => (
+              <span
+                key={`${annotation.x}-${annotation.label}`}
+                className="rounded-full border border-white/8 bg-white/[0.03] px-2.5 py-1 text-[10px] text-muted"
+              >
+                x={annotation.x}: {annotation.label}
+              </span>
+            ))}
+          </div>
         )}
-      </svg>
+      </div>
     </div>
   )
 }

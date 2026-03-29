@@ -126,8 +126,38 @@ export function FindingsPage({ initialQuery = null }: { initialQuery?: string | 
 
   return (
     <div>
-      <div className="mb-6">
-        <QueryBar onSubmit={handleQuery} loading={loading} />
+      <div className="mb-6 overflow-hidden rounded-2xl border border-border-subtle bg-surface/80 shadow-[0_24px_80px_rgba(0,0,0,0.18)]">
+        <div className="border-b border-border-subtle bg-[radial-gradient(circle_at_top_left,rgba(59,130,246,0.12),transparent_40%),radial-gradient(circle_at_top_right,rgba(45,212,191,0.08),transparent_35%)] px-4 py-4 sm:px-5">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+            <div className="max-w-2xl">
+              <span className="text-[10px] font-medium uppercase tracking-[0.22em] text-accent/80">
+                Research Explorer
+              </span>
+              <h1 className="mt-2 text-xl font-medium text-text-primary sm:text-2xl">
+                Explore the paper without losing provenance.
+              </h1>
+              <p className="mt-2 text-sm leading-relaxed text-muted">
+                Start from curated findings, revisit session history instantly, or ask a bounded question and inspect the resulting blocks.
+              </p>
+            </div>
+
+            <div className="flex flex-wrap gap-2 text-[10px]">
+              <span className="rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2.5 py-1 text-emerald-300">
+                Curated cards first
+              </span>
+              <span className="rounded-full border border-amber-500/20 bg-amber-500/10 px-2.5 py-1 text-amber-300">
+                Session history reuse
+              </span>
+              <span className="rounded-full border border-accent/20 bg-accent/10 px-2.5 py-1 text-accent">
+                Fresh generation last
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <div className="px-4 py-4 sm:px-5">
+          <QueryBar onSubmit={handleQuery} loading={loading} />
+        </div>
       </div>
 
       <QueryHistory
@@ -137,7 +167,7 @@ export function FindingsPage({ initialQuery = null }: { initialQuery?: string | 
       />
 
       <div className="mb-8">
-        <div className="flex items-center justify-between mb-3">
+        <div className="mb-3 flex items-center justify-between">
           <span className="text-xs text-muted uppercase tracking-wider font-medium">
             Explore a finding
           </span>
@@ -162,14 +192,15 @@ export function FindingsPage({ initialQuery = null }: { initialQuery?: string | 
                 key={card.id}
                 onClick={() => handleTopicClick(card)}
                 layout
+                whileHover={{ y: -3 }}
                 transition={SPRING}
                 aria-label={card.title}
                 aria-pressed={isActive}
                 className={cn(
-                  'text-left rounded-lg p-3 border transition-all duration-200',
-                  'bg-surface hover:border-white/10',
+                  'text-left rounded-xl border p-3 transition-all duration-200',
+                  'bg-[radial-gradient(circle_at_top_left,rgba(255,255,255,0.05),transparent_48%),linear-gradient(180deg,rgba(255,255,255,0.03),rgba(255,255,255,0.01))] hover:border-white/10',
                   isActive
-                    ? 'border-accent/40 bg-accent/5'
+                    ? 'border-accent/40 bg-accent/5 shadow-[0_16px_40px_rgba(59,130,246,0.10)]'
                     : isDimmed
                       ? 'border-border-subtle opacity-40'
                       : 'border-border-subtle',
@@ -196,22 +227,50 @@ export function FindingsPage({ initialQuery = null }: { initialQuery?: string | 
 
       <div className="border-t border-dashed border-border-subtle mb-6" />
 
-      <div className="flex flex-col gap-2 mb-4 sm:flex-row sm:items-start sm:justify-between">
-        <span className="text-xs text-muted uppercase tracking-wider font-medium">
-          {heading}
-        </span>
-        <div className="flex flex-col items-start sm:items-end gap-1">
-          <span
-            className={cn(
-              'inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[10px] font-medium uppercase tracking-wider',
-              provenanceClasses(displayProvenance.source, displayProvenance.canonical),
-            )}
-          >
-            {displayProvenance.label}
-          </span>
-          <span className="text-[11px] text-muted max-w-xl text-left sm:text-right">
-            {displayProvenance.detail}
-          </span>
+      <div className="mb-4 overflow-hidden rounded-2xl border border-border-subtle bg-surface/70">
+        <div className="flex flex-col gap-3 px-4 py-4 sm:flex-row sm:items-start sm:justify-between sm:px-5">
+          <div>
+            <span className="text-[10px] text-muted uppercase tracking-[0.22em] font-medium">
+              Active lens
+            </span>
+            <div className="mt-2 text-base font-medium text-text-primary sm:text-lg">
+              {heading}
+            </div>
+          </div>
+          <div className="flex flex-col items-start gap-1 sm:items-end">
+            <span
+              className={cn(
+                'inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[10px] font-medium uppercase tracking-wider',
+                provenanceClasses(displayProvenance.source, displayProvenance.canonical),
+              )}
+            >
+              {displayProvenance.label}
+            </span>
+            <span className="max-w-xl text-[11px] text-muted sm:text-right">
+              {displayProvenance.detail}
+            </span>
+          </div>
+        </div>
+
+        <div className="grid gap-px border-t border-border-subtle bg-border-subtle sm:grid-cols-3">
+          <div className="bg-surface px-4 py-3 sm:px-5">
+            <div className="text-[10px] uppercase tracking-[0.18em] text-muted">Mode</div>
+            <div className="mt-1 text-sm text-text-primary">
+              {showAi ? 'Question-driven exploration' : showTopic ? 'Curated topic card' : 'Editorial overview'}
+            </div>
+          </div>
+          <div className="bg-surface px-4 py-3 sm:px-5">
+            <div className="text-[10px] uppercase tracking-[0.18em] text-muted">Current query</div>
+            <div className="mt-1 line-clamp-2 text-sm text-text-primary">
+              {activeQuery ?? activeTopic?.prompts[0] ?? 'What are the main findings?'}
+            </div>
+          </div>
+          <div className="bg-surface px-4 py-3 sm:px-5">
+            <div className="text-[10px] uppercase tracking-[0.18em] text-muted">Follow-ups</div>
+            <div className="mt-1 text-sm text-text-primary">
+              {aiResponse?.followUps.length ?? 0} suggested next questions
+            </div>
+          </div>
         </div>
       </div>
 
