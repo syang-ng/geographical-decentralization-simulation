@@ -4,6 +4,7 @@ fabric
 geopandas
 geographiclib
 mesa
+networkx
 numpy
 pandas
 plotly

@@ -210,6 +210,9 @@ __marimo__/
 *.json
 !dashboard/simulations/**/*.json
 *.csv
+!data/gcp_latency.csv
+!data/gcp_regions.csv
+!data/validators.csv
 buckets/*.png
 *.pdf
 

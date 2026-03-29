@@ -115,7 +115,13 @@ This log records engineering changes made to improve exact-mode runtime and play
   Added page-level presentation polish for the Findings and Deep Dive flows: clearer framing of curated/history/generated provenance, more readable session-history recall, stronger section/card hierarchy, and more intentional paper-walkthrough affordances. This pass does not change query routing, block contents, or simulation-derived values; it only changes how the existing information is presented.
 
 - `explorer/src/data/paper-sections.ts`, `explorer/src/pages/PaperReaderPage.tsx`, `explorer/src/pages/DeepDivePage.tsx`, `explorer/src/App.tsx`, `explorer/src/components/layout/TabNav.tsx`
-  Added a dedicated editorial paper-reading route that reuses the same canonical section/block content as the Deep Dive page. The new page introduces a long-form reading layout, sticky table of contents, abstract/claim framing, and section-by-section figure placement, but it intentionally remains a presentation layer over the same paper facts and block data rather than a second source of research truth.
+  Added a dedicated editorial paper-reading route that reuses the same canonical section/block content as the Deep Dive page. The new page introduces a long-form reading layout, sticky table of contents, abstract/claim framing, section-by-section figure placement, active-section tracking, and copyable deep links, but it intentionally remains a presentation layer over the same paper facts and block data rather than a second source of research truth.
+
+- `explorer/src/pages/PaperReaderPage.tsx`, `explorer/src/App.tsx`
+  Extended the reader experience with a toggleable focus mode, better initial hash scrolling, live section progress, previous/next section affordances, and richer tab loading states. These changes are UX-only and do not alter any canonical paper content, block data, or simulation-backed outputs.
+
+- `explorer/server/simulation-runtime.ts`, `explorer/package.json`, `explorer/.env.example`, `Dockerfile`, `.dockerignore`, `DEPLOYMENT_CHECKLIST.md`
+  Hardened the production simulation path and deployment story. The runtime now defaults to `python3` on Linux, pre-warms worker slots, reports required runtime assets and worker errors in `/api/health`, and fails queued jobs with an explicit error if no simulation workers can be started instead of leaving them stuck indefinitely. A root Docker-based Railway deploy path was added so Node, Python, the simulation dependencies, and the required repo assets are packaged together. This is deployment/runtime plumbing only; it does not change the exact simulation logic or expected outputs.
 
 ## Notes
 

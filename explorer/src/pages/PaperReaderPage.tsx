@@ -1,5 +1,6 @@
+import { useEffect, useState } from 'react'
 import { motion } from 'framer-motion'
-import { ArrowUpRight, FileText, Quote } from 'lucide-react'
+import { ArrowUpRight, Eye, EyeOff, FileText, Link2, Quote } from 'lucide-react'
 import { BlockCanvas } from '../components/explore/BlockCanvas'
 import { cn } from '../lib/cn'
 import { SPRING, SPRING_SOFT } from '../lib/theme'
@@ -106,6 +107,92 @@ const PAPER_NARRATIVE: Record<string, PaperNarrative> = {
 }
 
 export function PaperReaderPage() {
+  const [readerMode, setReaderMode] = useState<'editorial' | 'focus'>(() => {
+    const stored = window.localStorage.getItem('paper-reader-mode')
+    return stored === 'focus' ? 'focus' : 'editorial'
+  })
+  const [activeSectionId, setActiveSectionId] = useState<string>(() => {
+    const initialHash = window.location.hash.replace('#', '')
+    return PAPER_SECTIONS.some(section => section.id === initialHash)
+      ? initialHash
+      : PAPER_SECTIONS[0].id
+  })
+  const [copiedSectionId, setCopiedSectionId] = useState<string | null>(null)
+  const focusMode = readerMode === 'focus'
+
+  useEffect(() => {
+    window.localStorage.setItem('paper-reader-mode', readerMode)
+  }, [readerMode])
+
+  useEffect(() => {
+    const initialHash = window.location.hash.replace('#', '')
+    if (!initialHash) return
+
+    const target = document.getElementById(initialHash)
+    if (!target) return
+
+    const raf = window.requestAnimationFrame(() => {
+      target.scrollIntoView({ block: 'start', behavior: 'smooth' })
+    })
+
+    return () => window.cancelAnimationFrame(raf)
+  }, [])
+
+  useEffect(() => {
+    const sections = PAPER_SECTIONS
+      .map(section => document.getElementById(section.id))
+      .filter((element): element is HTMLElement => element instanceof HTMLElement)
+
+    if (sections.length === 0) return
+
+    const observer = new IntersectionObserver(
+      entries => {
+        const visible = entries
+          .filter(entry => entry.isIntersecting)
+          .sort((left, right) => right.intersectionRatio - left.intersectionRatio)
+
+        if (visible[0]?.target.id) {
+          setActiveSectionId(visible[0].target.id)
+        }
+      },
+      {
+        rootMargin: '-22% 0px -55% 0px',
+        threshold: [0.15, 0.35, 0.6],
+      },
+    )
+
+    sections.forEach(section => observer.observe(section))
+    return () => observer.disconnect()
+  }, [])
+
+  useEffect(() => {
+    if (!activeSectionId) return
+    const url = new URL(window.location.href)
+    url.hash = activeSectionId
+    window.history.replaceState({}, '', url.toString())
+  }, [activeSectionId])
+
+  const activeSectionIndex = Math.max(
+    0,
+    PAPER_SECTIONS.findIndex(section => section.id === activeSectionId),
+  )
+  const progressPercent = ((activeSectionIndex + 1) / PAPER_SECTIONS.length) * 100
+  const activeSection = PAPER_SECTIONS.find(section => section.id === activeSectionId) ?? PAPER_SECTIONS[0]
+
+  const handleCopySectionLink = async (sectionId: string) => {
+    const url = new URL(window.location.href)
+    url.hash = sectionId
+    try {
+      await navigator.clipboard.writeText(url.toString())
+      setCopiedSectionId(sectionId)
+      window.setTimeout(() => {
+        setCopiedSectionId(current => (current === sectionId ? null : current))
+      }, 1600)
+    } catch {
+      // Ignore clipboard failures; the button remains a convenience enhancement.
+    }
+  }
+
   return (
     <div className="space-y-10">
       <motion.section
@@ -141,7 +228,16 @@ export function PaperReaderPage() {
             </div>
 
             <div className="rounded-2xl border border-white/6 bg-black/15 p-5">
-              <div className="text-[10px] uppercase tracking-[0.18em] text-muted">Paper context</div>
+              <div className="flex items-center justify-between gap-3">
+                <div className="text-[10px] uppercase tracking-[0.18em] text-muted">Paper context</div>
+                <button
+                  onClick={() => setReaderMode(current => (current === 'editorial' ? 'focus' : 'editorial'))}
+                  className="inline-flex items-center gap-1.5 rounded-full border border-white/8 px-2.5 py-1 text-[10px] uppercase tracking-[0.16em] text-muted transition-colors hover:border-white/16 hover:text-text-primary"
+                >
+                  {focusMode ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
+                  {focusMode ? 'Editorial mode' : 'Focus mode'}
+                </button>
+              </div>
               <div className="mt-3 text-sm text-text-primary">{PAPER_METADATA.citation}</div>
 
               <div className="mt-5 grid gap-px overflow-hidden rounded-xl border border-white/6 bg-white/6">
@@ -155,7 +251,9 @@ export function PaperReaderPage() {
                 </div>
                 <div className="bg-surface px-4 py-3">
                   <div className="text-[10px] uppercase tracking-[0.18em] text-muted">Reader mode</div>
-                  <div className="mt-1 text-lg font-medium text-text-primary">Editorial, not generative</div>
+                  <div className="mt-1 text-lg font-medium text-text-primary">
+                    {focusMode ? 'Focused reading' : 'Editorial, not generative'}
+                  </div>
                 </div>
               </div>
 
@@ -178,18 +276,43 @@ export function PaperReaderPage() {
         </div>
       </motion.section>
 
-      <div className="grid gap-8 xl:grid-cols-[220px_minmax(0,1fr)]">
-        <aside className="xl:sticky xl:top-28 xl:self-start">
+      <div className={cn('grid gap-8', focusMode ? 'xl:grid-cols-[minmax(0,1fr)]' : 'xl:grid-cols-[220px_minmax(0,1fr)]')}>
+        {!focusMode && (
+          <aside className="xl:sticky xl:top-28 xl:self-start">
           <div className="rounded-2xl border border-border-subtle bg-surface/70 p-4">
             <div className="text-[10px] uppercase tracking-[0.22em] text-muted">Contents</div>
+            <div className="mt-4 rounded-xl border border-white/6 bg-black/10 p-3">
+              <div className="flex items-center justify-between gap-3 text-[10px] uppercase tracking-[0.18em] text-muted">
+                <span>Reading progress</span>
+                <span>{activeSectionIndex + 1} / {PAPER_SECTIONS.length}</span>
+              </div>
+              <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-white/8">
+                <motion.div
+                  className="h-full rounded-full bg-accent"
+                  animate={{ width: `${progressPercent}%` }}
+                  transition={SPRING_SOFT}
+                />
+              </div>
+            </div>
             <nav className="mt-4 space-y-1.5">
               {PAPER_SECTIONS.map(section => (
                 <a
                   key={section.id}
                   href={`#${section.id}`}
-                  className="block rounded-xl px-3 py-2 text-sm text-muted transition-colors hover:bg-white/[0.03] hover:text-text-primary"
+                  onClick={() => setActiveSectionId(section.id)}
+                  className={cn(
+                    'block rounded-xl px-3 py-2 text-sm transition-colors',
+                    activeSectionId === section.id
+                      ? 'bg-accent/10 text-text-primary'
+                      : 'text-muted hover:bg-white/[0.03] hover:text-text-primary',
+                  )}
                 >
-                  <div className="text-[10px] uppercase tracking-[0.18em] text-accent/80">
+                  <div
+                    className={cn(
+                      'text-[10px] uppercase tracking-[0.18em]',
+                      activeSectionId === section.id ? 'text-accent' : 'text-accent/80',
+                    )}
+                  >
                     {section.number}
                   </div>
                   <div className="mt-1 leading-snug">{section.title}</div>
@@ -197,12 +320,44 @@ export function PaperReaderPage() {
               ))}
             </nav>
           </div>
-        </aside>
+          </aside>
+        )}
 
         <div className="space-y-12">
+          {focusMode && (
+            <div className="sticky top-28 z-10 rounded-2xl border border-border-subtle bg-canvas/85 px-4 py-3 backdrop-blur-sm">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <div className="text-[10px] uppercase tracking-[0.18em] text-muted">Now reading</div>
+                  <div className="mt-1 text-sm text-text-primary">
+                    {activeSection.number} {activeSection.title}
+                  </div>
+                </div>
+                <div className="flex items-center gap-3">
+                  <div className="h-1.5 w-32 overflow-hidden rounded-full bg-white/8">
+                    <motion.div
+                      className="h-full rounded-full bg-accent"
+                      animate={{ width: `${progressPercent}%` }}
+                      transition={SPRING_SOFT}
+                    />
+                  </div>
+                  <button
+                    onClick={() => handleCopySectionLink(activeSection.id)}
+                    className="inline-flex items-center gap-1.5 rounded-full border border-white/8 px-2.5 py-1 text-[10px] uppercase tracking-[0.16em] text-muted transition-colors hover:border-white/16 hover:text-text-primary"
+                  >
+                    <Link2 className="h-3 w-3" />
+                    {copiedSectionId === activeSection.id ? 'Copied' : 'Copy link'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
           {PAPER_SECTIONS.map((section, index) => {
             const narrative = PAPER_NARRATIVE[section.id]
             const figuresFirst = index % 2 === 1
+            const previousSection = PAPER_SECTIONS[index - 1]
+            const nextSection = PAPER_SECTIONS[index + 1]
 
             return (
               <motion.section
@@ -212,10 +367,13 @@ export function PaperReaderPage() {
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true, amount: 0.2 }}
                 transition={SPRING}
-                className="rounded-[1.75rem] border border-border-subtle bg-surface/75 p-5 shadow-[0_20px_60px_rgba(0,0,0,0.14)] sm:p-6"
+                className={cn(
+                  'scroll-mt-28 rounded-[1.75rem] border border-border-subtle bg-surface/75 p-5 shadow-[0_20px_60px_rgba(0,0,0,0.14)] sm:p-6',
+                  focusMode && 'mx-auto max-w-5xl',
+                )}
               >
                 <div className="mb-6 flex flex-wrap items-end justify-between gap-4 border-b border-border-subtle pb-5">
-                  <div className="max-w-2xl">
+                  <div className={cn('max-w-2xl', focusMode && 'max-w-3xl')}>
                     <div className="text-[10px] uppercase tracking-[0.24em] text-accent/80">
                       {section.number}
                     </div>
@@ -232,18 +390,25 @@ export function PaperReaderPage() {
                     <div className="mt-1 max-w-xs text-text-primary">
                       {narrative.figureCaption}
                     </div>
+                    <button
+                      onClick={() => handleCopySectionLink(section.id)}
+                      className="mt-3 inline-flex items-center gap-1.5 rounded-full border border-white/8 px-2.5 py-1 text-[10px] uppercase tracking-[0.16em] text-muted transition-colors hover:border-white/16 hover:text-text-primary"
+                    >
+                      <Link2 className="h-3 w-3" />
+                      {copiedSectionId === section.id ? 'Copied' : 'Copy section link'}
+                    </button>
                   </div>
                 </div>
 
-                <div className="grid gap-6 xl:grid-cols-12">
-                  <div className={cn('xl:col-span-7 space-y-5', figuresFirst && 'xl:order-2')}>
-                    <p className="max-w-2xl text-xl leading-relaxed text-text-primary">
+                <div className={cn('grid gap-6', focusMode ? 'xl:grid-cols-[minmax(0,1fr)]' : 'xl:grid-cols-12')}>
+                  <div className={cn(focusMode ? 'space-y-5' : 'xl:col-span-7 space-y-5', figuresFirst && 'xl:order-2')}>
+                    <p className={cn('text-xl leading-relaxed text-text-primary', focusMode ? 'max-w-3xl text-[1.65rem]' : 'max-w-2xl')}>
                       {narrative.lede}
                     </p>
 
-                    <div className="space-y-4 text-[15px] leading-8 text-muted">
+                    <div className={cn('space-y-4 text-[15px] text-muted', focusMode ? 'max-w-3xl text-[16px] leading-9' : 'leading-8')}>
                       {narrative.paragraphs.map(paragraph => (
-                        <p key={paragraph} className="max-w-2xl">
+                        <p key={paragraph} className={cn(focusMode ? 'max-w-3xl' : 'max-w-2xl')}>
                           {paragraph}
                         </p>
                       ))}
@@ -254,13 +419,13 @@ export function PaperReaderPage() {
                         <Quote className="h-3.5 w-3.5" />
                         Pull quote
                       </div>
-                      <p className="mt-3 max-w-2xl text-xl leading-relaxed text-text-primary">
+                      <p className={cn('mt-3 leading-relaxed text-text-primary', focusMode ? 'max-w-3xl text-2xl' : 'max-w-2xl text-xl')}>
                         {narrative.pullQuote}
                       </p>
                     </div>
                   </div>
 
-                  <div className={cn('xl:col-span-5 space-y-4', figuresFirst && 'xl:order-1')}>
+                  <div className={cn(focusMode ? 'space-y-4' : 'xl:col-span-5 space-y-4', figuresFirst && 'xl:order-1')}>
                     <div className="rounded-[1.5rem] border border-white/6 bg-black/10 p-4">
                       <BlockCanvas blocks={section.blocks} showExport={false} />
                     </div>
@@ -268,6 +433,32 @@ export function PaperReaderPage() {
                       {narrative.figureCaption}
                     </p>
                   </div>
+                </div>
+
+                <div className="mt-8 flex flex-wrap items-center justify-between gap-3 border-t border-border-subtle pt-5">
+                  {previousSection ? (
+                    <a
+                      href={`#${previousSection.id}`}
+                      onClick={() => setActiveSectionId(previousSection.id)}
+                      className="rounded-full border border-border-subtle bg-surface/70 px-3 py-1.5 text-[11px] text-muted transition-colors hover:border-white/10 hover:text-text-primary"
+                    >
+                      {'<-'} {previousSection.number} {previousSection.title}
+                    </a>
+                  ) : (
+                    <span className="text-[11px] text-muted/60">Beginning of paper</span>
+                  )}
+
+                  {nextSection ? (
+                    <a
+                      href={`#${nextSection.id}`}
+                      onClick={() => setActiveSectionId(nextSection.id)}
+                      className="rounded-full border border-accent/20 bg-accent/10 px-3 py-1.5 text-[11px] text-accent transition-colors hover:border-accent/35 hover:text-text-primary"
+                    >
+                      Continue to {nextSection.number} {'->'}
+                    </a>
+                  ) : (
+                    <span className="text-[11px] text-muted/60">End of paper</span>
+                  )}
                 </div>
               </motion.section>
             )

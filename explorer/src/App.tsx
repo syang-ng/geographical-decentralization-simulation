@@ -138,9 +138,51 @@ function App() {
 
 function TabLoading({ title, description }: { title: string; description: string }) {
   return (
-    <div className="flex flex-col items-center justify-center py-24 text-center">
-      <h2 className="text-lg font-medium text-text-primary mb-2">{title}</h2>
-      <p className="text-sm text-muted max-w-md">{description}</p>
+    <div className="overflow-hidden rounded-[1.75rem] border border-border-subtle bg-surface/70 shadow-[0_18px_50px_rgba(0,0,0,0.14)]">
+      <div className="border-b border-border-subtle bg-[radial-gradient(circle_at_top_left,rgba(59,130,246,0.12),transparent_38%),linear-gradient(180deg,rgba(255,255,255,0.03),transparent)] px-5 py-5 sm:px-6">
+        <div className="flex items-center gap-2 text-[10px] uppercase tracking-[0.22em] text-accent/80">
+          <div className="h-2 w-2 rounded-full bg-accent" />
+          Loading view
+        </div>
+        <h2 className="mt-3 text-xl font-medium text-text-primary">{title}</h2>
+        <p className="mt-2 max-w-xl text-sm text-muted">{description}</p>
+      </div>
+
+      <div className="grid gap-4 px-5 py-5 sm:grid-cols-[minmax(0,1fr)_280px] sm:px-6">
+        <div className="space-y-4">
+          <div className="animate-pulse rounded-2xl border border-white/6 bg-black/10 p-5">
+            <div className="h-3 w-24 rounded bg-white/8" />
+            <div className="mt-4 h-8 w-3/4 rounded bg-white/10" />
+            <div className="mt-3 h-4 w-full rounded bg-white/8" />
+            <div className="mt-2 h-4 w-5/6 rounded bg-white/8" />
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2">
+            {Array.from({ length: 4 }).map((_, index) => (
+              <div
+                key={index}
+                className="animate-pulse rounded-2xl border border-white/6 bg-black/10 p-4"
+              >
+                <div className="h-3 w-16 rounded bg-white/8" />
+                <div className="mt-4 h-5 w-1/2 rounded bg-white/10" />
+                <div className="mt-3 h-3 w-4/5 rounded bg-white/8" />
+                <div className="mt-2 h-3 w-3/5 rounded bg-white/8" />
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="animate-pulse rounded-2xl border border-white/6 bg-black/10 p-5">
+          <div className="h-3 w-20 rounded bg-white/8" />
+          <div className="mt-4 space-y-3">
+            {Array.from({ length: 6 }).map((_, index) => (
+              <div key={index} className="rounded-xl border border-white/6 bg-white/[0.03] p-3">
+                <div className="h-3 w-12 rounded bg-white/8" />
+                <div className="mt-3 h-4 w-full rounded bg-white/10" />
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
     </div>
   )
 }

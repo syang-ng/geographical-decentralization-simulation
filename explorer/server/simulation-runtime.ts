@@ -1,5 +1,6 @@
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process'
 import crypto from 'node:crypto'
+import { existsSync } from 'node:fs'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import readline from 'node:readline'
@@ -11,8 +12,22 @@ const REPO_ROOT = process.env.SIMULATION_REPO_ROOT
   ? path.resolve(process.env.SIMULATION_REPO_ROOT)
   : path.resolve(EXPLORER_ROOT, '..')
 const WORKER_PATH = path.join(SERVER_DIR, 'simulation_worker.py')
+const DEFAULT_PYTHON_EXECUTABLE = process.platform === 'win32' ? 'python' : 'python3'
 const DEFAULT_WORKER_POOL_SIZE = Math.max(1, Math.min(Number(process.env.SIMULATION_WORKERS ?? 2), 4))
 const DEFAULT_QUEUED_JOB_TTL_MS = Math.max(60_000, Number(process.env.SIMULATION_QUEUE_TTL_MS ?? 10 * 60_000))
+const REQUIRED_RUNTIME_PATHS = [
+  'data/gcp_regions.csv',
+  'data/gcp_latency.csv',
+  'data/validators.csv',
+  'data/world_countries.geo.json',
+  'params/SSP-baseline.yaml',
+  'params/SSP-latency-aligned.yaml',
+  'params/SSP-latency-misaligned.yaml',
+  'params/MSP-baseline.yaml',
+  'params/MSP-latency-aligned.yaml',
+  'params/MSP-latency-misaligned.yaml',
+  'explorer/server/simulation_worker.py',
+] as const
 
 export interface SimulationRequest {
   readonly paradigm: 'SSP' | 'MSP'
@@ -117,6 +132,8 @@ interface WorkerSlot {
   process: ChildProcessWithoutNullStreams | null
   currentRequestId: number | null
   currentJobId: string | null
+  lastError: string | null
+  lastStartedAt: string | null
 }
 
 type JobListener = (snapshot: SimulationJobSnapshot) => void
@@ -198,7 +215,7 @@ export function parseSimulationRequest(raw: unknown): SimulationRequest | null {
 }
 
 export class SimulationRuntime {
-  private readonly pythonExecutable = process.env.PYTHON_EXECUTABLE ?? 'python'
+  private readonly pythonExecutable = process.env.PYTHON_EXECUTABLE ?? DEFAULT_PYTHON_EXECUTABLE
   private readonly workerPoolSize = DEFAULT_WORKER_POOL_SIZE
   private readonly queuedJobTtlMs = DEFAULT_QUEUED_JOB_TTL_MS
   private readonly jobs = new Map<string, JobRecord>()
@@ -217,7 +234,10 @@ export class SimulationRuntime {
       process: null,
       currentRequestId: null,
       currentJobId: null,
+      lastError: null,
+      lastStartedAt: null,
     }))
+    void this.warmWorkers()
   }
 
   submit(config: SimulationRequest, options: { clientId?: string | null } = {}): SimulationJobSnapshot {
@@ -379,6 +399,21 @@ export class SimulationRuntime {
       busyWorkers,
       queuedJobs: this.queue.length,
       totalJobs: this.jobs.size,
+      pythonExecutable: this.pythonExecutable,
+      repoRoot: REPO_ROOT,
+      requiredPaths: REQUIRED_RUNTIME_PATHS.map(relativePath => ({
+        path: relativePath,
+        exists: existsSync(path.join(REPO_ROOT, relativePath)),
+      })),
+      workerStates: this.workers.map(worker => ({
+        index: worker.index,
+        pid: worker.process?.pid ?? null,
+        ready: worker.process !== null,
+        busy: worker.currentJobId !== null,
+        currentJobId: worker.currentJobId,
+        lastStartedAt: worker.lastStartedAt,
+        lastError: worker.lastError,
+      })),
     }
   }
 
@@ -467,6 +502,9 @@ export class SimulationRuntime {
       while (this.queue.length > 0) {
         const worker = await this.findIdleWorker()
         if (!worker) {
+          if (!this.workers.some(currentWorker => currentWorker.currentJobId !== null)) {
+            this.failQueuedJobs(this.describeWorkerUnavailableReason())
+          }
           break
         }
 
@@ -604,10 +642,14 @@ export class SimulationRuntime {
     })
 
     processHandle.on('error', error => {
+      worker.lastError = error instanceof Error ? error.message : String(error)
+      worker.process = null
       // eslint-disable-next-line no-console
       console.error(`[simulation-worker:${worker.index}] failed to start`, error)
     })
 
+    worker.lastError = null
+    worker.lastStartedAt = nowIso()
     worker.process = processHandle
   }
 
@@ -652,6 +694,7 @@ export class SimulationRuntime {
     worker.process = null
     worker.currentRequestId = null
     worker.currentJobId = null
+    worker.lastError = `Simulation worker exited unexpectedly (code=${code ?? 'null'}, signal=${signal ?? 'null'}).`
 
     if (requestId != null) {
       const pending = this.pending.get(requestId)
@@ -670,6 +713,47 @@ export class SimulationRuntime {
       if (job && job.status === 'running') {
         job.workerSlot = null
       }
+    }
+  }
+
+  private async warmWorkers(): Promise<void> {
+    await Promise.all(this.workers.map(worker => this.ensureWorker(worker).catch(() => undefined)))
+  }
+
+  private describeWorkerUnavailableReason(): string {
+    const missingPaths = REQUIRED_RUNTIME_PATHS
+      .filter(relativePath => !existsSync(path.join(REPO_ROOT, relativePath)))
+      .map(relativePath => path.join(REPO_ROOT, relativePath))
+
+    const workerErrors = this.workers
+      .map(worker => worker.lastError)
+      .filter((message): message is string => Boolean(message))
+
+    const parts = ['Simulation workers are unavailable.']
+    if (missingPaths.length > 0) {
+      parts.push(`Missing runtime assets: ${missingPaths.join(', ')}`)
+    }
+    if (workerErrors.length > 0) {
+      parts.push(`Worker errors: ${workerErrors.join(' | ')}`)
+    }
+    parts.push(`Python executable: ${this.pythonExecutable}`)
+    return parts.join(' ')
+  }
+
+  private failQueuedJobs(reason: string): void {
+    while (this.queue.length > 0) {
+      const jobId = this.queue.shift()
+      if (!jobId) continue
+      const job = this.jobs.get(jobId)
+      if (!job || job.status !== 'queued') continue
+      job.status = 'failed'
+      job.error = reason
+      job.queuePosition = null
+      job.workerSlot = null
+      if (this.configToJob.get(job.configHash) === job.id) {
+        this.configToJob.delete(job.configHash)
+      }
+      this.touch(job)
     }
   }
 }
