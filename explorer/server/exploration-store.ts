@@ -23,6 +23,7 @@ export interface Exploration {
   readonly createdAt: string
   readonly paradigmTags: string[]
   readonly experimentTags: string[]
+  readonly verified: boolean
 }
 
 type SortOption = 'recent' | 'top'
@@ -84,6 +85,7 @@ export class ExplorationStore {
       createdAt: new Date().toISOString(),
       paradigmTags: extractParadigmTags(data.blocks),
       experimentTags: extractExperimentTags(data.blocks),
+      verified: false,
     }
 
     this.explorations = [exploration, ...this.explorations]
@@ -120,6 +122,16 @@ export class ExplorationStore {
       votes: this.explorations[index].votes + delta,
     }
 
+    this.explorations = this.explorations.map((e, i) => (i === index ? updated : e))
+    this.schedulePersist()
+    return updated
+  }
+
+  verify(id: string, verified: boolean): Exploration | null {
+    const index = this.explorations.findIndex(e => e.id === id)
+    if (index === -1) return null
+
+    const updated: Exploration = { ...this.explorations[index], verified }
     this.explorations = this.explorations.map((e, i) => (i === index ? updated : e))
     this.schedulePersist()
     return updated

@@ -1,13 +1,27 @@
+import { useCallback } from 'react'
 import { motion } from 'framer-motion'
+import { Download } from 'lucide-react'
 import type { Block } from '../../types/blocks'
 import { BlockRenderer } from '../blocks/BlockRenderer'
 import { SPRING } from '../../lib/theme'
+import { cn } from '../../lib/cn'
 
 interface BlockCanvasProps {
-  blocks: readonly Block[]
+  readonly blocks: readonly Block[]
+  readonly showExport?: boolean
 }
 
-export function BlockCanvas({ blocks }: BlockCanvasProps) {
+export function BlockCanvas({ blocks, showExport = true }: BlockCanvasProps) {
+  const handleExport = useCallback(() => {
+    const json = JSON.stringify(blocks, null, 2)
+    const blob = new Blob([json], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `exploration-blocks-${Date.now()}.json`
+    a.click()
+    URL.revokeObjectURL(url)
+  }, [blocks])
   if (blocks.length === 0) {
     return (
       <div className="flex items-center justify-center py-12 text-sm text-muted">
@@ -20,15 +34,33 @@ export function BlockCanvas({ blocks }: BlockCanvasProps) {
   const leadingStats = blocks.slice(0, 3).every(b => b.type === 'stat')
 
   return (
-    <motion.div
-      initial="hidden"
-      animate="visible"
-      variants={{
-        hidden: {},
-        visible: { transition: { staggerChildren: 0.06 } },
-      }}
-      className="space-y-3"
-    >
+    <div className="space-y-3">
+      {showExport && blocks.length > 0 && (
+        <div className="flex justify-end">
+          <button
+            onClick={handleExport}
+            className={cn(
+              'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-medium',
+              'text-muted hover:text-text-primary',
+              'bg-surface border border-border-subtle hover:border-accent/30',
+              'transition-colors',
+            )}
+          >
+            <Download className="w-3 h-3" />
+            Export JSON
+          </button>
+        </div>
+      )}
+
+      <motion.div
+        initial="hidden"
+        animate="visible"
+        variants={{
+          hidden: {},
+          visible: { transition: { staggerChildren: 0.06 } },
+        }}
+        className="space-y-3"
+      >
       {leadingStats ? (
         <>
           {/* 3-up stat grid */}
@@ -71,6 +103,7 @@ export function BlockCanvas({ blocks }: BlockCanvasProps) {
           </motion.div>
         ))
       )}
-    </motion.div>
+      </motion.div>
+    </div>
   )
 }

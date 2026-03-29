@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Search, ArrowUpDown, ThumbsUp, ThumbsDown, Clock, Tag, ChevronDown, ChevronUp } from 'lucide-react'
+import { Search, ArrowUpDown, ThumbsUp, ThumbsDown, Clock, Tag, ChevronDown, ChevronUp, BadgeCheck } from 'lucide-react'
 import { listExplorations, voteExploration, type Exploration } from '../lib/api'
 import { BlockCanvas } from '../components/explore/BlockCanvas'
 import { cn } from '../lib/cn'
@@ -178,6 +178,12 @@ function ExplorationCard({
           </p>
 
           <div className="flex flex-wrap items-center gap-2 mt-3">
+            {exploration.verified && (
+              <span className="flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium bg-emerald-500/10 text-emerald-400">
+                <BadgeCheck className="w-3 h-3" />
+                Verified
+              </span>
+            )}
             {allTags.map(tag => (
               <span
                 key={tag}

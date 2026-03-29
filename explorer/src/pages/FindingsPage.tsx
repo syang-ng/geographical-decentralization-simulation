@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { ArrowRight, ArrowLeft } from 'lucide-react'
 import { cn } from '../lib/cn'
@@ -18,7 +18,11 @@ interface AiResponse {
   readonly followUps: readonly string[]
 }
 
-export function FindingsPage() {
+interface FindingsPageProps {
+  readonly initialQuery?: string | null
+}
+
+export function FindingsPage({ initialQuery }: FindingsPageProps) {
   const [activeTopic, setActiveTopic] = useState<TopicCard | null>(null)
 
   // AI exploration state
@@ -27,6 +31,14 @@ export function FindingsPage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<ExploreError | null>(null)
   const [history, setHistory] = useState<HistoryEntry[]>([])
+
+  // Auto-execute shared query from URL ?q= param
+  useEffect(() => {
+    if (initialQuery?.trim()) {
+      handleQuery(initialQuery.trim())
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []) // Run once on mount only
 
   const handleTopicClick = (card: TopicCard) => {
     // Clear AI state when browsing topic cards

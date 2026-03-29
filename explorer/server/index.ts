@@ -21,6 +21,37 @@ const app = express()
 app.use(cors({ origin: allowedOrigins }))
 app.use(express.json({ limit: '1mb' }))
 
+// Simple in-memory rate limiter for /api/explore (10 requests/min per IP)
+const rateLimitMap = new Map<string, { count: number; resetAt: number }>()
+const RATE_LIMIT_MAX = 10
+const RATE_LIMIT_WINDOW_MS = 60_000
+
+function rateLimitExplore(
+  req: express.Request,
+  res: express.Response,
+  next: express.NextFunction,
+) {
+  const ip = req.ip ?? req.socket.remoteAddress ?? 'unknown'
+  const now = Date.now()
+  const entry = rateLimitMap.get(ip)
+
+  if (!entry || now > entry.resetAt) {
+    rateLimitMap.set(ip, { count: 1, resetAt: now + RATE_LIMIT_WINDOW_MS })
+    next()
+    return
+  }
+
+  if (entry.count >= RATE_LIMIT_MAX) {
+    const retryAfter = Math.ceil((entry.resetAt - now) / 1000)
+    res.setHeader('Retry-After', String(retryAfter))
+    res.status(429).json({ error: `Rate limit exceeded. Try again in ${retryAfter}s.` })
+    return
+  }
+
+  entry.count++
+  next()
+}
+
 const client = apiKey ? new Anthropic({ apiKey }) : null
 const tools = buildTools()
 const simulationRuntime = new SimulationRuntime()
@@ -39,7 +70,7 @@ interface ExploreResponse {
   cached: boolean
 }
 
-app.post('/api/explore', async (req, res) => {
+app.post('/api/explore', rateLimitExplore, async (req, res) => {
   if (!client) {
     res.status(503).json({ error: 'Anthropic API is not configured on this server.' })
     return
@@ -269,6 +300,21 @@ app.get('/api/explorations/:id', (req, res) => {
     return
   }
   res.json(exploration)
+})
+
+app.post('/api/explorations/:id/verify', (req, res) => {
+  const verified = (req.body as { verified?: boolean }).verified
+  if (typeof verified !== 'boolean') {
+    res.status(400).json({ error: 'verified must be a boolean' })
+    return
+  }
+
+  const updated = explorationStore.verify(req.params.id, verified)
+  if (!updated) {
+    res.status(404).json({ error: 'Exploration not found' })
+    return
+  }
+  res.json(updated)
 })
 
 app.post('/api/explorations/:id/vote', (req, res) => {

@@ -1,4 +1,4 @@
-import { Suspense, lazy, useState } from 'react'
+import { Suspense, lazy, useState, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Header } from './components/layout/Header'
 import { TabNav, type TabId } from './components/layout/TabNav'
@@ -17,13 +17,38 @@ const SimulationLabPage = lazy(async () => {
   return { default: module.SimulationLabPage }
 })
 
+const VALID_TABS: readonly TabId[] = ['findings', 'history', 'deep-dive', 'simulation']
+
+function getInitialTab(): TabId {
+  const params = new URLSearchParams(window.location.search)
+  const tab = params.get('tab') as TabId | null
+  return tab && VALID_TABS.includes(tab) ? tab : 'findings'
+}
+
+function getInitialQuery(): string | null {
+  return new URLSearchParams(window.location.search).get('q')
+}
+
 function App() {
-  const [activeTab, setActiveTab] = useState<TabId>('findings')
+  const [activeTab, setActiveTab] = useState<TabId>(getInitialTab)
+  const [sharedQuery] = useState<string | null>(getInitialQuery)
+
+  const handleTabChange = useCallback((tab: TabId) => {
+    setActiveTab(tab)
+    const url = new URL(window.location.href)
+    if (tab === 'findings') {
+      url.searchParams.delete('tab')
+    } else {
+      url.searchParams.set('tab', tab)
+    }
+    url.searchParams.delete('q')
+    window.history.replaceState({}, '', url.toString())
+  }, [])
 
   return (
     <div className="min-h-screen bg-canvas">
       <Header />
-      <TabNav activeTab={activeTab} onTabChange={setActiveTab} />
+      <TabNav activeTab={activeTab} onTabChange={handleTabChange} />
 
       <main className="max-w-5xl mx-auto px-4 sm:px-6 py-8">
         <AnimatePresence mode="wait">
@@ -35,7 +60,7 @@ function App() {
               exit={{ opacity: 0, x: -20 }}
               transition={SPRING_SOFT}
             >
-              <FindingsPage />
+              <FindingsPage initialQuery={sharedQuery} />
             </motion.div>
           )}
 

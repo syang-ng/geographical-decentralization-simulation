@@ -1,6 +1,8 @@
 import { useState } from 'react'
 import { motion } from 'framer-motion'
+import { ExternalLink } from 'lucide-react'
 import { SPRING } from '../../lib/theme'
+import { cn } from '../../lib/cn'
 import type { MapBlock as MapBlockType } from '../../types/blocks'
 
 interface MapBlockProps {
@@ -111,7 +113,7 @@ export function MapBlock({ block }: MapBlockProps) {
         )}
       </div>
 
-      {/* Legend */}
+      {/* Legend + 3D viewer link */}
       <div className="flex items-center gap-4 mt-3 text-[10px] text-muted">
         <span className="flex items-center gap-1">
           <span className="w-2 h-2 rounded-full bg-success" /> {'<10'}
@@ -122,7 +124,22 @@ export function MapBlock({ block }: MapBlockProps) {
         <span className="flex items-center gap-1">
           <span className="w-4 h-4 rounded-full bg-danger" /> 50+
         </span>
-        <span className="ml-auto">{block.regions.length} GCP regions</span>
+        <span className="ml-auto flex items-center gap-3">
+          {block.regions.length} GCP regions
+          <a
+            href="/dash"
+            target="_blank"
+            rel="noopener noreferrer"
+            className={cn(
+              'flex items-center gap-1 px-2 py-0.5 rounded',
+              'text-accent hover:text-accent/80 border border-accent/20 hover:border-accent/40',
+              'transition-colors',
+            )}
+          >
+            <ExternalLink className="w-3 h-3" />
+            Open in 3D Viewer
+          </a>
+        </span>
       </div>
     </div>
   )
