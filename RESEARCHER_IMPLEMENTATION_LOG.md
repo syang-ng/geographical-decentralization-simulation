@@ -161,3 +161,17 @@ This log is intentionally short and skim-first. It tracks the core engineering s
 
 - Truth-first note:
   This was a presentation and verification pass. It changes how the simulation is framed and rendered in the explorer, not the underlying exact simulation outputs.
+
+## Exact Surface First, Assistant Optional
+
+- `explorer/src/components/simulation/SimResultsPanel.tsx`
+  The live Simulation Lab now foregrounds exact manifest fields and exact run metadata more literally. The default surface emphasizes emitted fields such as `finalAverageMev`, `finalSupermajoritySuccess`, `finalFailedBlockProposals`, `finalUtilityIncrease`, `slotsRecorded`, config values, and provenance rather than assistant-written story text.
+
+- `explorer/src/components/simulation/SimCopilotPanel.tsx`
+  The assistant layer is now opt-in by default. Users first see the exact surface, and only open the assistant when they explicitly want bounded framing, comparison help, or chart reordering. Assistant responses are labeled as framing/guidance rather than presented as default meaning.
+
+- `explorer/src/components/simulation/simulation-constants.ts`, `explorer/server/study-context.ts`, `explorer/server/index.ts`
+  Paper experiment names are now treated more explicitly as references for orientation. The prompt and truth-boundary language now biases toward exact metadata and artifact labels over paraphrased summaries.
+
+- Truth-first note:
+  This pass tightened presentation discipline around the exact surface. It does not add new paper metrics to the live manifest, and it does not change the canonical simulation outputs.

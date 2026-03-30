@@ -74,22 +74,18 @@ export function DeepDivePage() {
   return (
     <div>
       {/* Page header */}
-      <div className="mb-8">
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
-          <div className="max-w-2xl">
-            <div className="flex items-center gap-2 mb-2">
-              <span className="w-2 h-2 rounded-full bg-accent" />
+      <div className="mb-6">
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            <div className="flex items-center gap-2 mb-1">
+              <span className="w-1.5 h-1.5 rounded-full bg-accent" />
               <span className="text-xs text-muted">Paper deep dive</span>
             </div>
-            <h1 className="text-xl font-semibold text-text-primary">
-              Jump to the argument, paradoxes, and caveats.
+            <h1 className="text-lg font-semibold text-text-primary">
+              Argument, paradoxes, and caveats.
             </h1>
-            <p className="mt-2 text-sm text-muted">
-              Use this when you want the paper in order, but with clearer entry points into the sections that carry the most explanatory weight.
-            </p>
           </div>
-
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 shrink-0">
             <button
               onClick={expandAll}
               className="rounded-md border border-border-subtle px-3 py-1.5 text-xs text-muted transition-colors hover:border-border-hover hover:text-text-primary"
@@ -102,21 +98,6 @@ export function DeepDivePage() {
             >
               Collapse all
             </button>
-          </div>
-        </div>
-
-        <div className="grid gap-4 sm:grid-cols-3 border-t border-border-subtle mt-4 pt-4 text-xs text-muted">
-          <div>
-            <div className="mb-1">Sections</div>
-            <div className="text-sm text-text-primary">{PAPER_SECTIONS.length} paper checkpoints</div>
-          </div>
-          <div>
-            <div className="mb-1">Sharpest paradox</div>
-            <div className="text-sm text-text-primary">SE4a attestation threshold</div>
-          </div>
-          <div>
-            <div className="mb-1">Confidence boundary</div>
-            <div className="text-sm text-text-primary">Limitations and assumptions</div>
           </div>
         </div>
       </div>

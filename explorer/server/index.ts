@@ -90,7 +90,7 @@ const DEFAULT_GENERATED_SOURCE_BLOCK: Block = {
 }
 const DEFAULT_GENERATED_CAVEAT_BLOCK: Block = {
   type: 'caveat',
-  text: 'Interpret the narrative as a guided reading of the paper context, not as new evidence beyond the cited study and exact simulation outputs.',
+  text: 'Assistant framing is secondary to the cited paper context and any exact simulation outputs shown alongside it.',
 }
 
 const DEFAULT_SIMULATION_CONFIG: SimulationRequest = {
@@ -419,6 +419,28 @@ function trimTrailingPunctuation(value: string): string {
   return value.replace(/[.?!:;,]+$/g, '').trim()
 }
 
+function normalizeInterpretiveTitle(rawTitle: string | undefined): string {
+  const title = limitText(rawTitle, 72)
+  if (!title) return 'Guide interpretation'
+  if (/^(guide interpretation|interpretation|assistant framing|reading note)/i.test(title)) {
+    return title
+  }
+  return limitText(`Guide interpretation: ${title}`, 72)
+}
+
+function qualifyPaperSummary(rawSummary: string | undefined, fallback = ''): string {
+  const summary = limitText(rawSummary, 140)
+  const safeFallback = limitText(fallback, 140)
+  if (!summary) return safeFallback ?? ''
+  if (
+    /^(paper-backed reading:|from the paper\b|based on the paper\b|what the paper suggests:)/i.test(summary)
+    || /\b(shows|suggests|indicates|points to)\b/i.test(summary)
+  ) {
+    return summary
+  }
+  return limitText(`Paper-backed reading: ${summary}`, 140) || safeFallback || 'Paper-backed exploration'
+}
+
 function stablePriority(type: Block['type']): number {
   switch (type) {
     case 'stat':
@@ -444,6 +466,21 @@ function blockSignature(block: Block): string {
   return JSON.stringify(block)
 }
 
+function orderBlocksEvidenceFirst(blocks: readonly Block[]): Block[] {
+  return blocks
+    .map((block, index) => ({
+      block: block.type === 'insight'
+        ? { ...block, title: normalizeInterpretiveTitle(block.title) }
+        : block,
+      index,
+    }))
+    .toSorted((left, right) => {
+      const priorityGap = stablePriority(left.block.type) - stablePriority(right.block.type)
+      return priorityGap !== 0 ? priorityGap : left.index - right.index
+    })
+    .map(entry => entry.block)
+}
+
 function normalizeGeneratedBlock(block: Block): Block | null {
   switch (block.type) {
     case 'stat': {
@@ -463,7 +500,7 @@ function normalizeGeneratedBlock(block: Block): Block | null {
       if (!text) return null
       return {
         ...block,
-        title: limitText(block.title, 72) || undefined,
+        title: normalizeInterpretiveTitle(block.title),
         text,
       }
     }
@@ -607,15 +644,15 @@ function normalizeGeneratedSummary(
   query: string,
   blocks: readonly Block[],
 ): string {
-  const summary = limitText(rawSummary, 140)
+  const summary = qualifyPaperSummary(rawSummary, '')
   if (summary) return summary
 
   const firstInsight = blocks.find((block): block is Extract<Block, { type: 'insight' }> => block.type === 'insight')
   if (firstInsight?.title) {
-    return limitText(firstInsight.title, 140)
+    return qualifyPaperSummary(firstInsight.title, '')
   }
 
-  return limitText(trimTrailingPunctuation(query), 140) || 'Paper-backed exploration'
+  return qualifyPaperSummary(undefined, trimTrailingPunctuation(query))
 }
 
 function fallbackFollowUps(query: string): string[] {
@@ -672,13 +709,7 @@ function normalizeGeneratedBlocks(rawBlocks: unknown[] | undefined): Block[] {
     all.findIndex(candidate => blockSignature(candidate) === blockSignature(block)) === index,
   )
 
-  const ordered = deduped
-    .map((block, index) => ({ block, index }))
-    .toSorted((left, right) => {
-      const priorityGap = stablePriority(left.block.type) - stablePriority(right.block.type)
-      return priorityGap !== 0 ? priorityGap : left.index - right.index
-    })
-    .map(entry => entry.block)
+  const ordered = orderBlocksEvidenceFirst(deduped)
 
   const hasInsight = ordered.some(block => block.type === 'insight' || block.type === 'comparison')
   const hasSource = ordered.some(block => block.type === 'source')
@@ -702,8 +733,8 @@ function normalizeGeneratedBlocks(rawBlocks: unknown[] | undefined): Block[] {
     polished.splice(Math.min(1, polished.length), 0, {
       type: 'insight',
       emphasis: 'normal',
-      title: 'Interpretation',
-      text: 'Read this composition as a concise guide to the study evidence, not as a replacement for the underlying paper context.',
+      title: 'Assistant framing',
+      text: 'This composition is a compact guide to the supplied evidence. Treat the underlying paper context, artifact labels, and exact outputs as primary.',
     })
   }
 
@@ -828,23 +859,23 @@ function paperScenarioLabels(config: SimulationRequest): string[] {
   const labels: string[] = []
 
   if (config.distribution === 'heterogeneous' && config.sourcePlacement !== 'homogeneous') {
-    labels.push('SE3 joint heterogeneity')
+    labels.push('Reference: SE3 joint heterogeneity')
   } else if (config.distribution === 'heterogeneous') {
-    labels.push('SE2 heterogeneous validators')
+    labels.push('Reference: SE2 heterogeneous validators')
   } else if (config.distribution === 'homogeneous-gcp') {
     labels.push('Equal per-GCP validator start')
   } else if (config.sourcePlacement === 'latency-aligned') {
-    labels.push('SE1 latency-aligned sources')
+    labels.push('Reference: SE1 latency-aligned sources')
   } else if (config.sourcePlacement === 'latency-misaligned') {
-    labels.push('SE1 latency-misaligned sources')
+    labels.push('Reference: SE1 latency-misaligned sources')
   } else {
-    labels.push('Baseline geography/source setup')
+    labels.push('Reference: baseline geography/source setup')
   }
 
   if (config.slotTime === 6) {
-    labels.push('SE4b shorter slots')
+    labels.push('Reference: SE4b shorter slots')
   } else if (Math.abs(config.attestationThreshold - 2 / 3) > 0.01) {
-    labels.push('SE4a gamma variation')
+    labels.push('Reference: SE4a gamma variation')
   }
 
   labels.push(config.paradigm === 'SSP' ? 'SSP exact mode' : 'MSP exact mode')
@@ -940,6 +971,7 @@ function buildSimulationConfig(input: Record<string, unknown>) {
     notes: [
       'Named study presets use the paper-style 10,000-slot and 0.002 ETH reference setup unless you override fields.',
       'It composes a run configuration only; it does not execute the simulation.',
+      'Scenario labels are paper references for orientation, not standalone evidence.',
     ],
   }
 }
@@ -981,14 +1013,14 @@ function buildTruthBoundary(
 
   if (mode === 'guidance' || !hasManifest) {
     return {
-      label: 'Guidance, not evidence',
+      label: 'Guide interpretation, not evidence',
       detail: 'This response is guidance about the supported model surface. It should not be read as an exact simulation result.',
     }
   }
 
   return {
-    label: 'Interpretation over exact outputs',
-    detail: 'The numbers and charts come from the exact manifest and artifacts for the loaded run. The ordering, emphasis, and narrative are model-generated interpretation.',
+    label: 'Assistant framing over exact outputs',
+    detail: 'The numbers and charts come from the exact manifest and artifacts for the loaded run. The ordering, emphasis, and narrative are secondary model framing.',
   }
 }
 
@@ -1434,7 +1466,7 @@ async function resolveSimulationViewSpec(
     }
   }
 
-  if (blocks.length > 0) return blocks
+  if (blocks.length > 0) return orderBlocksEvidenceFirst(blocks)
 
   return [
     {

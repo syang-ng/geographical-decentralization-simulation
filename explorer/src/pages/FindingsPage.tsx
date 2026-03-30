@@ -273,50 +273,36 @@ export function FindingsPage({
     ? aiResponse.followUps
     : activeTopic?.prompts ?? OVERVIEW_CARD.prompts
   const promptSectionTitle = aiResponse ? 'Keep exploring' : 'Try one of these questions'
-  const promptCountLabel = aiResponse
-    ? `${aiResponse.followUps.length} suggested next questions`
-    : `${promptOptions.length} good entry questions`
 
   return (
     <div>
       {/* Page header with constellation decoration */}
-      <div className="mb-10 relative">
+      <div className="mb-6 relative">
         <NodeConstellation className="absolute right-0 top-0 w-32 h-32 opacity-40 pointer-events-none hidden sm:block" />
 
-        <h1 className="text-2xl sm:text-3xl font-bold text-text-primary font-serif leading-tight max-w-lg">
+        <h1 className="text-xl sm:text-2xl font-bold text-text-primary font-serif leading-tight max-w-lg">
           Start with the paper’s sharpest questions.
         </h1>
-        <p className="mt-3 text-sm text-muted max-w-2xl leading-relaxed">
-          Use curated lenses to get the stakes first: why geography is not neutral, where the paradoxes sit, and where the model stops short. Then ask a bounded question without losing provenance.
+        <p className="mt-2 text-sm text-muted max-w-2xl leading-relaxed">
+          Curated lenses for the stakes, paradoxes, and model limitations. Then ask a bounded question.
         </p>
 
-        <div className="flex flex-wrap items-center gap-4 mt-4 text-xs text-muted">
+        <div className="flex flex-wrap items-center gap-3 mt-3 text-xs text-muted">
           <span className="inline-flex items-center gap-1.5">
-            <span className="w-2 h-2 rounded-full bg-success" />
-            Strong entry lenses first
+            <span className="w-1.5 h-1.5 rounded-full bg-success" />
+            Curated lenses
           </span>
           <span className="inline-flex items-center gap-1.5">
-            <span className="w-2 h-2 rounded-full bg-warning" />
-            Prior readings stay attributable
+            <span className="w-1.5 h-1.5 rounded-full bg-warning" />
+            Prior readings
           </span>
           <span className="inline-flex items-center gap-1.5">
-            <span className="w-2 h-2 rounded-full bg-accent dot-pulse" />
-            Fresh interpretation when needed
+            <span className="w-1.5 h-1.5 rounded-full bg-accent dot-pulse" />
+            Fresh interpretation
           </span>
         </div>
 
-        <div className="mt-4">
-          <div className="mb-2 flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <div className="text-xs text-muted">Ask the paper</div>
-              <div className="text-sm text-text-primary">
-                Use this box for research questions, interpretations, and paper findings.
-              </div>
-            </div>
-            <div className="text-xs text-muted">
-              Use Simulation Lab for exact runs and bounded next-step guidance.
-            </div>
-          </div>
+        <div className="mt-3">
           <QueryBar
             onSubmit={handleQuery}
             loading={loading}
@@ -396,43 +382,14 @@ export function FindingsPage({
       <div className="topo-divider mb-6" />
 
       {/* Active lens */}
-      <div className="mb-6">
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between mb-4">
-          <div>
-            <h2 className="text-lg font-semibold text-text-primary font-serif">
-              {heading}
-            </h2>
-          </div>
+      <div className="mb-5">
+        <div className="flex items-center justify-between gap-3 mb-3">
+          <h2 className="text-base font-semibold text-text-primary font-serif truncate">
+            {heading}
+          </h2>
           <div className="flex items-center gap-1.5 text-xs text-muted shrink-0">
             <span className={cn('w-1.5 h-1.5 rounded-full', dotColor[displayProvenance.source] ?? 'bg-accent')} />
-            {displayProvenance.label}
-          </div>
-        </div>
-
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4 text-xs text-muted border-t border-border-subtle pt-4">
-          <div>
-            <div className="text-xs text-muted mb-1">Mode</div>
-            <div className="text-sm text-text-primary">
-              {showAi ? 'Question-driven exploration' : showTopic ? 'Curated topic card' : 'Editorial overview'}
-            </div>
-          </div>
-          <div>
-            <div className="text-xs text-muted mb-1">Current query</div>
-            <div className="text-sm text-text-primary line-clamp-2">
-              {activeQuery ?? activeTopic?.prompts[0] ?? 'What are the main findings?'}
-            </div>
-          </div>
-          <div>
-            <div className="text-xs text-muted mb-1">Evidence path</div>
-            <div className="text-sm text-text-primary line-clamp-2">
-              {evidencePath}
-            </div>
-          </div>
-          <div>
-            <div className="text-xs text-muted mb-1">Follow-ups</div>
-            <div className="text-sm text-text-primary">
-              {promptCountLabel}
-            </div>
+            {evidencePath}
           </div>
         </div>
       </div>

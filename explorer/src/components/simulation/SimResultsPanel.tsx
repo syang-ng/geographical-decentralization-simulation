@@ -2,7 +2,14 @@ import { startTransition } from 'react'
 import { Check, Copy } from 'lucide-react'
 import { BlockCanvas } from '../explore/BlockCanvas'
 import { cn } from '../../lib/cn'
-import { formatBytes, formatNumber, paperScenarioLabels } from './simulation-constants'
+import {
+  attestationCutoffMs,
+  describeDistribution,
+  describeSourcePlacement,
+  formatBytes,
+  formatNumber,
+  paperScenarioLabels,
+} from './simulation-constants'
 import type {
   SimulationArtifact,
   SimulationManifest,
@@ -15,7 +22,7 @@ function buildRunSummary(manifest: SimulationManifest): string {
   return [
     `Exact simulation run`,
     `Paradigm: ${manifest.config.paradigm}`,
-    `Scenario: ${paperScenarioLabels(manifest.config).join(' | ')}`,
+    `Reference tags: ${paperScenarioLabels(manifest.config).join(' | ')}`,
     `Seed: ${manifest.config.seed}`,
     `Validators: ${manifest.config.validators}`,
     `Slots: ${manifest.config.slots}`,
@@ -58,6 +65,13 @@ interface SimResultsPanelProps {
   readonly onCopy: (text: string, kind: 'config' | 'run') => void
 }
 
+interface ExactMetricCard {
+  readonly key: string
+  readonly label: string
+  readonly value: string
+  readonly suffix?: string
+}
+
 export function SimResultsPanel({
   manifest,
   overviewBundleOptions,
@@ -76,36 +90,70 @@ export function SimResultsPanel({
   copyState,
   onCopy,
 }: SimResultsPanelProps) {
+  const exactMetricCards: readonly ExactMetricCard[] = [
+    {
+      key: 'finalAverageMev',
+      label: 'finalAverageMev',
+      value: formatNumber(manifest.summary.finalAverageMev, 4),
+      suffix: 'ETH',
+    },
+    {
+      key: 'finalSupermajoritySuccess',
+      label: 'finalSupermajoritySuccess',
+      value: `${formatNumber(manifest.summary.finalSupermajoritySuccess, 2)}%`,
+    },
+    {
+      key: 'finalFailedBlockProposals',
+      label: 'finalFailedBlockProposals',
+      value: formatNumber(manifest.summary.finalFailedBlockProposals, 0),
+    },
+    {
+      key: 'finalUtilityIncrease',
+      label: 'finalUtilityIncrease',
+      value: formatNumber(manifest.summary.finalUtilityIncrease, 4),
+      suffix: 'ETH',
+    },
+    {
+      key: 'slotsRecorded',
+      label: 'slotsRecorded',
+      value: manifest.summary.slotsRecorded.toLocaleString(),
+    },
+    {
+      key: 'runtimeSeconds',
+      label: 'runtimeSeconds',
+      value: `${formatNumber(manifest.runtimeSeconds, 2)}s`,
+    },
+  ] as const
+
   return (
     <>
-      <div className="grid grid-cols-2 xl:grid-cols-4 gap-3 mb-6">
-        <div className="bg-white border border-border-subtle rounded-lg p-4">
-          <div className="text-xs text-muted mb-2">Avg MEV</div>
-          <div className="text-2xl font-semibold text-text-primary">
-            {formatNumber(manifest.summary.finalAverageMev, 4)}
+      <div className="lab-stage p-5 mb-6">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+          <div>
+            <div className="text-xs text-muted mb-1">
+              Exact manifest summary
+            </div>
+            <div className="text-sm text-text-primary">
+              Primary fields emitted by the current exact run.
+            </div>
           </div>
-          <div className="text-xs text-muted mt-1">ETH</div>
-        </div>
-
-        <div className="bg-white border border-border-subtle rounded-lg p-4">
-          <div className="text-xs text-muted mb-2">Supermajority</div>
-          <div className="text-2xl font-semibold text-text-primary">
-            {formatNumber(manifest.summary.finalSupermajoritySuccess, 2)}%
-          </div>
-        </div>
-
-        <div className="bg-white border border-border-subtle rounded-lg p-4">
-          <div className="text-xs text-muted mb-2">Runtime</div>
-          <div className="text-2xl font-semibold text-text-primary">
-            {formatNumber(manifest.runtimeSeconds, 2)}s
+          <div className="max-w-xl text-xs text-muted">
+            This surface stays literal to the manifest and artifact metadata. It does not infer paper metrics the live exact run does not currently emit.
           </div>
         </div>
 
-        <div className="bg-white border border-border-subtle rounded-lg p-4">
-          <div className="text-xs text-muted mb-2">Slots</div>
-          <div className="text-2xl font-semibold text-text-primary">
-            {manifest.summary.slotsRecorded.toLocaleString()}
-          </div>
+        <div className="grid grid-cols-2 gap-3 mt-4 xl:grid-cols-6">
+          {exactMetricCards.map(card => (
+            <div key={card.key} className="lab-metric-card">
+              <div className="text-[10px] uppercase tracking-[0.16em] text-text-faint">{card.label}</div>
+              <div className="mt-2 text-xl font-semibold text-text-primary tabular-nums">
+                {card.value}
+              </div>
+              {card.suffix && (
+                <div className="mt-1 text-xs text-muted">{card.suffix}</div>
+              )}
+            </div>
+          ))}
         </div>
       </div>
 
@@ -113,7 +161,7 @@ export function SimResultsPanel({
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div>
             <div className="text-xs text-muted mb-1">
-              Run provenance
+              Exact metadata and provenance
             </div>
             <div className="text-sm text-text-primary">
               {manifest.cacheHit ? 'Exact cache hit' : 'Fresh exact execution'}
@@ -125,10 +173,7 @@ export function SimResultsPanel({
             </div>
             <div className="flex flex-wrap gap-2 mt-3">
               {paperScenarioLabels(manifest.config).map(label => (
-                <span
-                  key={label}
-                  className="inline-flex items-center gap-1.5 text-xs text-muted"
-                >
+                <span key={label} className="lab-chip">
                   <span className="w-1.5 h-1.5 rounded-full bg-accent" />
                   {label}
                 </span>
@@ -154,22 +199,45 @@ export function SimResultsPanel({
           </div>
         </div>
 
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-4 text-xs text-muted">
-          <div>
-            <span className="block text-xs text-text-faint">Seed</span>
-            {manifest.config.seed}
+        <div className="grid gap-3 mt-4 text-xs text-muted sm:grid-cols-2 xl:grid-cols-4">
+          <div className="lab-metric-card">
+            <div className="text-[10px] uppercase tracking-[0.16em] text-text-faint">Configuration</div>
+            <div className="mt-2 text-sm font-medium text-text-primary">{manifest.config.paradigm} exact mode</div>
+            <div className="mt-1 text-xs text-muted">{describeDistribution(manifest.config.distribution)}</div>
+            <div className="mt-1 text-xs text-muted">{describeSourcePlacement(manifest.config.sourcePlacement)}</div>
           </div>
-          <div>
-            <span className="block text-xs text-text-faint">Validators</span>
-            {manifest.config.validators.toLocaleString()}
+          <div className="lab-metric-card">
+            <div className="text-[10px] uppercase tracking-[0.16em] text-text-faint">Consensus timing</div>
+            <div className="mt-2 text-sm font-medium text-text-primary">
+              gamma {formatNumber(manifest.config.attestationThreshold, 4)}
+            </div>
+            <div className="mt-1 text-xs text-muted">
+              cutoff {attestationCutoffMs(manifest.config.slotTime).toLocaleString()} ms
+            </div>
+            <div className="mt-1 text-xs text-muted">
+              slot time {manifest.config.slotTime}s
+            </div>
           </div>
-          <div>
-            <span className="block text-xs text-text-faint">Slots</span>
-            {manifest.config.slots.toLocaleString()}
+          <div className="lab-metric-card">
+            <div className="text-[10px] uppercase tracking-[0.16em] text-text-faint">Run identity</div>
+            <div className="mt-2 text-sm font-medium text-text-primary">
+              seed {manifest.config.seed}
+            </div>
+            <div className="mt-1 text-xs text-muted">
+              validators {manifest.config.validators.toLocaleString()} · slots {manifest.config.slots.toLocaleString()}
+            </div>
+            <div className="mt-1 text-xs text-muted break-all">
+              cache {manifest.cacheKey}
+            </div>
           </div>
-          <div>
-            <span className="block text-xs text-text-faint">Cache key</span>
-            {manifest.cacheKey.slice(0, 12)}
+          <div className="lab-metric-card">
+            <div className="text-[10px] uppercase tracking-[0.16em] text-text-faint">Paper metric availability</div>
+            <div className="mt-2 text-sm font-medium text-text-primary">
+              Published surface: Gini_g / HHI_g / CV_g / LC_g
+            </div>
+            <div className="mt-1 text-xs text-muted">
+              Live exact manifest currently emits MEV, supermajority, failed proposals, utility increase, and renderable artifacts. Paper metrics should move here only when the exact manifest exports them directly.
+            </div>
           </div>
         </div>
       </div>
@@ -181,7 +249,7 @@ export function SimResultsPanel({
               Exact overview
             </div>
             <div className="text-sm text-text-primary">
-              Prebuilt exact overview bundles for the current run.
+              Prebuilt exact bundles derived from the current manifest and artifact sidecars.
             </div>
           </div>
           <div className="text-xs text-muted">
@@ -250,7 +318,7 @@ export function SimResultsPanel({
               Artifact manifest
             </div>
             <div className="text-sm text-text-primary">
-              Summary data is already loaded. Pick a derived artifact or a raw export with compression ready.
+              Exact artifact labels and descriptions emitted for this run.
             </div>
           </div>
           <div className="text-xs text-muted text-right">
@@ -302,6 +370,11 @@ export function SimResultsPanel({
             <div className="text-sm text-text-primary">
               {selectedArtifact?.label ?? 'Select an artifact to render'}
             </div>
+            {selectedArtifact?.description && (
+              <div className="mt-1 text-xs text-muted">
+                {selectedArtifact.description}
+              </div>
+            )}
           </div>
           {selectedArtifact && (
             <div className="text-xs text-muted">

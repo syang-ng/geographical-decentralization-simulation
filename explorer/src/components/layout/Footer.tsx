@@ -1,7 +1,7 @@
 export function Footer() {
   return (
-    <footer className="border-t border-rule mt-16">
-      <div className="max-w-5xl mx-auto px-4 sm:px-6 py-8">
+    <footer className="border-t border-rule mt-12">
+      <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6">
         <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
           <p className="text-xs text-muted">
             Yang, Oz, Wu, Zhang (2025) · arXiv:2509.21475 · MIT License

@@ -11,7 +11,7 @@ export function StatBlock({ block }: StatBlockProps) {
   return (
     <motion.div
       {...HOVER_LIFT}
-      className="bg-white border border-border-subtle rounded-lg p-5 sm:p-6 topo-bg relative overflow-hidden group"
+      className="bg-white border border-border-subtle rounded-lg p-5 topo-bg relative overflow-hidden group geo-accent-bar"
     >
       {/* Faint coordinate corner — reveals on hover */}
       <span className="coord-label absolute top-2 right-3 opacity-0 group-hover:opacity-100 transition-opacity">

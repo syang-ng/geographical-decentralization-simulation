@@ -1,8 +1,9 @@
-import { useState } from 'react'
+import { useId, useMemo, useState } from 'react'
 import { motion } from 'framer-motion'
 import { ExternalLink } from 'lucide-react'
-import { SPRING } from '../../lib/theme'
+import { SPRING, SPRING_SOFT } from '../../lib/theme'
 import { cn } from '../../lib/cn'
+import { CONTINENT_OUTLINES } from '../../data/world-outlines'
 import type { MapBlock as MapBlockType } from '../../types/blocks'
 
 interface MapBlockProps {
@@ -17,209 +18,291 @@ function latLonToMercator(lat: number, lon: number, width: number, height: numbe
   return { x, y }
 }
 
+function continentPaths(width: number, height: number): string[] {
+  return CONTINENT_OUTLINES.map(continent => {
+    const segments = continent.points.map((point, index) => {
+      const { x, y } = latLonToMercator(point[0], point[1], width, height)
+      return `${index === 0 ? 'M' : 'L'}${x.toFixed(1)},${y.toFixed(1)}`
+    })
+    return segments.join(' ') + ' Z'
+  })
+}
+
 function getDotRadius(value: number, maxValue: number): number {
-  const normalized = Math.max(value / Math.max(maxValue, 1), 0.08)
-  return 4 + normalized * 8
+  const normalized = Math.max(value / Math.max(maxValue, 1), 0.05)
+  return 3 + normalized * 8
 }
 
 function getDotColor(value: number, maxValue: number, colorScale?: string): string {
-  if (colorScale === 'binary') return value > 0 ? '#22C55E' : '#D4D4D2'
+  if (colorScale === 'binary') return value > 0 ? '#16A34A' : '#3B3B3B'
   if (colorScale === 'change') {
-    if (value > 0) return '#22C55E'
-    if (value < 0) return '#EF4444'
-    return '#9CA3AF'
+    if (value > 0) return '#16A34A'
+    if (value < 0) return '#DC2626'
+    return '#555'
   }
   const t = Math.min(value / Math.max(maxValue, 1), 1)
-  if (t < 0.33) return '#5B8DEF'
-  if (t < 0.66) return '#D97757'
-  return '#B45309'
+  if (t < 0.2) return '#64748B'
+  if (t < 0.45) return '#2563EB'
+  if (t < 0.7) return '#C2553A'
+  return '#F59E0B'
+}
+
+/** Connection line opacity based on combined value of both endpoints */
+function getEdgeOpacity(va: number, vb: number, maxValue: number): number {
+  const combined = (va + vb) / (2 * Math.max(maxValue, 1))
+  return 0.06 + combined * 0.18
 }
 
 export function MapBlock({ block }: MapBlockProps) {
+  const bgId = useId()
+  const pulseGradientId = useId()
   const [tooltip, setTooltip] = useState<{ x: number; y: number; label: string; value: number } | null>(null)
-  const maxValue = Math.max(...block.regions.map(region => region.value), 1)
-  const topRegions = [...block.regions]
-    .toSorted((left, right) => right.value - left.value)
-    .slice(0, 4)
+  const maxValue = Math.max(...block.regions.map(r => r.value), 1)
+
+  const sorted = useMemo(
+    () => [...block.regions].toSorted((a, b) => b.value - a.value),
+    [block.regions],
+  )
+  const topRegions = sorted.slice(0, 6)
 
   const svgW = 800
   const svgH = 420
+  const landPaths = useMemo(() => continentPaths(svgW, svgH), [])
+
+  // Build latency network edges — connect every region to its N nearest neighbours
+  const edges = useMemo(() => {
+    const pts = block.regions.map(r => ({
+      ...r,
+      ...latLonToMercator(r.lat, r.lon, svgW, svgH),
+    }))
+    const result: { x1: number; y1: number; x2: number; y2: number; va: number; vb: number }[] = []
+    const N = Math.min(3, pts.length - 1) // nearest-N connections
+    for (const p of pts) {
+      const distances = pts
+        .filter(q => q.name !== p.name)
+        .map(q => ({ q, d: Math.hypot(q.x - p.x, q.y - p.y) }))
+        .toSorted((a, b) => a.d - b.d)
+        .slice(0, N)
+      for (const { q } of distances) {
+        // Deduplicate — only add if name1 < name2
+        if (p.name < q.name) {
+          result.push({ x1: p.x, y1: p.y, x2: q.x, y2: q.y, va: p.value, vb: q.value })
+        }
+      }
+    }
+    return result
+  }, [block.regions])
 
   return (
-    <div className="lab-panel overflow-hidden rounded-xl">
-      <div className="border-b border-border-subtle px-5 py-4">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <h3 className="text-sm font-medium text-text-primary">
-              {block.title}
-            </h3>
-            <p className="mt-1 text-xs text-muted">
-              Geographic distribution rendered directly from exact region counts, with emphasis on dominant corridors and spatial reading rather than decorative 3D distortion.
-            </p>
+    <div className="overflow-hidden rounded-xl border border-border-subtle bg-white">
+      <div className="border-b border-border-subtle px-5 py-3">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <span className="w-1.5 h-1.5 rounded-full bg-accent dot-pulse" />
+            <h3 className="text-sm font-medium text-text-primary">{block.title}</h3>
           </div>
-
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="lab-chip">{block.regions.length} measured regions</span>
-            <span className="lab-chip">max {maxValue} validators</span>
+          <div className="flex items-center gap-3 text-xs text-muted">
+            <span>{block.regions.length} nodes</span>
+            <span className="font-mono text-[10px]">{edges.length} links</span>
           </div>
         </div>
       </div>
 
-      <div className="grid gap-4 px-5 py-5 lg:grid-cols-[1.45fr_minmax(0,0.7fr)]">
-        <div className="relative overflow-hidden rounded-2xl border border-border-subtle bg-[radial-gradient(circle_at_20%_15%,rgba(59,130,246,0.12),transparent_26%),radial-gradient(circle_at_80%_18%,rgba(217,119,87,0.12),transparent_28%),linear-gradient(180deg,#fcfcfa,#f0efeb)] shadow-[inset_0_1px_0_rgba(255,255,255,0.84)]" style={{ minHeight: 320 }}>
-          <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(transparent_31px,rgba(26,26,26,0.03)_32px),linear-gradient(90deg,transparent_31px,rgba(26,26,26,0.03)_32px)] bg-[size:32px_32px]" />
-          <div className="pointer-events-none absolute inset-x-[14%] top-4 h-20 rounded-full bg-[radial-gradient(circle,rgba(255,255,255,0.92),transparent_72%)] blur-2xl" />
-          <div className="pointer-events-none absolute inset-x-[12%] bottom-[-22%] h-40 rounded-[50%] bg-[radial-gradient(circle,rgba(26,26,26,0.08),transparent_72%)] blur-2xl" />
-          <div className="globe-grid pointer-events-none absolute right-[-12px] top-[-18px] h-48 w-48 opacity-60" />
-
+      <div className="grid gap-4 p-4 lg:grid-cols-[1.5fr_minmax(0,0.55fr)]">
+        {/* ── Network map ── */}
+        <div className="relative overflow-hidden rounded-lg bg-[#0D1117]" style={{ minHeight: 300 }}>
           <svg
             viewBox={`0 0 ${svgW} ${svgH}`}
-            className="relative z-[1] w-full"
+            className="relative w-full"
             preserveAspectRatio="xMidYMid meet"
             role="img"
             aria-label={block.title}
           >
-            <rect x={0} y={0} width={svgW} height={svgH} fill="none" stroke="#E8E8E6" strokeWidth={1} />
-            <ellipse cx={svgW / 2} cy={svgH / 2} rx={svgW * 0.28} ry={svgH * 0.42} fill="none" stroke="#E6EBF0" strokeWidth={1} />
-            <ellipse cx={svgW / 2} cy={svgH / 2} rx={svgW * 0.17} ry={svgH * 0.42} fill="none" stroke="#EDF1F5" strokeWidth={1} />
-            <line x1={0} y1={svgH / 2} x2={svgW} y2={svgH / 2} stroke="#E8E8E6" strokeWidth={0.5} strokeDasharray="4 4" />
-            <line x1={svgW / 2} y1={0} x2={svgW / 2} y2={svgH} stroke="#E8E8E6" strokeWidth={0.5} strokeDasharray="4 4" />
-            {[0.25, 0.75].map(frac => (
-              <line
-                key={`lat-${frac}`}
-                x1={0}
-                y1={svgH * frac}
-                x2={svgW}
-                y2={svgH * frac}
-                stroke="#E8E8E6"
-                strokeWidth={0.5}
-                strokeDasharray="3 6"
-              />
+            <defs>
+              <radialGradient id={bgId} cx="45%" cy="40%" r="65%">
+                <stop offset="0%" stopColor="#131A24" />
+                <stop offset="100%" stopColor="#0D1117" />
+              </radialGradient>
+              <linearGradient id={pulseGradientId} x1="0%" y1="0%" x2="100%" y2="0%">
+                <stop offset="0%" stopColor="#2563EB" stopOpacity="0" />
+                <stop offset="50%" stopColor="#2563EB" stopOpacity="0.6" />
+                <stop offset="100%" stopColor="#2563EB" stopOpacity="0" />
+              </linearGradient>
+            </defs>
+
+            {/* Dark background */}
+            <rect x={0} y={0} width={svgW} height={svgH} fill={`url(#${bgId})`} />
+
+            {/* Subtle graticule */}
+            {[0.25, 0.5, 0.75].map(f => (
+              <line key={`h-${f}`} x1={0} y1={svgH * f} x2={svgW} y2={svgH * f}
+                stroke="#1E293B" strokeWidth={0.5} />
             ))}
-            {[0.25, 0.75].map(frac => (
-              <line
-                key={`lon-${frac}`}
-                x1={svgW * frac}
-                y1={0}
-                x2={svgW * frac}
-                y2={svgH}
-                stroke="#E8E8E6"
+            {[0.25, 0.5, 0.75].map(f => (
+              <line key={`v-${f}`} x1={svgW * f} y1={0} x2={svgW * f} y2={svgH}
+                stroke="#1E293B" strokeWidth={0.5} />
+            ))}
+
+            {/* Faint continent silhouettes — geographic context only */}
+            {landPaths.map((d, i) => (
+              <path
+                key={CONTINENT_OUTLINES[i]!.name}
+                d={d}
+                fill="#1A2332"
+                stroke="#243044"
                 strokeWidth={0.5}
-                strokeDasharray="3 6"
+                strokeLinejoin="round"
               />
             ))}
 
-            {block.regions.map((region, index) => {
-              const { x, y } = latLonToMercator(region.lat, region.lon, svgW, svgH)
-              const radius = getDotRadius(region.value, maxValue)
-              const color = getDotColor(region.value, maxValue, block.colorScale)
-              const isTopRegion = topRegions.some(topRegion => topRegion.name === region.name)
+            {/* Latency network edges */}
+            {edges.map((e, i) => (
+              <motion.line
+                key={`edge-${i}`}
+                x1={e.x1} y1={e.y1} x2={e.x2} y2={e.y2}
+                stroke="#2563EB"
+                strokeWidth={0.5}
+                opacity={getEdgeOpacity(e.va, e.vb, maxValue)}
+                initial={{ opacity: 0 }}
+                animate={{ opacity: getEdgeOpacity(e.va, e.vb, maxValue) }}
+                transition={{ duration: 0.8, delay: 0.3 + i * 0.008 }}
+              />
+            ))}
 
-              return (
-                <g key={region.name}>
-                  {isTopRegion && (
+            {/* Region nodes — ordered back-to-front so large dots render on top */}
+            {[...block.regions]
+              .toSorted((a, b) => a.value - b.value)
+              .map((region, index) => {
+                const { x, y } = latLonToMercator(region.lat, region.lon, svgW, svgH)
+                const radius = getDotRadius(region.value, maxValue)
+                const color = getDotColor(region.value, maxValue, block.colorScale)
+                const isTop = topRegions.some(t => t.name === region.name)
+
+                return (
+                  <g key={region.name}>
+                    {/* Breathing glow for top nodes */}
+                    {isTop && (
+                      <motion.circle
+                        cx={x} cy={y} r={radius * 2.8}
+                        fill={color} fillOpacity={0.04}
+                        animate={{ r: [radius * 2.6, radius * 3, radius * 2.6], fillOpacity: [0.04, 0.08, 0.04] }}
+                        transition={{ duration: 4.5, repeat: Infinity, ease: 'easeInOut', delay: index * 0.2 }}
+                      />
+                    )}
+                    {/* Outer glow */}
                     <motion.circle
-                      cx={x}
-                      cy={y}
-                      r={radius * 2.1}
-                      fill={color}
-                      fillOpacity={0.08}
-                      initial={{ scale: 0.82, opacity: 0 }}
-                      animate={{ scale: [1, 1.04, 1], opacity: [0.08, 0.14, 0.08] }}
-                      transition={{ duration: 5.2, repeat: Infinity, ease: 'easeInOut', delay: index * 0.1 }}
+                      cx={x} cy={y} r={radius * 1.8}
+                      fill={color} fillOpacity={0.08}
+                      initial={{ scale: 0 }}
+                      animate={{ scale: 1 }}
+                      transition={{ ...SPRING_SOFT, delay: 0.2 + index * 0.015 }}
                     />
-                  )}
-                  <motion.circle
-                    cx={x}
-                    cy={y}
-                    r={radius * 1.55}
-                    fill={color}
-                    fillOpacity={0.12}
-                    initial={{ scale: 0, opacity: 0 }}
-                    animate={{ scale: 1, opacity: 1 }}
-                    transition={{ ...SPRING, delay: index * 0.018 }}
-                  />
-                  <motion.circle
-                    cx={x}
-                    cy={y}
-                    r={radius}
-                    fill={color}
-                    fillOpacity={0.88}
-                    stroke="white"
-                    strokeWidth={1.5}
-                    initial={{ scale: 0, opacity: 0 }}
-                    animate={{ scale: 1, opacity: 1 }}
-                    transition={{ ...SPRING, delay: index * 0.018 }}
-                    style={{ cursor: 'pointer' }}
-                    aria-label={`${region.label ?? region.name}: ${region.value} validators`}
-                    onMouseEnter={() => setTooltip({
-                      x,
-                      y,
-                      label: region.label ?? region.name,
-                      value: region.value,
-                    })}
-                    onMouseLeave={() => setTooltip(null)}
-                    whileHover={{ scale: 1.14 }}
-                  />
-                </g>
-              )
-            })}
+                    {/* Core node */}
+                    <motion.circle
+                      cx={x} cy={y} r={radius}
+                      fill={color}
+                      stroke={isTop ? '#fff' : '#334155'}
+                      strokeWidth={isTop ? 1.2 : 0.5}
+                      initial={{ scale: 0, opacity: 0 }}
+                      animate={{ scale: 1, opacity: 1 }}
+                      transition={{ ...SPRING, delay: 0.2 + index * 0.015 }}
+                      style={{ cursor: 'pointer' }}
+                      aria-label={`${region.label ?? region.name}: ${region.value}`}
+                      onMouseEnter={() => setTooltip({ x, y, label: region.label ?? region.name, value: region.value })}
+                      onMouseLeave={() => setTooltip(null)}
+                      whileHover={{ scale: 1.25 }}
+                    />
+                    {/* Label for top regions */}
+                    {isTop && (
+                      <text
+                        x={x} y={y - radius - 5}
+                        textAnchor="middle"
+                        fill="#94A3B8"
+                        fontSize="8"
+                        fontFamily="var(--font-mono)"
+                      >
+                        {region.label ?? region.name}
+                      </text>
+                    )}
+                  </g>
+                )
+              })}
+
+            {/* Corner coordinate labels */}
+            <text x={6} y={12} fill="#334155" fontSize="7" fontFamily="var(--font-mono)">90°N</text>
+            <text x={6} y={svgH - 4} fill="#334155" fontSize="7" fontFamily="var(--font-mono)">90°S</text>
+            <text x={svgW - 30} y={svgH - 4} fill="#334155" fontSize="7" fontFamily="var(--font-mono)">180°E</text>
           </svg>
 
           {tooltip && (
-            <div
+            <motion.div
               role="tooltip"
-              className="absolute z-10 rounded-md border border-border-subtle bg-white/95 px-2.5 py-1.5 text-xs shadow-sm backdrop-blur-sm"
+              initial={{ opacity: 0, y: 4 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.12 }}
+              className="absolute z-10 rounded-md border border-[#334155] bg-[#1A2332] px-2.5 py-1.5 text-xs shadow-lg"
               style={{
                 left: `${(tooltip.x / svgW) * 100}%`,
                 top: `${(tooltip.y / svgH) * 100}%`,
                 transform: 'translate(-50%, -120%)',
               }}
             >
-              <div className="text-text-primary font-medium">{tooltip.label}</div>
-              <div className="text-muted tabular-nums">{tooltip.value} validators</div>
-            </div>
+              <div className="text-white font-medium">{tooltip.label}</div>
+              <div className="text-[#94A3B8] tabular-nums">{tooltip.value} validators</div>
+            </motion.div>
           )}
         </div>
 
+        {/* ── Side panel ── */}
         <div className="space-y-3">
-          <div className="rounded-2xl border border-border-subtle bg-[linear-gradient(180deg,rgba(255,255,255,0.97),rgba(246,245,241,0.86))] p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.78)]">
-            <div className="text-[10px] uppercase tracking-[0.16em] text-text-faint">Leading regions</div>
-            <div className="mt-3 space-y-2">
-              {topRegions.map((region, index) => (
-                <div
-                  key={region.name}
-                  className="flex items-center justify-between gap-3 rounded-lg border border-border-subtle bg-white/80 px-3 py-2"
-                >
-                  <div className="min-w-0">
-                    <div className="text-xs font-medium text-text-primary">
-                      {index + 1}. {region.label ?? region.name}
+          <div className="rounded-lg border border-border-subtle bg-white p-3">
+            <div className="text-[10px] uppercase tracking-[0.12em] text-text-faint mb-2">
+              Top nodes
+            </div>
+            <div className="space-y-1">
+              {topRegions.map(region => {
+                const color = getDotColor(region.value, maxValue, block.colorScale)
+                const pct = ((region.value / maxValue) * 100).toFixed(0)
+                return (
+                  <div key={region.name} className="group">
+                    <div className="flex items-center justify-between gap-2 px-1 py-1">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: color }} />
+                        <span className="text-xs text-text-primary truncate">
+                          {region.label ?? region.name}
+                        </span>
+                      </div>
+                      <span className="text-xs font-semibold tabular-nums text-text-primary shrink-0">
+                        {region.value}
+                      </span>
                     </div>
-                    <div className="mt-0.5 text-xs text-muted">{region.name}</div>
+                    {/* Mini bar */}
+                    <div className="h-0.5 rounded-full bg-surface-active mx-1 mb-0.5">
+                      <div className="h-full rounded-full" style={{ width: `${pct}%`, backgroundColor: color }} />
+                    </div>
                   </div>
-                  <div className="text-sm font-semibold tabular-nums text-text-primary">
-                    {region.value}
-                  </div>
-                </div>
-              ))}
+                )
+              })}
             </div>
           </div>
 
-          <div className="rounded-2xl border border-border-subtle bg-[linear-gradient(180deg,rgba(255,255,255,0.97),rgba(246,245,241,0.86))] p-3 text-xs text-muted shadow-[inset_0_1px_0_rgba(255,255,255,0.78)]">
-            <div className="text-[10px] uppercase tracking-[0.16em] text-text-faint">Legend</div>
-            <div className="mt-3 space-y-2">
-              <div className="flex items-center gap-2">
-                <span className="h-2 w-2 rounded-full bg-[#5B8DEF]" />
-                Lower concentration
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="h-2.5 w-2.5 rounded-full bg-[#D97757]" />
-                Medium concentration
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="h-3 w-3 rounded-full bg-[#B45309]" />
-                Dominant concentration
-              </div>
+          <div className="rounded-lg border border-border-subtle bg-white p-3 text-xs text-muted">
+            <div className="text-[10px] uppercase tracking-[0.12em] text-text-faint mb-2">
+              Concentration
+            </div>
+            <div className="space-y-1.5">
+              <span className="flex items-center gap-1.5">
+                <span className="h-1.5 w-1.5 rounded-full bg-[#64748B]" /> Low validator count
+              </span>
+              <span className="flex items-center gap-1.5">
+                <span className="h-2 w-2 rounded-full bg-[#2563EB]" /> Moderate
+              </span>
+              <span className="flex items-center gap-1.5">
+                <span className="h-2.5 w-2.5 rounded-full bg-[#C2553A]" /> High — latency advantage
+              </span>
+              <span className="flex items-center gap-1.5">
+                <span className="h-3 w-3 rounded-full bg-[#F59E0B]" /> Dominant MEV corridor
+              </span>
             </div>
           </div>
 
@@ -228,11 +311,11 @@ export function MapBlock({ block }: MapBlockProps) {
             target="_blank"
             rel="noopener noreferrer"
             className={cn(
-              'inline-flex items-center gap-1.5 rounded-xl border border-border-subtle bg-white/92 px-3 py-2 text-xs text-accent transition-colors hover:border-border-hover hover:text-accent/80',
+              'inline-flex items-center gap-1.5 rounded-lg border border-border-subtle bg-white px-3 py-2 text-xs text-accent transition-colors hover:border-accent/30',
             )}
           >
             <ExternalLink className="h-3 w-3" />
-            Open in 3D Viewer
+            3D Viewer
           </a>
         </div>
       </div>

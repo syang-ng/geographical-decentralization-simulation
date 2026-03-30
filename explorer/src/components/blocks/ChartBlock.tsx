@@ -1,6 +1,5 @@
 import { useId } from 'react'
 import { motion } from 'framer-motion'
-import { cn } from '../../lib/cn'
 import { BLOCK_COLORS, SPRING } from '../../lib/theme'
 import type { ChartBlock as ChartBlockType } from '../../types/blocks'
 
@@ -10,9 +9,6 @@ interface ChartBlockProps {
 
 export function ChartBlock({ block }: ChartBlockProps) {
   const maxValue = Math.max(1, ...block.data.map(d => Math.abs(d.value)))
-  const minValue = Math.min(...block.data.map(d => d.value))
-  const topDatum = [...block.data].sort((left, right) => Math.abs(right.value) - Math.abs(left.value))[0]
-  const observationCount = block.data.length
   const categoryColors = new Map<string, string>()
   let colorIndex = 0
 
@@ -23,98 +19,59 @@ export function ChartBlock({ block }: ChartBlockProps) {
   }
 
   return (
-    <div className="lab-panel overflow-hidden rounded-xl">
-      <div className="border-b border-border-subtle px-5 py-4">
+    <div className="overflow-hidden rounded-xl border border-border-subtle bg-white">
+      <div className="border-b border-border-subtle px-5 py-3">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <h3 className="text-sm font-medium text-text-primary">
-              {block.title}
-            </h3>
-            <p className="mt-1 text-xs text-muted">
-              {block.chartType === 'line'
-                ? 'Exact trend view with restrained chrome and instrument-style reference framing.'
-                : 'Exact values rendered as proportional bars with the dominant measurement surfaced first.'}
-            </p>
+          <div className="flex items-center gap-2">
+            <span className="w-1.5 h-1.5 rounded-full bg-accent" />
+            <h3 className="text-sm font-medium text-text-primary">{block.title}</h3>
           </div>
-
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="lab-chip">{observationCount} observations</span>
-            {topDatum && (
-              <span className="lab-chip">
-                peak {topDatum.label}: {topDatum.value}{block.unit ?? ''}
+          <div className="flex flex-wrap items-center gap-3 text-xs text-muted">
+            <span>{block.data.length} points</span>
+            {block.unit && <span className="font-mono text-[10px]">{block.unit}</span>}
+            {categoryColors.size > 0 && [...categoryColors.entries()].map(([category, color]) => (
+              <span key={category} className="inline-flex items-center gap-1.5">
+                <span className="h-2 w-2 rounded-full" style={{ backgroundColor: color }} />
+                {category}
               </span>
-            )}
-            <span className="lab-chip">
-              range {minValue} to {maxValue}{block.unit ?? ''}
-            </span>
+            ))}
           </div>
-
-          {categoryColors.size > 0 && (
-            <div className="flex flex-wrap items-center gap-2">
-              {[...categoryColors.entries()].map(([category, color]) => (
-                <span
-                  key={category}
-                  className="inline-flex items-center gap-1.5 text-xs text-muted"
-                >
-                  <span className="h-2 w-2 rounded-full" style={{ backgroundColor: color }} />
-                  {category}
-                </span>
-              ))}
-            </div>
-          )}
         </div>
       </div>
 
-      <div className="px-5 py-5">
+      <div className="px-5 py-4">
         {block.chartType === 'line' ? (
           <LineChart data={block.data} unit={block.unit} />
         ) : (
-          <div className="space-y-3">
+          <div className="space-y-2">
             {block.data.map((d, i) => {
               const barColor = d.category
                 ? (categoryColors.get(d.category) ?? BLOCK_COLORS[i % BLOCK_COLORS.length])
-                : (d.value >= 0 ? '#3B82F6' : '#EF4444')
+                : (d.value >= 0 ? '#2563EB' : '#DC2626')
 
               return (
-                <div key={`${d.label}-${i}`} className="rounded-2xl border border-border-subtle bg-[linear-gradient(180deg,rgba(255,255,255,0.97),rgba(246,245,241,0.86))] p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.75)]">
-                  <div className="mb-2 flex items-center justify-between gap-3">
-                    <div className="min-w-0">
-                      <div className="truncate text-[11px] font-medium uppercase tracking-[0.16em] text-text-faint">
-                        Measurement
-                      </div>
-                      <div className="mt-1 truncate text-xs font-medium text-text-primary">
-                        {d.label}
-                      </div>
-                      {d.category && (
-                        <div className="mt-0.5 text-xs text-muted">
-                          {d.category}
-                        </div>
-                      )}
+                <div key={`${d.label}-${i}`}>
+                  <div className="flex items-baseline justify-between gap-3 mb-1">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className="text-xs text-text-primary truncate">{d.label}</span>
+                      {d.category && <span className="text-[10px] text-muted">{d.category}</span>}
                     </div>
-                    <span className="shrink-0 text-xs text-text-primary tabular-nums font-medium">
+                    <span className="text-xs text-text-primary tabular-nums font-medium shrink-0">
                       {d.value}{block.unit ?? ''}
                     </span>
                   </div>
-
-                  <div className="relative h-6 overflow-hidden rounded-full border border-border-subtle bg-[#F5F5F3]">
-                    <div className="absolute inset-y-0 left-0 w-full bg-[linear-gradient(90deg,rgba(26,26,26,0.03)_1px,transparent_1px)] bg-[length:14%_100%]" />
+                  <div className="relative h-2 overflow-hidden rounded-full bg-surface-active">
                     <motion.div
-                      initial={{ width: 0, opacity: 0.7 }}
-                      animate={{ width: `${(Math.abs(d.value) / maxValue) * 100}%`, opacity: 1 }}
-                      transition={{ ...SPRING, delay: i * 0.06 }}
-                      className="absolute inset-y-0 left-0 rounded-full shadow-[inset_0_1px_0_rgba(255,255,255,0.35)]"
+                      initial={{ width: 0 }}
+                      animate={{ width: `${(Math.abs(d.value) / maxValue) * 100}%` }}
+                      transition={{ ...SPRING, delay: i * 0.04 }}
+                      className="absolute inset-y-0 left-0 rounded-full"
                       style={{ backgroundColor: barColor }}
                     />
                   </div>
                 </div>
               )
             })}
-          </div>
-        )}
-
-        {block.unit && block.chartType !== 'line' && (
-          <div className="mt-3 text-right text-xs text-muted">
-            unit: {block.unit}
           </div>
         )}
       </div>
@@ -156,74 +113,44 @@ function LineChart({ data, unit }: { data: ChartBlockType['data']; unit?: string
 
   return (
     <div>
-      <div className="rounded-2xl border border-border-subtle bg-[radial-gradient(circle_at_15%_0%,rgba(59,130,246,0.1),transparent_32%),linear-gradient(180deg,rgba(255,255,255,0.98),rgba(243,242,238,0.86))] p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.82)]">
-        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-          <div className="text-[11px] uppercase tracking-[0.18em] text-text-faint">
-            Measurement rail
-          </div>
-          <div className="text-[11px] text-muted">
-            {data.length} points{unit ? ` · ${unit}` : ''}
-          </div>
-        </div>
+      <div className="rounded-lg border border-border-subtle bg-[#FAFAF8] p-3">
         <svg viewBox={`0 0 ${width} ${height}`} className="w-full" preserveAspectRatio="xMidYMid meet">
           <defs>
             <linearGradient id={gradientId} x1="0%" x2="0%" y1="0%" y2="100%">
-              <stop offset="0%" stopColor="#3B82F6" stopOpacity="0.16" />
-              <stop offset="100%" stopColor="#3B82F6" stopOpacity="0.015" />
+              <stop offset="0%" stopColor="#2563EB" stopOpacity="0.12" />
+              <stop offset="100%" stopColor="#2563EB" stopOpacity="0.01" />
             </linearGradient>
           </defs>
 
           {[0, 0.25, 0.5, 0.75, 1].map(frac => {
             const y = padding.top + chartH * (1 - frac)
             return (
-              <line
-                key={frac}
-                x1={padding.left}
-                y1={y}
-                x2={width - padding.right}
-                y2={y}
-                stroke="#E8E8E6"
-                strokeWidth={0.5}
-              />
+              <line key={frac} x1={padding.left} y1={y} x2={width - padding.right} y2={y}
+                stroke="#E8E8E6" strokeWidth={0.5} />
             )
           })}
 
-          <line
-            x1={padding.left}
-            y1={baselineY}
-            x2={width - padding.right}
-            y2={baselineY}
-            stroke="#BFC5CC"
-            strokeWidth={0.8}
-          />
+          <line x1={padding.left} y1={baselineY} x2={width - padding.right} y2={baselineY}
+            stroke="#CBD5E1" strokeWidth={0.8} />
 
           {areaD && (
-            <motion.path
-              d={areaD}
-              fill={`url(#${gradientId})`}
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ duration: 0.4, ease: 'easeOut', delay: 0.16 }}
-            />
+            <motion.path d={areaD} fill={`url(#${gradientId})`}
+              initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+              transition={{ duration: 0.4, ease: 'easeOut', delay: 0.16 }} />
           )}
 
-          <motion.path
-            d={pathD}
-            fill="none"
-            stroke="#2563EB"
-            strokeWidth={2.2}
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            initial={{ pathLength: 0 }}
-            animate={{ pathLength: 1 }}
-            transition={{ duration: 0.72, ease: 'easeOut' }}
-          />
+          <motion.path d={pathD} fill="none" stroke="#2563EB" strokeWidth={2}
+            strokeLinecap="round" strokeLinejoin="round"
+            initial={{ pathLength: 0 }} animate={{ pathLength: 1 }}
+            transition={{ duration: 0.72, ease: 'easeOut' }} />
 
           {points.map((p, i) => (
             <g key={`${p.label}-${i}`}>
-              <circle cx={p.x} cy={p.y} r={i === points.length - 1 ? 4 : 2.5} fill="white" stroke="#2563EB" strokeWidth={1.5} />
+              <circle cx={p.x} cy={p.y} r={i === points.length - 1 ? 3.5 : 2}
+                fill="white" stroke="#2563EB" strokeWidth={1.5} />
               {labelIndices.has(i) && (
-                <text x={p.x} y={height - 5} textAnchor="middle" className="fill-[#6B7280] text-[9px]">
+                <text x={p.x} y={height - 5} textAnchor="middle"
+                  className="fill-muted text-[9px]" fontFamily="var(--font-mono)">
                   {p.label}
                 </text>
               )}
@@ -232,31 +159,13 @@ function LineChart({ data, unit }: { data: ChartBlockType['data']; unit?: string
         </svg>
       </div>
 
-      <div className="mt-3 grid gap-2 sm:grid-cols-3">
+      <div className="mt-2 flex gap-4 text-xs text-muted">
         {highestPoint && (
-          <div className="rounded-2xl border border-border-subtle bg-[linear-gradient(180deg,rgba(255,255,255,0.97),rgba(246,245,241,0.86))] px-3 py-2.5 text-xs shadow-[inset_0_1px_0_rgba(255,255,255,0.75)]">
-            <div className="text-[10px] uppercase tracking-[0.16em] text-text-faint">Highest point</div>
-            <div className="mt-1 font-medium tabular-nums text-text-primary">
-              {highestPoint.label}: {highestPoint.value}{unit ?? ''}
-            </div>
-          </div>
+          <span>Peak: <span className="text-text-primary font-medium tabular-nums">{highestPoint.label} {highestPoint.value}{unit ?? ''}</span></span>
         )}
         {latestPoint && (
-          <div className="rounded-2xl border border-accent/20 bg-[#F8FAFF] px-3 py-2.5 text-xs shadow-[inset_0_1px_0_rgba(255,255,255,0.75)]">
-            <div className="text-[10px] uppercase tracking-[0.16em] text-text-faint">Latest value</div>
-            <div className="mt-1 font-medium tabular-nums text-text-primary">
-              {latestPoint.label}: {latestPoint.value}{unit ?? ''}
-            </div>
-          </div>
+          <span>Latest: <span className="text-text-primary font-medium tabular-nums">{latestPoint.label} {latestPoint.value}{unit ?? ''}</span></span>
         )}
-        <div className={cn(
-          'rounded-2xl border border-border-subtle bg-[linear-gradient(180deg,rgba(255,255,255,0.97),rgba(246,245,241,0.86))] px-3 py-2.5 text-xs shadow-[inset_0_1px_0_rgba(255,255,255,0.75)]',
-        )}>
-          <div className="text-[10px] uppercase tracking-[0.16em] text-text-faint">Observed range</div>
-          <div className="mt-1 font-medium tabular-nums text-text-primary">
-            {minY}{unit ?? ''} to {maxY}{unit ?? ''}
-          </div>
-        </div>
       </div>
     </div>
   )

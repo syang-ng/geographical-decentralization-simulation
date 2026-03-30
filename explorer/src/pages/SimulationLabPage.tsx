@@ -3,6 +3,7 @@ import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/rea
 import { SimConfigPanel } from '../components/simulation/SimConfigPanel'
 import { SimCopilotPanel } from '../components/simulation/SimCopilotPanel'
 import { SimJobStatus } from '../components/simulation/SimJobStatus'
+import { ResearchDemoSurface } from '../components/simulation/ResearchDemoSurface'
 import { SimResultsPanel } from '../components/simulation/SimResultsPanel'
 import {
   COPY_RESET_DELAY_MS,
@@ -326,7 +327,6 @@ export function SimulationLabPage() {
 
   const canCancel = jobQuery.data?.status === 'queued' || jobQuery.data?.status === 'running'
   const copilotAvailable = apiHealthQuery.data?.anthropicEnabled ?? false
-  const researchDemoUrl = `${APP_BASE_URL}/research-demo/`
   const copilotPromptSuggestions = copilotResponse?.suggestedPrompts?.length
     ? copilotResponse.suggestedPrompts
     : manifest
@@ -344,92 +344,50 @@ export function SimulationLabPage() {
 
   return (
     <div>
-      <div className="lab-stage mb-8 px-6 py-6">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-          <div>
-            <div className="flex items-center gap-2 mb-2">
-              <span className="w-2 h-2 rounded-full bg-accent" />
-              <span className="text-xs text-muted">Simulation surfaces</span>
-            </div>
-            <h1 className="text-xl font-semibold text-text-primary">
-              Switch between the published research demo and our exact lab.
-            </h1>
-            <p className="mt-2 max-w-2xl text-sm text-muted">
-              Use the research side when you want the canonical paper-style launcher with dataset, Local/External, and published results. Switch to our side when you want live exact runs, deeper controls, and analysis tooling.
-            </p>
-          </div>
+      <div className="flex items-center justify-between gap-4 mb-5">
+        <div className="flex items-center gap-2.5 min-w-0">
+          <span className="w-2 h-2 rounded-full bg-accent shrink-0" />
+          <h1 className="text-base font-semibold text-text-primary truncate">Simulation Lab</h1>
+          <span className="text-xs text-muted hidden sm:inline">Exact runs with bounded workflow</span>
+        </div>
 
-          <div className="inline-flex rounded-full border border-border-subtle bg-white/88 p-1 backdrop-blur-sm">
-            <button
-              onClick={() => setSurfaceMode('research')}
-              className={`rounded-full px-4 py-2 text-xs font-medium transition-colors ${surfaceMode === 'research' ? 'bg-accent text-white' : 'text-text-primary hover:bg-white'}`}
-            >
-              Theirs
-            </button>
-            <button
-              onClick={() => setSurfaceMode('lab')}
-              className={`rounded-full px-4 py-2 text-xs font-medium transition-colors ${surfaceMode === 'lab' ? 'bg-accent text-white' : 'text-text-primary hover:bg-white'}`}
-            >
-              Ours
-            </button>
-          </div>
+        <div className="inline-flex rounded-full border border-border-subtle bg-white p-0.5 shrink-0">
+          <button
+            onClick={() => setSurfaceMode('research')}
+            className={`rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${surfaceMode === 'research' ? 'bg-accent text-white' : 'text-text-primary hover:bg-surface-active'}`}
+          >
+            Published
+          </button>
+          <button
+            onClick={() => setSurfaceMode('lab')}
+            className={`rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${surfaceMode === 'lab' ? 'bg-accent text-white' : 'text-text-primary hover:bg-surface-active'}`}
+          >
+            Lab
+          </button>
         </div>
       </div>
 
       {surfaceMode === 'research' ? (
-        <div className="lab-stage p-4 sm:p-5">
-          <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-            <div>
-              <div className="text-xs text-muted mb-1">
-                Published baseline
-              </div>
-              <div className="text-sm text-text-primary">
-                This is the frozen researcher-style launcher with the canonical dataset family and `Local` / `External` selector flow.
-              </div>
-              <div className="mt-2 text-xs text-muted max-w-2xl">
-                It keeps the paper-facing options separate from our live simulation controls, which avoids mixing viewer navigation with engine parameters like slots.
-              </div>
-            </div>
-
-            <a
-              href={researchDemoUrl}
-              target="_blank"
-              rel="noreferrer"
-              className="inline-flex items-center justify-center rounded-lg border border-border-subtle bg-white px-4 py-2 text-xs font-medium text-text-primary hover:border-border-hover transition-colors"
-            >
-              Open Full Demo
-            </a>
-          </div>
-
-          <div className="mt-4 overflow-hidden rounded-2xl border border-border-subtle bg-white/80 shadow-sm">
-            <iframe
-              title="Published research demo"
-              src={researchDemoUrl}
-              className="block h-[1120px] w-full border-0 bg-white"
-            />
-          </div>
-        </div>
+        <ResearchDemoSurface
+          catalogScriptUrl={`${APP_BASE_URL}/research-demo/assets/research-catalog.js`}
+          viewerBaseUrl={`${APP_BASE_URL}/research-demo`}
+        />
       ) : (
         <>
 
-      <div className="mb-6">
-        <span className="text-xs text-muted mb-2 block">
-          Quick presets
-        </span>
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+      <div className="mb-4">
+        <span className="text-xs text-muted mb-1.5 block">Quick presets</span>
+        <div className="flex flex-wrap gap-2">
           {PRESETS.map(preset => (
             <button
               key={preset.label}
               onClick={() => applyPreset(preset.config)}
-              className="text-left bg-white border border-border-subtle rounded-lg p-2.5 hover:border-border-hover transition-all"
+              className="text-left bg-white border border-border-subtle rounded-lg px-3 py-2 hover:border-border-hover transition-colors"
             >
               <div className="text-xs font-medium text-text-primary">{preset.label}</div>
-              <div className="text-xs text-muted">{preset.description}</div>
+              <div className="text-[11px] text-muted">{preset.description}</div>
             </button>
           ))}
-        </div>
-        <div className="mt-2 text-xs text-muted">
-          Presets load the paper-style scenario family. The page still opens on the lighter interactive default for faster iteration.
         </div>
       </div>
 

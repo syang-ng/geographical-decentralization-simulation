@@ -103,27 +103,61 @@ export function paperScenarioLabels(config: SimulationConfig): string[] {
   const labels: string[] = []
 
   if (config.distribution === 'heterogeneous' && config.sourcePlacement !== 'homogeneous') {
-    labels.push('SE3 joint heterogeneity')
+    labels.push('Reference: SE3 joint heterogeneity')
   } else if (config.distribution === 'heterogeneous') {
-    labels.push('SE2 heterogeneous validators')
+    labels.push('Reference: SE2 heterogeneous validators')
   } else if (config.distribution === 'homogeneous-gcp') {
     labels.push('Equal per-GCP validator start')
   } else if (config.sourcePlacement === 'latency-aligned') {
-    labels.push('SE1 latency-aligned sources')
+    labels.push('Reference: SE1 latency-aligned sources')
   } else if (config.sourcePlacement === 'latency-misaligned') {
-    labels.push('SE1 latency-misaligned sources')
+    labels.push('Reference: SE1 latency-misaligned sources')
   } else {
-    labels.push('Baseline geography/source setup')
+    labels.push('Reference: baseline geography/source setup')
   }
 
   if (config.slotTime === 6) {
-    labels.push('SE4b shorter slots')
+    labels.push('Reference: SE4b shorter slots')
   } else if (Math.abs(config.attestationThreshold - 2 / 3) > 0.01) {
-    labels.push('SE4a gamma variation')
+    labels.push('Reference: SE4a gamma variation')
   }
 
   labels.push(config.paradigm === 'SSP' ? 'SSP exact mode' : 'MSP exact mode')
   return labels
+}
+
+export function attestationCutoffMs(slotTime: number): number {
+  if (slotTime === 6) return 3000
+  if (slotTime === 8) return 4000
+  return 4000
+}
+
+export function describeDistribution(distribution: SimulationConfig['distribution']): string {
+  switch (distribution) {
+    case 'homogeneous':
+      return 'Homogeneous validator start'
+    case 'homogeneous-gcp':
+      return 'Equal per-GCP validator start'
+    case 'heterogeneous':
+      return 'Heterogeneous validator start'
+    case 'random':
+      return 'Random validator start'
+    default:
+      return distribution
+  }
+}
+
+export function describeSourcePlacement(sourcePlacement: SimulationConfig['sourcePlacement']): string {
+  switch (sourcePlacement) {
+    case 'homogeneous':
+      return 'Homogeneous source placement'
+    case 'latency-aligned':
+      return 'Latency-aligned sources'
+    case 'latency-misaligned':
+      return 'Latency-misaligned sources'
+    default:
+      return sourcePlacement
+  }
 }
 
 export function readOrCreateClientId(): string {

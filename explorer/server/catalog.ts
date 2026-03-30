@@ -432,6 +432,7 @@ export function buildTools(): Anthropic.Messages.Tool[] {
         'Compose a simulation-specific view specification without inventing UI code or raw chart data. ' +
         'Use this as the FINAL step for Simulation Lab questions. ' +
         'Reference only supported metrics, summary charts, artifact bundles, and known artifact names from the exact simulation manifest. ' +
+        'Order exact metrics and artifacts before interpretation, and label any interpretive section as guide framing rather than evidence. ' +
         'If the question is outside bounds, return guidance and suggested prompts instead of fabricating a run.',
       input_schema: simulationViewToolSchema,
     },
@@ -441,7 +442,7 @@ export function buildTools(): Anthropic.Messages.Tool[] {
         'Compose visual blocks to answer the user\'s question about the geo-decentralization study. ' +
         'Prefer 3-5 high-signal blocks, not a maximal list. Use a mix of block types: stat for key numbers, insight for explanations, chart for data, ' +
         'comparison for SSP vs MSP, table for structured data, map for geography, timeseries for trends, ' +
-        'caveat for limitations, source for references. Include at least one evidence block when possible, avoid redundant blocks, and keep follow-up prompts concrete. Maximum 6 blocks. ' +
+        'caveat for limitations, source for references. Include at least one evidence block when possible, place evidence before insight, label insights as interpretation/framing, avoid redundant blocks, and keep follow-up prompts concrete. Maximum 6 blocks. ' +
         'Use this as the final presentation step after searching curated cards, prior explorations, or building a simulation config.',
       input_schema: {
         type: 'object' as const,

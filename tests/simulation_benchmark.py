@@ -224,6 +224,7 @@ def run_command(scenario, output_dir, repo_root):
     return subprocess.run(
         command,
         cwd=repo_root,
+        stdin=subprocess.DEVNULL,
         capture_output=True,
         text=True,
         encoding="utf-8",
