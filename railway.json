@@ -12,6 +12,12 @@
     "resources": {
       "cpus": 8,
       "memoryGB": 8
-    }
+    },
+    "volumes": [
+      {
+        "mountPath": "/app/.simulation_cache",
+        "sizeGB": 5
+      }
+    ]
   }
 }
