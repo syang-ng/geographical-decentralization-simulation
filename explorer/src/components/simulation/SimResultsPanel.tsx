@@ -2,54 +2,14 @@ import { startTransition } from 'react'
 import { Check, Copy } from 'lucide-react'
 import { BlockCanvas } from '../explore/BlockCanvas'
 import { cn } from '../../lib/cn'
+import { formatBytes, formatNumber, paperScenarioLabels } from './simulation-constants'
 import type {
   SimulationArtifact,
-  SimulationConfig,
   SimulationManifest,
   SimulationOverviewBundle,
 } from '../../lib/simulation-api'
 import type { SimulationArtifactBundle } from '../../types/simulation-view'
 import type { Block } from '../../types/blocks'
-
-function formatNumber(value: number, digits = 2): string {
-  return value.toLocaleString(undefined, {
-    maximumFractionDigits: digits,
-    minimumFractionDigits: digits,
-  })
-}
-
-function formatBytes(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`
-  if (bytes < 1024 * 1024) return `${formatNumber(bytes / 1024, 1)} KB`
-  return `${formatNumber(bytes / (1024 * 1024), 1)} MB`
-}
-
-function paperScenarioLabels(config: SimulationConfig): string[] {
-  const labels: string[] = []
-
-  if (config.distribution === 'heterogeneous' && config.sourcePlacement !== 'homogeneous') {
-    labels.push('SE3 joint heterogeneity')
-  } else if (config.distribution === 'heterogeneous') {
-    labels.push('SE2 heterogeneous validators')
-  } else if (config.distribution === 'homogeneous-gcp') {
-    labels.push('Equal per-GCP validator start')
-  } else if (config.sourcePlacement === 'latency-aligned') {
-    labels.push('SE1 latency-aligned sources')
-  } else if (config.sourcePlacement === 'latency-misaligned') {
-    labels.push('SE1 latency-misaligned sources')
-  } else {
-    labels.push('Baseline geography/source setup')
-  }
-
-  if (config.slotTime === 6) {
-    labels.push('SE4b shorter slots')
-  } else if (Math.abs(config.attestationThreshold - 2 / 3) > 0.01) {
-    labels.push('SE4a gamma variation')
-  }
-
-  labels.push(config.paradigm === 'SSP' ? 'SSP exact mode' : 'MSP exact mode')
-  return labels
-}
 
 function buildRunSummary(manifest: SimulationManifest): string {
   return [

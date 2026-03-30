@@ -345,7 +345,8 @@ function findCuratedMatch(query: string): CuratedMatch | null {
 
   for (const card of CURATED_CARDS) {
     const score = scoreTopicCard(query, card)
-    if (score < 0.62) continue
+    const minimumScore = hintScore(query, card) > 0 ? 0.54 : 0.62
+    if (score < minimumScore) continue
     if (!best || score > best.score) {
       best = { card, score }
     }
@@ -2124,6 +2125,14 @@ app.post('/api/explorations/:id/vote', (req, res) => {
 // --- Static file serving for production (Railway serves both API + SPA) ---
 
 const DIST_DIR = path.join(__dirname, '..', 'dist')
+const DASHBOARD_DIR = path.resolve(EXPLORER_ROOT, '..', 'dashboard')
+
+if (existsSync(DASHBOARD_DIR)) {
+  app.use('/research-demo', express.static(DASHBOARD_DIR))
+  app.get('/research-demo', (_req, res) => {
+    res.sendFile(path.join(DASHBOARD_DIR, 'index.html'))
+  })
+}
 
 if (existsSync(DIST_DIR)) {
   app.use(express.static(DIST_DIR))

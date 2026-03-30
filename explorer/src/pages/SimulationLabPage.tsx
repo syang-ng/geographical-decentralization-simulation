@@ -4,6 +4,16 @@ import { SimConfigPanel } from '../components/simulation/SimConfigPanel'
 import { SimCopilotPanel } from '../components/simulation/SimCopilotPanel'
 import { SimJobStatus } from '../components/simulation/SimJobStatus'
 import { SimResultsPanel } from '../components/simulation/SimResultsPanel'
+import {
+  COPY_RESET_DELAY_MS,
+  DEFAULT_CONFIG,
+  OVERVIEW_BUNDLES,
+  PRESETS,
+  paperScenarioLabels,
+  readOrCreateClientId,
+  readSessionArtifactBlocks,
+  writeSessionArtifactBlocks,
+} from '../components/simulation/simulation-constants'
 import { getApiHealth } from '../lib/api'
 import {
   cancelSimulationJob,
@@ -19,7 +29,7 @@ import {
   type SimulationJob,
   type SimulationOverviewBundle,
 } from '../lib/simulation-api'
-import { parseBlocks, type Block } from '../types/blocks'
+import type { Block } from '../types/blocks'
 import type { SimulationArtifactBundle } from '../types/simulation-view'
 
 interface WorkerSuccess {
@@ -34,148 +44,10 @@ interface WorkerFailure {
   readonly error: string
 }
 
-const DEFAULT_CONFIG: SimulationConfig = {
-  paradigm: 'SSP',
-  validators: 1000,
-  slots: 1000,
-  distribution: 'homogeneous',
-  sourcePlacement: 'homogeneous',
-  migrationCost: 0.0001,
-  attestationThreshold: 2 / 3,
-  slotTime: 12,
-  seed: 25873,
-}
-
-const PAPER_BASELINE_PRESET: Partial<SimulationConfig> = {
-  validators: 1000,
-  slots: 10000,
-  distribution: 'homogeneous',
-  sourcePlacement: 'homogeneous',
-  migrationCost: 0.002,
-  attestationThreshold: 2 / 3,
-  slotTime: 12,
-}
-
-const PRESETS: Array<{ label: string; description: string; config: Partial<SimulationConfig> }> = [
-  {
-    label: 'Paper SSP',
-    description: 'SSP with the paper-style 10,000-slot and 0.002 ETH reference setup.',
-    config: { ...PAPER_BASELINE_PRESET, paradigm: 'SSP' },
-  },
-  {
-    label: 'Paper MSP',
-    description: 'MSP with the same paper-style reference setup for direct comparison.',
-    config: { ...PAPER_BASELINE_PRESET, paradigm: 'MSP' },
-  },
-  {
-    label: 'SE1 Aligned',
-    description: 'Paper-style run with latency-aligned sources.',
-    config: { ...PAPER_BASELINE_PRESET, sourcePlacement: 'latency-aligned' },
-  },
-  {
-    label: 'SE1 Misaligned',
-    description: 'Paper-style run with latency-misaligned sources.',
-    config: { ...PAPER_BASELINE_PRESET, sourcePlacement: 'latency-misaligned' },
-  },
-  {
-    label: 'SE2 Real ETH',
-    description: 'Paper-style run with the heterogeneous Ethereum validator start.',
-    config: { ...PAPER_BASELINE_PRESET, distribution: 'heterogeneous' },
-  },
-  {
-    label: 'EIP-7782',
-    description: 'Paper-style run with 6-second slots.',
-    config: { ...PAPER_BASELINE_PRESET, slotTime: 6 },
-  },
-]
-
-const OVERVIEW_BUNDLES: ReadonlyArray<{
-  bundle: SimulationArtifactBundle
-  label: string
-  description: string
-}> = [
-  {
-    bundle: 'core-outcomes',
-    label: 'Core outcomes',
-    description: 'MEV, supermajority success, and failed proposal trends.',
-  },
-  {
-    bundle: 'timing-and-attestation',
-    label: 'Timing and attestations',
-    description: 'Proposal latency and aggregate attestation behavior.',
-  },
-  {
-    bundle: 'geography-overview',
-    label: 'Geography',
-    description: 'Final regional concentration and top-region table.',
-  },
-]
-
-const COPY_RESET_DELAY_MS = 1600
-const PARSED_ARTIFACT_CACHE_PREFIX = 'simulation_lab_parsed_artifact:'
-
-function paperScenarioLabels(config: SimulationConfig): string[] {
-  const labels: string[] = []
-
-  if (config.distribution === 'heterogeneous' && config.sourcePlacement !== 'homogeneous') {
-    labels.push('SE3 joint heterogeneity')
-  } else if (config.distribution === 'heterogeneous') {
-    labels.push('SE2 heterogeneous validators')
-  } else if (config.distribution === 'homogeneous-gcp') {
-    labels.push('Equal per-GCP validator start')
-  } else if (config.sourcePlacement === 'latency-aligned') {
-    labels.push('SE1 latency-aligned sources')
-  } else if (config.sourcePlacement === 'latency-misaligned') {
-    labels.push('SE1 latency-misaligned sources')
-  } else {
-    labels.push('Baseline geography/source setup')
-  }
-
-  if (config.slotTime === 6) {
-    labels.push('SE4b shorter slots')
-  } else if (Math.abs(config.attestationThreshold - 2 / 3) > 0.01) {
-    labels.push('SE4a gamma variation')
-  }
-
-  labels.push(config.paradigm === 'SSP' ? 'SSP exact mode' : 'MSP exact mode')
-  return labels
-}
-
 function selectDefaultArtifact(artifacts: readonly SimulationArtifact[]): string | null {
   const preferred = artifacts.find(artifact => artifact.renderable && !artifact.lazy)
   if (preferred) return preferred.name
   return artifacts.find(artifact => artifact.renderable)?.name ?? null
-}
-
-function readOrCreateClientId(): string {
-  const storageKey = 'simulation_lab_client_id'
-  const existing = window.localStorage.getItem(storageKey)
-  if (existing) return existing
-  const created = window.crypto.randomUUID()
-  window.localStorage.setItem(storageKey, created)
-  return created
-}
-
-function readSessionArtifactBlocks(cacheKey: string): readonly Block[] | null {
-  try {
-    const stored = window.sessionStorage.getItem(`${PARSED_ARTIFACT_CACHE_PREFIX}${cacheKey}`)
-    if (!stored) return null
-    const parsed = JSON.parse(stored) as unknown
-    return Array.isArray(parsed) ? parseBlocks(parsed) : null
-  } catch {
-    return null
-  }
-}
-
-function writeSessionArtifactBlocks(cacheKey: string, blocks: readonly Block[]): void {
-  try {
-    window.sessionStorage.setItem(
-      `${PARSED_ARTIFACT_CACHE_PREFIX}${cacheKey}`,
-      JSON.stringify(blocks),
-    )
-  } catch {
-    // Ignore storage exhaustion and keep the in-memory cache path.
-  }
 }
 
 function isManifestOverviewBundle(
@@ -184,8 +56,11 @@ function isManifestOverviewBundle(
   return Boolean(bundle && 'bytes' in bundle)
 }
 
+const APP_BASE_URL = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.replace(/\/$/, '') ?? ''
+
 export function SimulationLabPage() {
   const queryClient = useQueryClient()
+  const [surfaceMode, setSurfaceMode] = useState<'research' | 'lab'>('research')
   const [config, setConfig] = useState<SimulationConfig>({ ...DEFAULT_CONFIG })
   const [clientId] = useState(readOrCreateClientId)
   const [currentJobId, setCurrentJobId] = useState<string | null>(null)
@@ -451,7 +326,7 @@ export function SimulationLabPage() {
 
   const canCancel = jobQuery.data?.status === 'queued' || jobQuery.data?.status === 'running'
   const copilotAvailable = apiHealthQuery.data?.anthropicEnabled ?? false
-  const prewarmState = apiHealthQuery.data?.simulations.prewarm ?? null
+  const researchDemoUrl = `${APP_BASE_URL}/research-demo/`
   const copilotPromptSuggestions = copilotResponse?.suggestedPrompts?.length
     ? copilotResponse.suggestedPrompts
     : manifest
@@ -470,51 +345,72 @@ export function SimulationLabPage() {
   return (
     <div>
       <div className="lab-stage mb-8 px-6 py-6">
-        <div className="flex items-center gap-2 mb-2">
-          <span className="w-2 h-2 rounded-full bg-accent" />
-          <span className="text-xs text-muted">Simulation lab</span>
-        </div>
-        <div className="grid gap-6 lg:grid-cols-[minmax(0,1.35fr)_minmax(260px,0.8fr)]">
-          <div className="relative z-[1]">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <div className="flex items-center gap-2 mb-2">
+              <span className="w-2 h-2 rounded-full bg-accent" />
+              <span className="text-xs text-muted">Simulation surfaces</span>
+            </div>
             <h1 className="text-xl font-semibold text-text-primary">
-              Run exact simulations with a bounded lab workflow.
+              Switch between the published research demo and our exact lab.
             </h1>
             <p className="mt-2 max-w-2xl text-sm text-muted">
-              The page opens on a lighter interactive default. Use the research presets when you want the paper-style 10,000-slot and 0.002 ETH scenario family, then inspect exact outputs through overview bundles, raw artifacts, and bounded interpretation.
+              Use the research side when you want the canonical paper-style launcher with dataset, Local/External, and published results. Switch to our side when you want live exact runs, deeper controls, and analysis tooling.
             </p>
           </div>
 
-          <div className="relative z-[1] grid gap-2 sm:grid-cols-3 lg:grid-cols-1">
-            <div className="rounded-xl border border-border-subtle bg-white/88 px-3 py-3 backdrop-blur-sm">
-              <div className="text-[10px] uppercase tracking-[0.16em] text-text-faint">Default surface</div>
-              <div className="mt-1 text-sm font-medium text-text-primary">Interactive default</div>
-              <div className="mt-1 text-xs text-muted">1,000 validators, 1,000 slots, 0.0001 ETH migration cost, exact mode.</div>
-            </div>
-            <div className="rounded-xl border border-border-subtle bg-white/88 px-3 py-3 backdrop-blur-sm">
-              <div className="text-[10px] uppercase tracking-[0.16em] text-text-faint">Research presets</div>
-              <div className="mt-1 text-sm font-medium text-text-primary">Paper-style scenarios</div>
-              <div className="mt-1 text-xs text-muted">Named presets load the 10,000-slot and 0.002 ETH reference family unless the scenario changes it.</div>
-            </div>
-            <div className="rounded-xl border border-border-subtle bg-white/88 px-3 py-3 backdrop-blur-sm">
-              <div className="text-[10px] uppercase tracking-[0.16em] text-text-faint">Exact delivery</div>
-              <div className="mt-1 text-sm font-medium text-text-primary">
-                {apiHealthQuery.isLoading
-                  ? 'Checking runtime state'
-                  : prewarmState?.running
-                    ? `Warming canonical cache (${prewarmState.completed}/${prewarmState.total})`
-                    : prewarmState?.finishedAt
-                      ? 'Canonical cache warmed'
-                      : 'Manifest-ready sidecars'}
-              </div>
-              <div className="mt-1 text-xs text-muted">
-                {prewarmState?.running
-                  ? 'Common exact presets warm in the background while live runs stay on the main queue.'
-                  : 'Overview bundles plus gzip and Brotli sidecars are served directly from exact outputs.'}
-              </div>
-            </div>
+          <div className="inline-flex rounded-full border border-border-subtle bg-white/88 p-1 backdrop-blur-sm">
+            <button
+              onClick={() => setSurfaceMode('research')}
+              className={`rounded-full px-4 py-2 text-xs font-medium transition-colors ${surfaceMode === 'research' ? 'bg-accent text-white' : 'text-text-primary hover:bg-white'}`}
+            >
+              Theirs
+            </button>
+            <button
+              onClick={() => setSurfaceMode('lab')}
+              className={`rounded-full px-4 py-2 text-xs font-medium transition-colors ${surfaceMode === 'lab' ? 'bg-accent text-white' : 'text-text-primary hover:bg-white'}`}
+            >
+              Ours
+            </button>
           </div>
         </div>
       </div>
+
+      {surfaceMode === 'research' ? (
+        <div className="lab-stage p-4 sm:p-5">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+            <div>
+              <div className="text-xs text-muted mb-1">
+                Published baseline
+              </div>
+              <div className="text-sm text-text-primary">
+                This is the frozen researcher-style launcher with the canonical dataset family and `Local` / `External` selector flow.
+              </div>
+              <div className="mt-2 text-xs text-muted max-w-2xl">
+                It keeps the paper-facing options separate from our live simulation controls, which avoids mixing viewer navigation with engine parameters like slots.
+              </div>
+            </div>
+
+            <a
+              href={researchDemoUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center justify-center rounded-lg border border-border-subtle bg-white px-4 py-2 text-xs font-medium text-text-primary hover:border-border-hover transition-colors"
+            >
+              Open Full Demo
+            </a>
+          </div>
+
+          <div className="mt-4 overflow-hidden rounded-2xl border border-border-subtle bg-white/80 shadow-sm">
+            <iframe
+              title="Published research demo"
+              src={researchDemoUrl}
+              className="block h-[1120px] w-full border-0 bg-white"
+            />
+          </div>
+        </div>
+      ) : (
+        <>
 
       <div className="mb-6">
         <span className="text-xs text-muted mb-2 block">
@@ -590,6 +486,8 @@ export function SimulationLabPage() {
           copyState={copyState}
           onCopy={copyToClipboard}
         />
+      )}
+        </>
       )}
     </div>
   )

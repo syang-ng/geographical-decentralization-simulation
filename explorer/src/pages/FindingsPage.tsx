@@ -130,7 +130,7 @@ export function FindingsPage({
     } else {
       setError(result.error)
     }
-  }, [history, onQueryChange])
+  }, [history, onExplorationIdChange, onQueryChange])
 
   const handleHistorySelect = useCallback((entry: HistoryEntry) => {
     lastSyncedQueryRef.current = entry.query

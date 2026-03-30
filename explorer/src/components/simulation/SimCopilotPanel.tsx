@@ -60,16 +60,23 @@ export function SimCopilotPanel({
       </div>
 
       <div className="mt-4 flex flex-col gap-3 lg:flex-row">
-        <textarea
-          value={copilotQuestion}
-          onChange={event => onQuestionChange(event.target.value)}
-          rows={3}
-          placeholder={hasManifest
-            ? 'Example: Show avg_mev, then supermajority_success, then explain the top regions.'
-            : 'Example: Set up the paper baseline SSP run, then mirror it for MSP.'}
-          disabled={isHealthLoading || !copilotAvailable}
-          className="min-h-[92px] flex-1 resize-y bg-white border border-border-subtle rounded-lg px-3 py-2 text-sm text-text-primary outline-none focus:ring-1 focus:ring-accent"
-        />
+        <div className="flex-1">
+          <div className="mb-2 text-xs text-muted">
+            {hasManifest
+              ? 'Ask about this exact run, or request the next bounded experiment.'
+              : 'Ask for a bounded exact run setup that stays within the paper and simulator surface.'}
+          </div>
+          <textarea
+            value={copilotQuestion}
+            onChange={event => onQuestionChange(event.target.value)}
+            rows={3}
+            placeholder={hasManifest
+              ? 'Example: Show avg_mev, then supermajority_success, then explain the top regions.'
+              : 'Example: Set up the paper baseline SSP run, then tell me what to inspect first.'}
+            disabled={isHealthLoading || !copilotAvailable}
+            className="min-h-[92px] w-full resize-y bg-white border border-border-subtle rounded-lg px-3 py-2 text-sm text-text-primary outline-none focus:ring-1 focus:ring-accent"
+          />
+        </div>
 
         <div className="flex flex-col gap-2 lg:w-48">
           <button
