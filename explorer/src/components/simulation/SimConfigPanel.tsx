@@ -129,7 +129,7 @@ export function SimConfigPanel({
             onChange={event => onConfigChange('validators', Number(event.target.value))}
             className="w-full bg-white border border-border-subtle rounded-lg px-3 py-1.5 text-xs text-text-primary outline-none focus:ring-1 focus:ring-accent"
           />
-          <div className="mt-1 text-xs text-muted">Upstream defaults and paper baselines use 1,000 validators.</div>
+          <div className="mt-1 text-xs text-muted">Paper-scale max is 1,000 validators, which matches the main published runs.</div>
         </div>
 
         <div>
@@ -145,7 +145,7 @@ export function SimConfigPanel({
             onChange={event => onConfigChange('slots', Number(event.target.value))}
             className="w-full bg-white border border-border-subtle rounded-lg px-3 py-1.5 text-xs text-text-primary outline-none focus:ring-1 focus:ring-accent"
           />
-          <div className="mt-1 text-xs text-muted">The upstream presets run up to 10,000 slots; shorter runs remain exact but are noisier.</div>
+          <div className="mt-1 text-xs text-muted">Paper-scale published runs use 10,000 slots. The default here is 1,000 so exact iteration is faster, but noisier.</div>
         </div>
 
         <div>

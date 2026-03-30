@@ -2,9 +2,11 @@ import { useEffect, useState } from 'react'
 import { motion } from 'framer-motion'
 import { ArrowUpRight, Eye, EyeOff, Link2, Quote } from 'lucide-react'
 import { BlockCanvas } from '../components/explore/BlockCanvas'
+import { Wayfinder } from '../components/layout/Wayfinder'
 import { cn } from '../lib/cn'
 import { SPRING, SPRING_SOFT } from '../lib/theme'
 import { PAPER_METADATA, PAPER_SECTIONS } from '../data/paper-sections'
+import type { TabId } from '../components/layout/TabNav'
 
 interface PaperNarrative {
   readonly lede: string
@@ -106,7 +108,7 @@ const PAPER_NARRATIVE: Record<string, PaperNarrative> = {
   },
 }
 
-export function PaperReaderPage() {
+export function PaperReaderPage({ onTabChange }: { onTabChange?: (tab: TabId) => void } = {}) {
   const [readerMode, setReaderMode] = useState<'editorial' | 'focus'>(() => {
     const stored = window.localStorage.getItem('paper-reader-mode')
     return stored === 'focus' ? 'focus' : 'editorial'
@@ -524,6 +526,13 @@ export function PaperReaderPage() {
           </section>
         </div>
       </div>
+
+      {onTabChange && (
+        <Wayfinder links={[
+          { label: 'Drill into sections', hint: 'Accordion view with all argument blocks', onClick: () => onTabChange('deep-dive') },
+          { label: 'Run a simulation', hint: 'Test parameters with the exact model', onClick: () => onTabChange('simulation') },
+        ]} />
+      )}
     </div>
   )
 }

@@ -16,6 +16,8 @@ import {
   writeSessionArtifactBlocks,
 } from '../components/simulation/simulation-constants'
 import { getApiHealth } from '../lib/api'
+import { Wayfinder } from '../components/layout/Wayfinder'
+import type { TabId } from '../components/layout/TabNav'
 import {
   cancelSimulationJob,
   getSimulationArtifact,
@@ -59,7 +61,7 @@ function isManifestOverviewBundle(
 
 const APP_BASE_URL = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.replace(/\/$/, '') ?? ''
 
-export function SimulationLabPage() {
+export function SimulationLabPage({ onTabChange }: { onTabChange?: (tab: TabId) => void } = {}) {
   const queryClient = useQueryClient()
   const [surfaceMode, setSurfaceMode] = useState<'research' | 'lab'>('research')
   const [config, setConfig] = useState<SimulationConfig>({ ...DEFAULT_CONFIG })
@@ -375,6 +377,30 @@ export function SimulationLabPage() {
       ) : (
         <>
 
+      <div className="grid gap-3 mb-5 sm:grid-cols-3">
+        <div className="rounded-xl border border-border-subtle bg-white px-4 py-3">
+          <div className="text-[10px] uppercase tracking-[0.16em] text-text-faint">Surface</div>
+          <div className="mt-1 text-sm font-medium text-text-primary">Interactive exact run</div>
+          <div className="mt-1 text-xs text-muted">
+            This side runs fresh exact simulations instead of switching among frozen published outputs.
+          </div>
+        </div>
+        <div className="rounded-xl border border-border-subtle bg-white px-4 py-3">
+          <div className="text-[10px] uppercase tracking-[0.16em] text-text-faint">Paper-scale max</div>
+          <div className="mt-1 text-sm font-medium text-text-primary">1,000 validators · 10,000 slots</div>
+          <div className="mt-1 text-xs text-muted">
+            That matches the top-end scale of the main researcher precomputed runs.
+          </div>
+        </div>
+        <div className="rounded-xl border border-border-subtle bg-white px-4 py-3">
+          <div className="text-[10px] uppercase tracking-[0.16em] text-text-faint">Current default</div>
+          <div className="mt-1 text-sm font-medium text-text-primary">Reduced for speed</div>
+          <div className="mt-1 text-xs text-muted">
+            The lab opens at `1,000` validators, `1,000` slots, and `0.0001 ETH` migration cost so iteration stays faster.
+          </div>
+        </div>
+      </div>
+
       <div className="mb-4">
         <span className="text-xs text-muted mb-1.5 block">Quick presets</span>
         <div className="flex flex-wrap gap-2">
@@ -388,6 +414,9 @@ export function SimulationLabPage() {
               <div className="text-[11px] text-muted">{preset.description}</div>
             </button>
           ))}
+        </div>
+        <div className="mt-2 text-xs text-muted">
+          Presets jump to the paper-style scenario family. The default surface is intentionally smaller than the frozen `10,000`-slot baseline for faster exact iteration.
         </div>
       </div>
 
@@ -446,6 +475,13 @@ export function SimulationLabPage() {
         />
       )}
         </>
+      )}
+
+      {onTabChange && (
+        <Wayfinder links={[
+          { label: 'Explore findings', hint: 'Curated lenses & AI interpretation', onClick: () => onTabChange('findings') },
+          { label: 'Read the paper', hint: 'Full editorial reading guide', onClick: () => onTabChange('paper') },
+        ]} />
       )}
     </div>
   )

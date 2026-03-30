@@ -185,6 +185,22 @@ body {
   border-radius: 4px;
 }
 
+/* ── Subtle warm card hover glow ── */
+.card-hover {
+  transition: box-shadow 0.2s ease, border-color 0.2s ease;
+}
+.card-hover:hover {
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.04);
+  border-color: var(--color-border-hover);
+}
+
+/* ── Smooth all interactive elements ── */
+button, a, [role="tab"], [role="button"] {
+  transition-property: color, background-color, border-color, opacity, box-shadow;
+  transition-duration: 150ms;
+  transition-timing-function: ease;
+}
+
 /* ── Skip-to-content link ── */
 .skip-to-content {
   position: absolute;

@@ -11,8 +11,10 @@ import { ShimmerLoading } from '../components/explore/ShimmerBlock'
 import { ErrorDisplay } from '../components/explore/ErrorDisplay'
 import { explore, getApiHealth, getExploration, type ExploreError, type ExploreProvenance, type ExploreResponse } from '../lib/api'
 import { NodeConstellation } from '../components/decorative/NodeConstellation'
+import { Wayfinder } from '../components/layout/Wayfinder'
 import { SPRING } from '../lib/theme'
 import { blocksToMarkdown } from '../lib/export'
+import type { TabId } from '../components/layout/TabNav'
 
 function upsertHistory(previous: HistoryEntry[], next: HistoryEntry): HistoryEntry[] {
   return [
@@ -42,12 +44,14 @@ export function FindingsPage({
   isActive = true,
   onQueryChange,
   onExplorationIdChange,
+  onTabChange,
 }: {
   initialQuery?: string | null
   initialExplorationId?: string | null
   isActive?: boolean
   onQueryChange?: (query: string | null) => void
   onExplorationIdChange?: (explorationId: string | null) => void
+  onTabChange?: (tab: TabId) => void
 }) {
   const [activeTopic, setActiveTopic] = useState<TopicCard | null>(null)
 
@@ -280,6 +284,9 @@ export function FindingsPage({
       <div className="mb-6 relative">
         <NodeConstellation className="absolute right-0 top-0 w-32 h-32 opacity-40 pointer-events-none hidden sm:block" />
 
+        <p className="text-[11px] text-text-faint mb-2 leading-relaxed max-w-xl">
+          An interactive companion for the geo-decentralization paper. Pick a lens below, or ask a question about latency, MEV corridors, or protocol design.
+        </p>
         <h1 className="text-xl sm:text-2xl font-bold text-text-primary font-serif leading-tight max-w-lg">
           Start with the paper’s sharpest questions.
         </h1>
@@ -525,6 +532,14 @@ export function FindingsPage({
           </motion.div>
         )}
       </AnimatePresence>
+
+      {onTabChange && (
+        <Wayfinder links={[
+          { label: 'Read the full paper', hint: 'Editorial reading guide with annotations', onClick: () => onTabChange('paper') },
+          { label: 'Drill into sections', hint: 'Accordion view of every argument & block', onClick: () => onTabChange('deep-dive') },
+          { label: 'Run a simulation', hint: 'Test parameters with the exact model', onClick: () => onTabChange('simulation') },
+        ]} />
+      )}
     </div>
   )
 }

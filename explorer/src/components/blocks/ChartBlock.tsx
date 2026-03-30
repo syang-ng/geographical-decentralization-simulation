@@ -1,4 +1,4 @@
-import { useId } from 'react'
+import { useId, useState } from 'react'
 import { motion } from 'framer-motion'
 import { BLOCK_COLORS, SPRING } from '../../lib/theme'
 import type { ChartBlock as ChartBlockType } from '../../types/blocks'
@@ -43,36 +43,7 @@ export function ChartBlock({ block }: ChartBlockProps) {
         {block.chartType === 'line' ? (
           <LineChart data={block.data} unit={block.unit} />
         ) : (
-          <div className="space-y-2">
-            {block.data.map((d, i) => {
-              const barColor = d.category
-                ? (categoryColors.get(d.category) ?? BLOCK_COLORS[i % BLOCK_COLORS.length])
-                : (d.value >= 0 ? '#2563EB' : '#DC2626')
-
-              return (
-                <div key={`${d.label}-${i}`}>
-                  <div className="flex items-baseline justify-between gap-3 mb-1">
-                    <div className="flex items-center gap-2 min-w-0">
-                      <span className="text-xs text-text-primary truncate">{d.label}</span>
-                      {d.category && <span className="text-[10px] text-muted">{d.category}</span>}
-                    </div>
-                    <span className="text-xs text-text-primary tabular-nums font-medium shrink-0">
-                      {d.value}{block.unit ?? ''}
-                    </span>
-                  </div>
-                  <div className="relative h-2 overflow-hidden rounded-full bg-surface-active">
-                    <motion.div
-                      initial={{ width: 0 }}
-                      animate={{ width: `${(Math.abs(d.value) / maxValue) * 100}%` }}
-                      transition={{ ...SPRING, delay: i * 0.04 }}
-                      className="absolute inset-y-0 left-0 rounded-full"
-                      style={{ backgroundColor: barColor }}
-                    />
-                  </div>
-                </div>
-              )
-            })}
-          </div>
+          <BarChart data={block.data} maxValue={maxValue} unit={block.unit} categoryColors={categoryColors} />
         )}
       </div>
     </div>
@@ -167,6 +138,64 @@ function LineChart({ data, unit }: { data: ChartBlockType['data']; unit?: string
           <span>Latest: <span className="text-text-primary font-medium tabular-nums">{latestPoint.label} {latestPoint.value}{unit ?? ''}</span></span>
         )}
       </div>
+    </div>
+  )
+}
+
+function BarChart({
+  data,
+  maxValue,
+  unit,
+  categoryColors,
+}: {
+  data: ChartBlockType['data']
+  maxValue: number
+  unit?: string
+  categoryColors: Map<string, string>
+}) {
+  const [hoveredIndex, setHoveredIndex] = useState<number | null>(null)
+
+  return (
+    <div className="space-y-2">
+      {data.map((d, i) => {
+        const barColor = d.category
+          ? (categoryColors.get(d.category) ?? BLOCK_COLORS[i % BLOCK_COLORS.length])
+          : (d.value >= 0 ? '#2563EB' : '#DC2626')
+        const isHovered = hoveredIndex === i
+        const isDimmed = hoveredIndex !== null && !isHovered
+
+        return (
+          <div
+            key={`${d.label}-${i}`}
+            onMouseEnter={() => setHoveredIndex(i)}
+            onMouseLeave={() => setHoveredIndex(null)}
+            className="transition-opacity duration-150"
+            style={{ opacity: isDimmed ? 0.4 : 1 }}
+          >
+            <div className="flex items-baseline justify-between gap-3 mb-1">
+              <div className="flex items-center gap-2 min-w-0">
+                <span className="text-xs text-text-primary truncate">{d.label}</span>
+                {d.category && <span className="text-[10px] text-muted">{d.category}</span>}
+              </div>
+              <span className="text-xs text-text-primary tabular-nums font-medium shrink-0">
+                {d.value}{unit ?? ''}
+              </span>
+            </div>
+            <div className="relative h-2 overflow-hidden rounded-full bg-surface-active">
+              <motion.div
+                initial={{ width: 0 }}
+                animate={{ width: `${(Math.abs(d.value) / maxValue) * 100}%` }}
+                transition={{ ...SPRING, delay: i * 0.04 }}
+                className="absolute inset-y-0 left-0 rounded-full transition-shadow duration-150"
+                style={{
+                  backgroundColor: barColor,
+                  boxShadow: isHovered ? `0 0 8px ${barColor}40` : 'none',
+                }}
+              />
+            </div>
+          </div>
+        )
+      })}
     </div>
   )
 }

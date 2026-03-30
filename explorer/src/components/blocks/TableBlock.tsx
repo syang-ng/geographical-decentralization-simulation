@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { cn } from '../../lib/cn'
 import type { TableBlock as TableBlockType } from '../../types/blocks'
 
@@ -7,9 +8,10 @@ interface TableBlockProps {
 
 export function TableBlock({ block }: TableBlockProps) {
   const highlightSet = new Set(block.highlight ?? [])
+  const [hoveredRow, setHoveredRow] = useState<number | null>(null)
 
   return (
-    <div className="bg-white border border-border-subtle rounded-lg p-5">
+    <div className="bg-white border border-border-subtle rounded-lg p-5 transition-shadow duration-200 hover:shadow-[0_2px_12px_rgba(0,0,0,0.04)]">
       <h3 className="text-sm font-medium text-text-primary mb-4">
         {block.title}
       </h3>
@@ -32,9 +34,13 @@ export function TableBlock({ block }: TableBlockProps) {
             {block.rows.map((row, rowIdx) => (
               <tr
                 key={rowIdx}
+                onMouseEnter={() => setHoveredRow(rowIdx)}
+                onMouseLeave={() => setHoveredRow(null)}
                 className={cn(
-                  'border-t border-border-subtle transition-colors hover:bg-surface-active',
+                  'border-t border-border-subtle transition-all duration-150',
                   highlightSet.has(rowIdx) && 'border-l-2 border-l-accent-warm',
+                  hoveredRow === rowIdx && 'bg-accent/[0.03]',
+                  hoveredRow !== null && hoveredRow !== rowIdx && 'opacity-50',
                 )}
               >
                 {row.map((cell, cellIdx) => (

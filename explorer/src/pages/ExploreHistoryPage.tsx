@@ -4,8 +4,10 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { Search, ArrowUpDown, ThumbsUp, ThumbsDown, Tag, ChevronDown, ChevronUp } from 'lucide-react'
 import { listExplorations, voteExploration, type Exploration } from '../lib/api'
 import { BlockCanvas } from '../components/explore/BlockCanvas'
+import { Wayfinder } from '../components/layout/Wayfinder'
 import { cn } from '../lib/cn'
 import { SPRING, SPRING_SOFT } from '../lib/theme'
+import type { TabId } from '../components/layout/TabNav'
 
 type SortMode = 'recent' | 'top'
 
@@ -24,9 +26,11 @@ function displayInterpretationState(exploration: Exploration): string {
 export function ExploreHistoryPage({
   onGoToFindings,
   onOpenQuery,
+  onTabChange,
 }: {
   readonly onGoToFindings?: () => void
   readonly onOpenQuery?: (query: string) => void
+  readonly onTabChange?: (tab: TabId) => void
 } = {}) {
   const [sort, setSort] = useState<SortMode>('recent')
   const [search, setSearch] = useState('')
@@ -105,6 +109,13 @@ export function ExploreHistoryPage({
             ))}
           </AnimatePresence>
         </motion.div>
+      )}
+
+      {onTabChange && (
+        <Wayfinder links={[
+          { label: 'Ask a new question', hint: 'Curated lenses & AI exploration', onClick: () => onTabChange('findings') },
+          { label: 'Read the paper', hint: 'Full editorial reading guide', onClick: () => onTabChange('paper') },
+        ]} />
       )}
     </div>
   )

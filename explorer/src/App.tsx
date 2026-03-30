@@ -153,6 +153,7 @@ function App() {
             isActive={activeTab === 'findings'}
             onQueryChange={handleFindingsQueryChange}
             onExplorationIdChange={handleExplorationIdChange}
+            onTabChange={handleTabChange}
           />
         </div>
 
@@ -160,13 +161,14 @@ function App() {
           <ExploreHistoryPage
             onGoToFindings={() => handleTabChange('findings')}
             onOpenQuery={handleFindingsQueryChange}
+            onTabChange={handleTabChange}
           />
         </div>
 
         {shouldRenderLazyTab('paper') && (
           <div hidden={activeTab !== 'paper'} aria-hidden={activeTab !== 'paper'}>
             <Suspense fallback={<TabLoading title="Loading Paper Reader" description="Preparing the editorial reading view of the paper." />}>
-              <PaperReaderPage />
+              <PaperReaderPage onTabChange={handleTabChange} />
             </Suspense>
           </div>
         )}
@@ -174,7 +176,7 @@ function App() {
         {shouldRenderLazyTab('deep-dive') && (
           <div hidden={activeTab !== 'deep-dive'} aria-hidden={activeTab !== 'deep-dive'}>
             <Suspense fallback={<TabLoading title="Loading Deep Dive" description="Preparing the paper deep-dive blocks." />}>
-              <DeepDivePage />
+              <DeepDivePage onTabChange={handleTabChange} />
             </Suspense>
           </div>
         )}
@@ -182,7 +184,7 @@ function App() {
         {shouldRenderLazyTab('simulation') && (
           <div hidden={activeTab !== 'simulation'} aria-hidden={activeTab !== 'simulation'}>
             <Suspense fallback={<TabLoading title="Loading Simulation Lab" description="Preparing the exact-mode simulation controls." />}>
-              <SimulationLabPage />
+              <SimulationLabPage onTabChange={handleTabChange} />
             </Suspense>
           </div>
         )}

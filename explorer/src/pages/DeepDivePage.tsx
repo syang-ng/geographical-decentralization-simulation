@@ -2,8 +2,10 @@ import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { ChevronDown } from 'lucide-react'
 import { BlockCanvas } from '../components/explore/BlockCanvas'
+import { Wayfinder } from '../components/layout/Wayfinder'
 import { SPRING } from '../lib/theme'
 import { PAPER_SECTIONS, type PaperSection } from '../data/paper-sections'
+import type { TabId } from '../components/layout/TabNav'
 
 function summarizeSection(section: PaperSection): string[] {
   const tags: string[] = []
@@ -49,7 +51,7 @@ function sectionEntryLine(section: PaperSection): string {
   }
 }
 
-export function DeepDivePage() {
+export function DeepDivePage({ onTabChange }: { onTabChange?: (tab: TabId) => void } = {}) {
   const [expandedIds, setExpandedIds] = useState<Set<string>>(
     () => new Set(PAPER_SECTIONS.length > 0 ? [PAPER_SECTIONS[0].id] : []),
   )
@@ -184,6 +186,13 @@ export function DeepDivePage() {
           )
         })}
       </div>
+
+      {onTabChange && (
+        <Wayfinder links={[
+          { label: 'Test these claims', hint: 'Run parameter experiments yourself', onClick: () => onTabChange('simulation') },
+          { label: 'Ask a question', hint: 'AI-guided exploration of the paper', onClick: () => onTabChange('findings') },
+        ]} />
+      )}
     </div>
   )
 }
