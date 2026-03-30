@@ -19,7 +19,7 @@ import { SimulationRuntime, parseSimulationRequest, type SimulationRequest } fro
 import { ExplorationStore, normalizeQuery, type ListOptions } from './exploration-store.ts'
 import { OVERVIEW_CARD, TOPIC_CARDS, type TopicCard } from '../src/data/default-blocks.ts'
 import { parseSimulationArtifactToBlocks, type SimulationRenderableArtifact } from '../src/lib/simulation-artifact-blocks.ts'
-import type { Block } from '../src/types/blocks.ts'
+import { parseBlocks, type Block } from '../src/types/blocks.ts'
 import {
   type SimulationArtifactBundle,
   type SimulationChartMetricKey,
@@ -66,6 +66,27 @@ const STOP_WORDS = new Set([
 
 const CURATED_CARDS = [OVERVIEW_CARD, ...TOPIC_CARDS]
 const ALL_EXPLORATION_TOPICS = TOPIC_CARDS
+const MAX_GENERATED_BLOCKS = 6
+const MAX_GENERATED_FOLLOW_UPS = 3
+const DEFAULT_GENERATED_SOURCE_BLOCK: Block = {
+  type: 'source',
+  refs: [
+    {
+      label: 'arXiv:2509.21475',
+      section: 'Geo-decentralization study',
+      url: 'https://arxiv.org/abs/2509.21475',
+    },
+    {
+      label: 'Simulation repository',
+      section: 'Code and datasets',
+      url: 'https://github.com/syang-ng/geographical-decentralization-simulation',
+    },
+  ],
+}
+const DEFAULT_GENERATED_CAVEAT_BLOCK: Block = {
+  type: 'caveat',
+  text: 'Interpret the narrative as a guided reading of the paper context, not as new evidence beyond the cited study and exact simulation outputs.',
+}
 
 const DEFAULT_SIMULATION_CONFIG: SimulationRequest = {
   paradigm: 'SSP',
@@ -278,6 +299,346 @@ function buildHistoryResponse(match: ReturnType<ExplorationStore['findBestMatch'
       similarityScore: Number(match.score.toFixed(2)),
     },
   }
+}
+
+function collapseWhitespace(value: string | undefined | null): string {
+  return value?.replace(/\s+/g, ' ').trim() ?? ''
+}
+
+function limitText(value: string | undefined | null, maxChars: number): string {
+  const normalized = collapseWhitespace(value)
+  if (normalized.length <= maxChars) return normalized
+  return `${normalized.slice(0, Math.max(0, maxChars - 1)).trimEnd()}…`
+}
+
+function trimTrailingPunctuation(value: string): string {
+  return value.replace(/[.?!:;,]+$/g, '').trim()
+}
+
+function stablePriority(type: Block['type']): number {
+  switch (type) {
+    case 'stat':
+      return 0
+    case 'comparison':
+    case 'chart':
+    case 'timeseries':
+    case 'map':
+    case 'table':
+      return 1
+    case 'insight':
+      return 2
+    case 'caveat':
+      return 3
+    case 'source':
+      return 4
+    default:
+      return 5
+  }
+}
+
+function blockSignature(block: Block): string {
+  return JSON.stringify(block)
+}
+
+function normalizeGeneratedBlock(block: Block): Block | null {
+  switch (block.type) {
+    case 'stat': {
+      const value = limitText(block.value, 24)
+      const label = limitText(block.label, 54)
+      if (!value || !label) return null
+      return {
+        ...block,
+        value,
+        label,
+        sublabel: limitText(block.sublabel, 96) || undefined,
+        delta: limitText(block.delta, 56) || undefined,
+      }
+    }
+    case 'insight': {
+      const text = limitText(block.text, 380)
+      if (!text) return null
+      return {
+        ...block,
+        title: limitText(block.title, 72) || undefined,
+        text,
+      }
+    }
+    case 'comparison': {
+      const leftItems = block.left.items
+        .map(item => ({
+          key: limitText(item.key, 32),
+          value: limitText(item.value, 52),
+        }))
+        .filter(item => item.key && item.value)
+        .slice(0, 6)
+      const rightItems = block.right.items
+        .map(item => ({
+          key: limitText(item.key, 32),
+          value: limitText(item.value, 52),
+        }))
+        .filter(item => item.key && item.value)
+        .slice(0, 6)
+      if (leftItems.length === 0 || rightItems.length === 0) return null
+      return {
+        ...block,
+        title: limitText(block.title, 72),
+        left: {
+          ...block.left,
+          label: limitText(block.left.label, 36),
+          items: leftItems,
+        },
+        right: {
+          ...block.right,
+          label: limitText(block.right.label, 36),
+          items: rightItems,
+        },
+        verdict: limitText(block.verdict, 180) || undefined,
+      }
+    }
+    case 'chart': {
+      const data = block.data
+        .map(entry => ({
+          ...entry,
+          label: limitText(entry.label, 30),
+          category: limitText(entry.category, 24) || undefined,
+        }))
+        .filter(entry => entry.label)
+        .slice(0, 8)
+      if (data.length === 0) return null
+      return {
+        ...block,
+        title: limitText(block.title, 72),
+        data,
+        unit: limitText(block.unit, 12) || undefined,
+      }
+    }
+    case 'table': {
+      const headers = block.headers.map(header => limitText(header, 28)).filter(Boolean).slice(0, 6)
+      const rows = block.rows
+        .slice(0, 8)
+        .map(row => row.slice(0, headers.length || 6).map(cell => limitText(cell, 42)))
+        .filter(row => row.length > 0)
+      if (headers.length === 0 || rows.length === 0) return null
+      return {
+        ...block,
+        title: limitText(block.title, 72),
+        headers,
+        rows,
+        highlight: block.highlight?.filter(index => index >= 0 && index < rows.length).slice(0, 3),
+      }
+    }
+    case 'caveat': {
+      const text = limitText(block.text, 240)
+      return text ? { ...block, text } : null
+    }
+    case 'source': {
+      const refs = block.refs
+        .map(ref => ({
+          label: limitText(ref.label, 64),
+          section: limitText(ref.section, 40) || undefined,
+          url: limitText(ref.url, 200) || undefined,
+        }))
+        .filter(ref => ref.label)
+        .filter((ref, index, all) =>
+          all.findIndex(candidate =>
+            candidate.label === ref.label
+            && candidate.section === ref.section
+            && candidate.url === ref.url,
+          ) === index,
+        )
+        .slice(0, 4)
+      return refs.length > 0 ? { ...block, refs } : null
+    }
+    case 'map': {
+      const regions = block.regions
+        .map(region => ({
+          ...region,
+          name: limitText(region.name, 32),
+          label: limitText(region.label, 28) || undefined,
+        }))
+        .filter(region => region.name)
+        .toSorted((left, right) => right.value - left.value)
+        .slice(0, 12)
+      return regions.length >= 2
+        ? {
+            ...block,
+            title: limitText(block.title, 72),
+            regions,
+          }
+        : null
+    }
+    case 'timeseries': {
+      const series = block.series
+        .map(item => ({
+          ...item,
+          label: limitText(item.label, 32),
+          data: item.data.slice(0, 16),
+          color: limitText(item.color, 16) || undefined,
+        }))
+        .filter(item => item.label && item.data.length > 0)
+        .slice(0, 4)
+      if (series.length === 0) return null
+      return {
+        ...block,
+        title: limitText(block.title, 72),
+        series,
+        xLabel: limitText(block.xLabel, 24) || undefined,
+        yLabel: limitText(block.yLabel, 24) || undefined,
+        annotations: block.annotations
+          ?.map(annotation => ({
+            ...annotation,
+            label: limitText(annotation.label, 28),
+          }))
+          .filter(annotation => annotation.label)
+          .slice(0, 4),
+      }
+    }
+    default:
+      return block
+  }
+}
+
+function normalizeGeneratedSummary(
+  rawSummary: string | undefined,
+  query: string,
+  blocks: readonly Block[],
+): string {
+  const summary = limitText(rawSummary, 140)
+  if (summary) return summary
+
+  const firstInsight = blocks.find((block): block is Extract<Block, { type: 'insight' }> => block.type === 'insight')
+  if (firstInsight?.title) {
+    return limitText(firstInsight.title, 140)
+  }
+
+  return limitText(trimTrailingPunctuation(query), 140) || 'Paper-backed exploration'
+}
+
+function fallbackFollowUps(query: string): string[] {
+  const fromTopics = findTopicMatches(query, 4)
+    .flatMap(match => match.prompts)
+    .filter(prompt => normalizeQuery(prompt) !== normalizeQuery(query))
+
+  const fromCoverage = suggestUnderexploredTopics(query, 3).map(topic => topic.suggestedQuery)
+  const combined = [...fromTopics, ...fromCoverage]
+  const unique: string[] = []
+
+  for (const prompt of combined) {
+    const cleaned = limitText(prompt, 110)
+    if (!cleaned) continue
+    if (unique.some(existing => normalizeQuery(existing) === normalizeQuery(cleaned))) continue
+    unique.push(cleaned)
+    if (unique.length >= MAX_GENERATED_FOLLOW_UPS) break
+  }
+
+  return unique
+}
+
+function normalizeGeneratedFollowUps(
+  query: string,
+  rawFollowUps: readonly string[] | undefined,
+): string[] {
+  const normalized: string[] = []
+  for (const followUp of rawFollowUps ?? []) {
+    const cleaned = limitText(followUp, 110)
+    if (!cleaned) continue
+    if (normalizeQuery(cleaned) === normalizeQuery(query)) continue
+    if (normalized.some(existing => normalizeQuery(existing) === normalizeQuery(cleaned))) continue
+    normalized.push(cleaned)
+    if (normalized.length >= MAX_GENERATED_FOLLOW_UPS) break
+  }
+
+  if (normalized.length >= 2) return normalized
+
+  for (const fallback of fallbackFollowUps(query)) {
+    if (normalized.some(existing => normalizeQuery(existing) === normalizeQuery(fallback))) continue
+    normalized.push(fallback)
+    if (normalized.length >= MAX_GENERATED_FOLLOW_UPS) break
+  }
+
+  return normalized
+}
+
+function normalizeGeneratedBlocks(rawBlocks: unknown[] | undefined): Block[] {
+  const normalized = parseBlocks(rawBlocks ?? [])
+    .map(normalizeGeneratedBlock)
+    .filter((block): block is Block => block !== null)
+
+  const deduped = normalized.filter((block, index, all) =>
+    all.findIndex(candidate => blockSignature(candidate) === blockSignature(block)) === index,
+  )
+
+  const ordered = deduped
+    .map((block, index) => ({ block, index }))
+    .toSorted((left, right) => {
+      const priorityGap = stablePriority(left.block.type) - stablePriority(right.block.type)
+      return priorityGap !== 0 ? priorityGap : left.index - right.index
+    })
+    .map(entry => entry.block)
+
+  const hasInsight = ordered.some(block => block.type === 'insight' || block.type === 'comparison')
+  const hasSource = ordered.some(block => block.type === 'source')
+  const hasCaveat = ordered.some(block => block.type === 'caveat')
+  const polished = [...ordered]
+
+  if (polished.length === 0) {
+    return [
+      {
+        type: 'insight',
+        emphasis: 'normal',
+        title: 'Paper-backed note',
+        text: 'The explorer is falling back to a conservative paper-backed note because the model did not return a safe structured visualization.',
+      },
+      DEFAULT_GENERATED_CAVEAT_BLOCK,
+      DEFAULT_GENERATED_SOURCE_BLOCK,
+    ]
+  }
+
+  if (!hasInsight && polished.length > 0 && polished.length < MAX_GENERATED_BLOCKS) {
+    polished.splice(Math.min(1, polished.length), 0, {
+      type: 'insight',
+      emphasis: 'normal',
+      title: 'Interpretation',
+      text: 'Read this composition as a concise guide to the study evidence, not as a replacement for the underlying paper context.',
+    })
+  }
+
+  if (!hasCaveat && polished.length < MAX_GENERATED_BLOCKS) {
+    polished.push(DEFAULT_GENERATED_CAVEAT_BLOCK)
+  }
+
+  if (!hasSource && polished.length < MAX_GENERATED_BLOCKS) {
+    polished.push(DEFAULT_GENERATED_SOURCE_BLOCK)
+  }
+
+  return polished.slice(0, MAX_GENERATED_BLOCKS)
+}
+
+function normalizeSimulationPrompts(
+  question: string,
+  rawPrompts: readonly string[] | undefined,
+  fallbacks: readonly string[],
+): string[] {
+  const normalized: string[] = []
+
+  for (const prompt of rawPrompts ?? []) {
+    const cleaned = limitText(prompt, 110)
+    if (!cleaned) continue
+    if (normalizeQuery(cleaned) === normalizeQuery(question)) continue
+    if (normalized.some(existing => normalizeQuery(existing) === normalizeQuery(cleaned))) continue
+    normalized.push(cleaned)
+    if (normalized.length >= 4) break
+  }
+
+  for (const prompt of fallbacks) {
+    const cleaned = limitText(prompt, 110)
+    if (!cleaned) continue
+    if (normalized.some(existing => normalizeQuery(existing) === normalizeQuery(cleaned))) continue
+    normalized.push(cleaned)
+    if (normalized.length >= 4) break
+  }
+
+  return normalized
 }
 
 function findTopicMatches(query: string, limit = 5): Array<{
@@ -1208,11 +1569,14 @@ app.post('/api/explore', async (req, res) => {
       blocks?: unknown[]
       follow_ups?: string[]
     }
+    const normalizedBlocks = normalizeGeneratedBlocks(input.blocks)
+    const normalizedSummary = normalizeGeneratedSummary(input.summary, trimmedQuery, normalizedBlocks)
+    const normalizedFollowUps = normalizeGeneratedFollowUps(trimmedQuery, input.follow_ups)
 
     const result: ExploreResponse = {
-      summary: input.summary ?? 'Here are the findings:',
-      blocks: input.blocks ?? [],
-      followUps: input.follow_ups ?? [],
+      summary: normalizedSummary,
+      blocks: normalizedBlocks,
+      followUps: normalizedFollowUps,
       model: finalResponse.model,
       cached: finalResponse.usage?.cache_read_input_tokens
         ? finalResponse.usage.cache_read_input_tokens > 0
@@ -1355,13 +1719,15 @@ app.post('/api/simulation-copilot', async (req, res) => {
     )
 
     const result: SimulationCopilotResponse = {
-      summary: sanitizedViewSpec.summary,
+      summary: limitText(sanitizedViewSpec.summary, 180) || 'Simulation guidance',
       mode: sanitizedViewSpec.mode,
-      guidance: sanitizedViewSpec.guidance,
+      guidance: limitText(sanitizedViewSpec.guidance, 240) || undefined,
       truthBoundary: buildTruthBoundary(sanitizedViewSpec.mode, Boolean(currentJob?.manifest)),
-      suggestedPrompts: sanitizedViewSpec.suggestedPrompts?.length
-        ? sanitizedViewSpec.suggestedPrompts
-        : defaultSimulationPrompts(currentJob?.manifest ?? null),
+      suggestedPrompts: normalizeSimulationPrompts(
+        trimmedQuestion,
+        sanitizedViewSpec.suggestedPrompts,
+        defaultSimulationPrompts(currentJob?.manifest ?? null),
+      ),
       proposedConfig: proposedConfig ?? undefined,
       viewSpec: sanitizedViewSpec,
       blocks,

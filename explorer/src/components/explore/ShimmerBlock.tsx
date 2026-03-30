@@ -1,7 +1,7 @@
 import { motion } from 'framer-motion'
 import { SPRING } from '../../lib/theme'
 
-/** Skeleton placeholder blocks shown while Claude generates a response */
+/** Skeleton placeholder blocks shown while Sonnet generates a response */
 export function ShimmerLoading() {
   return (
     <div className="space-y-3">

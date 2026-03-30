@@ -309,7 +309,7 @@ function EmptyState({ onGoToFindings }: { readonly onGoToFindings?: () => void }
       <Tag className="w-8 h-8 text-text-faint mb-4" />
       <h2 className="text-lg font-medium text-text-primary mb-2">No explorations yet</h2>
       <p className="text-sm text-muted max-w-md mb-5">
-        Ask a question on the Findings tab to get started. Every Claude response is
+        Ask a question on the Findings tab to get started. Every Sonnet response is
         automatically saved here for the community to browse and vote on.
       </p>
       {onGoToFindings && (

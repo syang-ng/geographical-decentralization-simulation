@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect, useRef } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { motion, AnimatePresence } from 'framer-motion'
 import { ArrowRight, ArrowLeft } from 'lucide-react'
 import { cn } from '../lib/cn'
@@ -8,7 +9,7 @@ import { QueryBar } from '../components/explore/QueryBar'
 import { QueryHistory, type HistoryEntry } from '../components/explore/QueryHistory'
 import { ShimmerLoading } from '../components/explore/ShimmerBlock'
 import { ErrorDisplay } from '../components/explore/ErrorDisplay'
-import { explore, getApiHealth, type ApiHealth, type ExploreError, type ExploreProvenance, type ExploreResponse } from '../lib/api'
+import { explore, getApiHealth, type ExploreError, type ExploreProvenance, type ExploreResponse } from '../lib/api'
 import { NodeConstellation } from '../components/decorative/NodeConstellation'
 import { SPRING } from '../lib/theme'
 
@@ -42,29 +43,14 @@ export function FindingsPage({ initialQuery = null }: { initialQuery?: string | 
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<ExploreError | null>(null)
   const [history, setHistory] = useState<HistoryEntry[]>([])
-  const [apiHealth, setApiHealth] = useState<ApiHealth | null>(null)
-  const [healthError, setHealthError] = useState<string | null>(null)
   const initialQueryHandledRef = useRef(false)
 
-  useEffect(() => {
-    let cancelled = false
-
-    void getApiHealth()
-      .then(health => {
-        if (cancelled) return
-        setApiHealth(health)
-        setHealthError(null)
-      })
-      .catch(err => {
-        if (cancelled) return
-        setApiHealth(null)
-        setHealthError(err instanceof Error ? err.message : 'Failed to reach the API server.')
-      })
-
-    return () => {
-      cancelled = true
-    }
-  }, [])
+  const apiHealthQuery = useQuery({
+    queryKey: ['api-health'],
+    queryFn: getApiHealth,
+    staleTime: 30_000,
+    refetchInterval: 30_000,
+  })
 
   const handleTopicClick = (card: TopicCard) => {
     setAiResponse(null)
@@ -140,17 +126,28 @@ export function FindingsPage({ initialQuery = null }: { initialQuery?: string | 
     ?? (showTopic && activeTopic
       ? fallbackCuratedProvenance('Curated topic card', 'Editorial paper finding selected from the curated findings library.')
       : fallbackCuratedProvenance('Curated overview', "Editorial overview assembled from the paper's main findings and caveats."))
-  const queryBarDisabled = Boolean(healthError)
-  const queryBarDisabledReason = healthError
+  const queryBarDisabled = apiHealthQuery.isError
+  const queryBarDisabledReason = apiHealthQuery.isError
     ? 'The API server is unreachable right now.'
     : undefined
-  const queryBarHelperText = healthError
+  const queryBarHelperText = apiHealthQuery.isError
     ? 'The API server is unreachable. Start the explorer API to restore live and cached query routing.'
-    : apiHealth?.anthropicEnabled
-      ? `Live model: ${apiHealth.anthropicModel}. Ask about a metric, scenario, mechanism, or comparison for the strongest answers.`
-      : apiHealth
+    : apiHealthQuery.data?.anthropicEnabled
+      ? `Live model: ${apiHealthQuery.data.anthropicModel}. Ask about a metric, scenario, mechanism, or comparison for the strongest answers.`
+      : apiHealthQuery.data
         ? 'Live Sonnet is offline. Curated and history matches still work, but fresh generation needs ANTHROPIC_API_KEY in explorer/.env.'
         : 'Checking live model availability. Best prompts mention a paradigm, metric, experiment, or comparison.'
+  const modelPath = aiResponse
+    ? aiResponse.model
+      ? `${aiResponse.model}${aiResponse.cached ? ' · prompt cache hit' : ' · fresh call'}`
+      : aiResponse.provenance.source === 'curated'
+        ? 'No live model call'
+        : aiResponse.provenance.source === 'history'
+          ? 'Reused prior saved result'
+          : 'Model path unavailable'
+    : showTopic
+      ? 'No live model call'
+      : 'Editorial default state'
 
   return (
     <div>
@@ -273,7 +270,7 @@ export function FindingsPage({ initialQuery = null }: { initialQuery?: string | 
           </div>
         </div>
 
-        <div className="grid gap-4 sm:grid-cols-3 text-xs text-muted border-t border-border-subtle pt-4">
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4 text-xs text-muted border-t border-border-subtle pt-4">
           <div>
             <div className="text-xs text-muted mb-1">Mode</div>
             <div className="text-sm text-text-primary">
@@ -284,6 +281,12 @@ export function FindingsPage({ initialQuery = null }: { initialQuery?: string | 
             <div className="text-xs text-muted mb-1">Current query</div>
             <div className="text-sm text-text-primary line-clamp-2">
               {activeQuery ?? activeTopic?.prompts[0] ?? 'What are the main findings?'}
+            </div>
+          </div>
+          <div>
+            <div className="text-xs text-muted mb-1">Model path</div>
+            <div className="text-sm text-text-primary line-clamp-2">
+              {modelPath}
             </div>
           </div>
           <div>

@@ -23,6 +23,10 @@ const dotColor: Record<string, string> = {
   generated: 'bg-accent',
 }
 
+function formatProvenanceLabel(label: string): string {
+  return label.replace(/^fresh /i, '').replace(/^matched /i, '').trim()
+}
+
 function formatHistoryTime(timestamp: number): string {
   const deltaSeconds = Math.floor((Date.now() - timestamp) / 1000)
   if (deltaSeconds < 60) return 'just now'
@@ -71,7 +75,7 @@ export function QueryHistory({ entries, onSelect, activeQuery }: QueryHistoryPro
                 <div className="mb-2 flex items-center justify-between gap-2">
                   <span className="inline-flex items-center gap-1.5 text-xs text-muted">
                     <span className={cn('w-1.5 h-1.5 rounded-full', dotColor[source] ?? 'bg-accent')} />
-                    {source}
+                    {formatProvenanceLabel(entry.response.provenance.label)}
                   </span>
                   <span className="text-xs text-text-faint">
                     {formatHistoryTime(entry.timestamp)}

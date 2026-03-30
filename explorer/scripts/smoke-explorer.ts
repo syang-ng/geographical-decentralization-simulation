@@ -183,6 +183,7 @@ async function main() {
         health.anthropicModel === null || typeof health.anthropicModel === 'string',
         'Expected /api/health to expose the configured Anthropic model or null',
       )
+      assert(typeof health.envFileLoaded === 'boolean', 'Expected /api/health to expose env file load status')
       const simulations = health.simulations as Record<string, unknown> | undefined
       assert(typeof simulations?.readyWorkers === 'number' && simulations.readyWorkers >= 1, 'Expected at least one ready simulation worker')
 

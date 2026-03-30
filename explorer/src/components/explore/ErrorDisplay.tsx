@@ -36,7 +36,7 @@ export function ErrorDisplay({ error, onRetry }: ErrorDisplayProps) {
         {isRateLimit
           ? 'Too many requests. Wait a moment and try again.'
           : isAuth || isMissingConfig
-            ? 'Set ANTHROPIC_API_KEY in explorer/.env or the server environment to enable live Sonnet exploration.'
+            ? 'Set ANTHROPIC_API_KEY in explorer/.env or the server environment to enable live Sonnet exploration. Curated and history matches still work without it.'
             : isNetwork
               ? 'Make sure the API server is running (npx tsx server/index.ts).'
               : error.error}

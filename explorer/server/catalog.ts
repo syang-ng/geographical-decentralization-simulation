@@ -439,16 +439,16 @@ export function buildTools(): Anthropic.Messages.Tool[] {
       name: 'render_blocks',
       description:
         'Compose visual blocks to answer the user\'s question about the geo-decentralization study. ' +
-        'Use a mix of block types: stat for key numbers, insight for explanations, chart for data, ' +
+        'Prefer 3-5 high-signal blocks, not a maximal list. Use a mix of block types: stat for key numbers, insight for explanations, chart for data, ' +
         'comparison for SSP vs MSP, table for structured data, map for geography, timeseries for trends, ' +
-        'caveat for limitations, source for references. Maximum 6 blocks. ' +
+        'caveat for limitations, source for references. Include at least one evidence block when possible, avoid redundant blocks, and keep follow-up prompts concrete. Maximum 6 blocks. ' +
         'Use this as the final presentation step after searching curated cards, prior explorations, or building a simulation config.',
       input_schema: {
         type: 'object' as const,
         properties: {
           summary: {
             type: 'string',
-            description: 'One-sentence answer shown as heading above the blocks',
+            description: 'Direct one-sentence answer shown as the heading above the blocks',
           },
           blocks: {
             type: 'array',
@@ -459,7 +459,7 @@ export function buildTools(): Anthropic.Messages.Tool[] {
           },
           follow_ups: {
             type: 'array',
-            description: '2-3 follow-up questions the user might want to explore next',
+            description: '2-3 concrete follow-up questions that narrow or extend the current question',
             items: { type: 'string' },
           },
         },

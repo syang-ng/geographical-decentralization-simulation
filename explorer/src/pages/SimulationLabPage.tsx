@@ -876,7 +876,7 @@ export function SimulationLabPage() {
                 copilotMutation.mutate(prompt)
               }}
               disabled={!copilotAvailable}
-              className="text-xs text-muted hover:text-text-primary transition-colors"
+              className="text-xs text-muted hover:text-text-primary transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {prompt}
             </button>
@@ -915,7 +915,8 @@ export function SimulationLabPage() {
                   : copilotResponse.mode === 'guidance'
                     ? 'Guidance only'
                     : 'Current exact result'}
-                {copilotResponse.cached ? ' - cached prompt context' : ''}
+                {` · ${copilotResponse.model}`}
+                {copilotResponse.cached ? ' · prompt cache hit' : ' · fresh call'}
               </div>
             </div>
 
