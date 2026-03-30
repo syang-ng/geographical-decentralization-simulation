@@ -20,8 +20,8 @@ const DEFAULT_PYTHON_EXECUTABLE = process.platform === 'win32' ? 'python' : 'pyt
 const DEFAULT_WORKER_POOL_SIZE = Math.max(
   1,
   Math.min(
-    Number(process.env.SIMULATION_WORKERS ?? Math.max(2, Math.ceil(availableParallelism() / 4))),
-    6,
+    Number(process.env.SIMULATION_WORKERS ?? Math.max(2, Math.ceil(availableParallelism() / 2))),
+    8,
   ),
 )
 const DEFAULT_QUEUED_JOB_TTL_MS = Math.max(60_000, Number(process.env.SIMULATION_QUEUE_TTL_MS ?? 10 * 60_000))
@@ -1294,5 +1294,28 @@ export class SimulationRuntime {
       }
       this.touch(job)
     }
+  }
+
+  /**
+   * Pre-warm the simulation cache by submitting a list of configs.
+   * Each config is submitted as a background job — cache hits return instantly,
+   * cache misses run the full simulation so future users get instant results.
+   */
+  prewarm(
+    configs: ReadonlyArray<SimulationRequest>,
+    label = 'prewarm',
+  ): { submitted: number; alreadyCached: number; jobs: ReadonlyArray<SimulationJobSnapshot> } {
+    let alreadyCached = 0
+    const snapshots: SimulationJobSnapshot[] = []
+
+    for (const config of configs) {
+      const snapshot = this.submit(config, { clientId: `__${label}__` })
+      snapshots.push(snapshot)
+      if (snapshot.cacheHit) {
+        alreadyCached++
+      }
+    }
+
+    return { submitted: snapshots.length, alreadyCached, jobs: snapshots }
   }
 }
