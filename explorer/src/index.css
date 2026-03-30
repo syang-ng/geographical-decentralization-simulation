@@ -15,12 +15,14 @@
   --color-muted: #6B7280;
   --color-text-faint: #9CA3AF;
 
-  /* Status dots — the only saturated decoration */
-  --color-accent: #3B82F6;
-  --color-accent-warm: #D97757;
-  --color-success: #22C55E;
-  --color-warning: #F59E0B;
-  --color-danger: #EF4444;
+  /* Geo-themed accent palette */
+  --color-accent: #2563EB;          /* ocean blue — SSP, centralized flows */
+  --color-accent-warm: #C2553A;     /* terracotta — MSP, local/grounded */
+  --color-success: #16A34A;         /* meridian green — verified, surveyor marks */
+  --color-warning: #D97706;         /* amber — caveats, caution */
+  --color-danger: #DC2626;          /* signal red — surprising findings */
+  --color-meridian: #CBD5E1;        /* coordinate gray — grid lines, topo marks */
+  --color-topo: #F0EDE8;           /* contour fill — warm parchment tint */
 
   /* Typography */
   --font-sans: 'Inter', system-ui, sans-serif;
@@ -54,6 +56,51 @@ body {
   animation: blink-caret 900ms steps(1) infinite;
 }
 
+/* ── Topographic contour-line divider ── */
+.topo-divider {
+  height: 1px;
+  background: repeating-linear-gradient(
+    90deg,
+    var(--color-meridian) 0px,
+    var(--color-meridian) 8px,
+    transparent 8px,
+    transparent 16px
+  );
+  opacity: 0.5;
+}
+
+/* ── Contour card background — very faint topo rings ── */
+.topo-bg {
+  background-image:
+    radial-gradient(ellipse 120px 80px at 85% 20%, var(--color-topo) 0%, transparent 70%),
+    radial-gradient(ellipse 80px 60px at 15% 75%, var(--color-topo) 0%, transparent 70%);
+}
+
+/* ── Globe meridian grid — SVG embedded as background ── */
+.globe-grid {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200' viewBox='0 0 200 200' fill='none'%3E%3Cellipse cx='100' cy='100' rx='90' ry='90' stroke='%23CBD5E1' stroke-width='0.5' opacity='0.3'/%3E%3Cellipse cx='100' cy='100' rx='60' ry='90' stroke='%23CBD5E1' stroke-width='0.5' opacity='0.25'/%3E%3Cellipse cx='100' cy='100' rx='30' ry='90' stroke='%23CBD5E1' stroke-width='0.5' opacity='0.2'/%3E%3Cline x1='10' y1='100' x2='190' y2='100' stroke='%23CBD5E1' stroke-width='0.5' opacity='0.2'/%3E%3Cline x1='10' y1='65' x2='190' y2='65' stroke='%23CBD5E1' stroke-width='0.5' opacity='0.15'/%3E%3Cline x1='10' y1='135' x2='190' y2='135' stroke='%23CBD5E1' stroke-width='0.5' opacity='0.15'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right -40px top -20px;
+  background-size: 200px 200px;
+}
+
+/* ── Node pulse for active dots ── */
+@keyframes node-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 currentColor; }
+  50% { box-shadow: 0 0 0 4px transparent; }
+}
+.dot-pulse {
+  animation: node-pulse 2.4s ease-in-out infinite;
+}
+
+/* ── Coordinate corner label style ── */
+.coord-label {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.04em;
+  color: var(--color-meridian);
+}
+
 /* Light scrollbar */
 ::-webkit-scrollbar { width: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }
@@ -63,3 +110,4 @@ body {
 /* Hide scrollbar utility for horizontal carousels */
 .hide-scrollbar::-webkit-scrollbar { display: none; }
 .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+

@@ -188,3 +188,11 @@ This log records engineering changes made to improve exact-mode runtime and play
 - Added a startup assertion so every tool schema in the catalog must have an object root and cannot expose a top-level `$ref`. This turns similar regressions into local startup/build failures instead of live production surprises.
 - Extended `explorer/scripts/smoke-explorer.ts` to run a canonical exact SSP simulation through the website API, check the saved benchmark-aligned summary values, and verify the simulation copilot returns a clean `503` when no Anthropic key is configured locally.
 - Fixed two unrelated frontend compile blockers (`FindingsPage.tsx` string literal quoting and an unused `cn` import in `DeepDivePage.tsx`) so the explorer build reflects the real copilot/runtime state again.
+
+## 2026-03-30: Research-Oriented Simulation Lab Visual Pass
+
+- Refined the Simulation Lab and chart/map/stat blocks to feel more like a research instrument panel than a product demo.
+- Added stronger stage hierarchy and subtle depth treatment around the simulation surfaces in `explorer/src/pages/SimulationLabPage.tsx` and `explorer/src/index.css`, while keeping the charts themselves flat and scale-faithful.
+- The Simulation Lab now prefetches manifest-ready renderable artifacts in parallel and builds exact overview bundles from those exact outputs before the user drills into a single artifact. This is a UI responsiveness change over the same manifest/artifact files, not a change to simulation truth.
+- Updated `BlockCanvas`, `ChartBlock`, `TimeSeriesBlock`, `MapBlock`, and `StatBlock` so motion is quieter, labels are clearer, and the panels read more like measured outputs than decorative cards.
+- Re-ran the strict benchmark suite after the visual pass; hashes remained unchanged, confirming the simulation outputs were unaffected by these presentation changes.

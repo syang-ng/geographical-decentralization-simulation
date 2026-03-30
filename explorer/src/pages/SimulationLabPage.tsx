@@ -4,6 +4,7 @@ import { motion } from 'framer-motion'
 import { Ban, Check, Copy, Play, RotateCcw, Sparkles } from 'lucide-react'
 import { BlockCanvas } from '../components/explore/BlockCanvas'
 import { cn } from '../lib/cn'
+import { getApiHealth } from '../lib/api'
 import {
   cancelSimulationJob,
   getSimulationArtifact,
@@ -310,6 +311,12 @@ export function SimulationLabPage() {
     enabled: Boolean(currentJobId),
   })
 
+  const apiHealthQuery = useQuery({
+    queryKey: ['api-health'],
+    queryFn: getApiHealth,
+    staleTime: 30_000,
+  })
+
   const manifestQuery = useQuery({
     queryKey: ['simulation-manifest', currentJobId],
     queryFn: () => getSimulationManifest(currentJobId!),
@@ -461,6 +468,8 @@ export function SimulationLabPage() {
   }
 
   const canCancel = jobQuery.data?.status === 'queued' || jobQuery.data?.status === 'running'
+  const copilotAvailable = apiHealthQuery.data?.anthropicEnabled ?? false
+  const copilotDisabled = apiHealthQuery.isLoading || !copilotAvailable || copilotMutation.isPending
   const copilotPromptSuggestions = copilotResponse?.suggestedPrompts?.length
     ? copilotResponse.suggestedPrompts
     : manifest
@@ -477,17 +486,39 @@ export function SimulationLabPage() {
 
   return (
     <div>
-      <div className="mb-8">
+      <div className="lab-stage mb-8 px-6 py-6">
         <div className="flex items-center gap-2 mb-2">
           <span className="w-2 h-2 rounded-full bg-accent" />
           <span className="text-xs text-muted">Simulation lab</span>
         </div>
-        <h1 className="text-xl font-semibold text-text-primary">
-          Run exact-mode simulations with async caching.
-        </h1>
-        <p className="mt-2 text-sm text-muted max-w-2xl">
-          Configure parameters, pick a preset, and run exact replications of paper scenarios. Results are cached and shareable.
-        </p>
+        <div className="grid gap-6 lg:grid-cols-[minmax(0,1.35fr)_minmax(260px,0.8fr)]">
+          <div className="relative z-[1]">
+            <h1 className="text-xl font-semibold text-text-primary">
+              Run exact-mode simulations with an instrument-panel workflow.
+            </h1>
+            <p className="mt-2 max-w-2xl text-sm text-muted">
+              Configure parameters, pick a preset, and inspect exact replications of paper scenarios through precomputed overview bundles and raw artifacts.
+            </p>
+          </div>
+
+          <div className="relative z-[1] grid gap-2 sm:grid-cols-3 lg:grid-cols-1">
+            <div className="rounded-xl border border-border-subtle bg-white/88 px-3 py-3 backdrop-blur-sm">
+              <div className="text-[10px] uppercase tracking-[0.16em] text-text-faint">Default surface</div>
+              <div className="mt-1 text-sm font-medium text-text-primary">Upstream aligned</div>
+              <div className="mt-1 text-xs text-muted">1,000 validators, homogeneous baseline, exact mode.</div>
+            </div>
+            <div className="rounded-xl border border-border-subtle bg-white/88 px-3 py-3 backdrop-blur-sm">
+              <div className="text-[10px] uppercase tracking-[0.16em] text-text-faint">Rendering</div>
+              <div className="mt-1 text-sm font-medium text-text-primary">Parallel overview bundles</div>
+              <div className="mt-1 text-xs text-muted">Manifest-ready artifacts are prefetched and staged together.</div>
+            </div>
+            <div className="rounded-xl border border-border-subtle bg-white/88 px-3 py-3 backdrop-blur-sm">
+              <div className="text-[10px] uppercase tracking-[0.16em] text-text-faint">Truth boundary</div>
+              <div className="mt-1 text-sm font-medium text-text-primary">Animation frames, not meaning</div>
+              <div className="mt-1 text-xs text-muted">Motion is limited to entry and navigation, not data scaling.</div>
+            </div>
+          </div>
+        </div>
       </div>
 
       <div className="mb-6">
@@ -508,7 +539,7 @@ export function SimulationLabPage() {
         </div>
       </div>
 
-      <div className="bg-white border border-border-subtle rounded-lg p-5 mb-6">
+      <div className="lab-stage p-5 mb-6">
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             <label className="text-xs text-muted mb-1.5 block">
@@ -727,7 +758,7 @@ export function SimulationLabPage() {
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
           transition={SPRING}
-          className="bg-white border border-border-subtle rounded-lg p-5 mb-6"
+          className="lab-panel rounded-xl p-5 mb-6"
         >
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
             <div>
@@ -769,7 +800,7 @@ export function SimulationLabPage() {
         </motion.div>
       )}
 
-      <div className="bg-white border border-border-subtle rounded-lg p-5 mb-6">
+      <div className="lab-stage p-5 mb-6">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
           <div>
             <div className="text-xs text-muted mb-1">
@@ -787,6 +818,14 @@ export function SimulationLabPage() {
           </div>
         </div>
 
+        <div className="mt-3 text-xs text-muted">
+          {apiHealthQuery.isLoading
+            ? 'Checking live copilot availability...'
+            : copilotAvailable
+              ? `Live model: ${apiHealthQuery.data?.anthropicModel}. Best prompts name a metric, artifact, scenario, or next experimental decision.`
+              : 'Live copilot is offline. Add ANTHROPIC_API_KEY to explorer/.env to enable bounded Sonnet guidance.'}
+        </div>
+
         <div className="mt-4 flex flex-col gap-3 lg:flex-row">
           <textarea
             value={copilotQuestion}
@@ -794,21 +833,26 @@ export function SimulationLabPage() {
             rows={3}
             placeholder={manifest
               ? 'Example: Show avg_mev, then supermajority_success, then explain the top regions.'
-              : 'Example: What exact run should I use to compare SSP and MSP under shorter slot times?'}
+              : 'Example: Propose an exact SSP vs MSP comparison under shorter slots that stays within bounds.'}
+            disabled={apiHealthQuery.isLoading || !copilotAvailable}
             className="min-h-[92px] flex-1 resize-y bg-white border border-border-subtle rounded-lg px-3 py-2 text-sm text-text-primary outline-none focus:ring-1 focus:ring-accent"
           />
 
           <div className="flex flex-col gap-2 lg:w-48">
             <button
               onClick={() => copilotMutation.mutate(copilotQuestion.trim())}
-              disabled={!copilotQuestion.trim() || copilotMutation.isPending}
+              disabled={!copilotQuestion.trim() || copilotDisabled}
               className={cn(
                 'flex items-center justify-center gap-2 rounded-lg px-4 py-2 text-xs font-medium transition-all',
                 'bg-accent text-white hover:bg-accent/80 disabled:opacity-60 disabled:cursor-not-allowed',
               )}
             >
               <Sparkles className="w-3 h-3" />
-              {copilotMutation.isPending ? 'Thinking...' : 'Ask copilot'}
+              {apiHealthQuery.isLoading
+                ? 'Checking...'
+                : copilotMutation.isPending
+                  ? 'Thinking...'
+                  : 'Ask copilot'}
             </button>
 
             {copilotResponse?.proposedConfig && (
@@ -827,9 +871,11 @@ export function SimulationLabPage() {
             <button
               key={prompt}
               onClick={() => {
+                if (!copilotAvailable) return
                 setCopilotQuestion(prompt)
                 copilotMutation.mutate(prompt)
               }}
+              disabled={!copilotAvailable}
               className="text-xs text-muted hover:text-text-primary transition-colors"
             >
               {prompt}
@@ -855,7 +901,7 @@ export function SimulationLabPage() {
               </div>
             </div>
 
-            <div className="rounded-lg border border-border-subtle bg-white px-4 py-3">
+            <div className="rounded-xl border border-border-subtle bg-white/90 px-4 py-3">
               <div className="text-xs text-muted mb-1">
                 Copilot summary
               </div>
@@ -932,7 +978,7 @@ export function SimulationLabPage() {
             </div>
           </div>
 
-          <div className="bg-white border border-border-subtle rounded-lg p-5 mb-6">
+          <div className="lab-stage p-5 mb-6">
             <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
               <div>
                 <div className="text-xs text-muted mb-1">
@@ -997,7 +1043,7 @@ export function SimulationLabPage() {
             </div>
           </div>
 
-          <div className="bg-white border border-border-subtle rounded-lg p-5 mb-6">
+          <div className="lab-stage p-5 mb-6">
             <div className="flex items-center justify-between gap-3 mb-4">
               <div>
                 <div className="text-xs text-muted mb-1">
@@ -1047,7 +1093,7 @@ export function SimulationLabPage() {
             )}
           </div>
 
-          <div className="bg-white border border-border-subtle rounded-lg p-5 mb-6">
+          <div className="lab-stage p-5 mb-6">
             <div className="flex items-center justify-between gap-3 mb-4">
               <div>
                 <div className="text-xs text-muted mb-1">
@@ -1096,7 +1142,7 @@ export function SimulationLabPage() {
             </div>
           </div>
 
-          <div className="bg-white border border-border-subtle rounded-lg p-5">
+          <div className="lab-stage p-5">
             <div className="flex items-center justify-between gap-3 mb-4">
               <div>
                 <div className="text-xs text-muted mb-1">

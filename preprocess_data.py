@@ -359,7 +359,89 @@ def make_json_serializable(obj):
         return obj
 
 
-def preprocess_simulation_data(data_dir, output_dir, model="SSP"):
+def infer_validator_count(validator_agent_regions):
+    if not validator_agent_regions:
+        return 0
+
+    first_slot = min(validator_agent_regions.keys(), key=lambda value: int(value))
+    return sum(int(count) for _, count in validator_agent_regions[first_slot])
+
+
+def normalize_sources(source_entries, model, label_style="published"):
+    suffix = "supplier" if model == "SSP" else "signal"
+    normalized = []
+
+    for entry in source_entries:
+        if isinstance(entry, dict):
+            region = entry.get("gcp_region") or entry.get("region") or entry.get("location")
+            name = entry.get("unique_id") or entry.get("name") or region
+        elif isinstance(entry, (list, tuple)) and len(entry) >= 2:
+            name, region = entry[0], entry[1]
+        else:
+            name = entry
+            region = entry
+
+        region_str = str(region)
+        if label_style == "published":
+            normalized_name = f"{region_str}-{suffix}"
+        else:
+            normalized_name = str(name)
+
+        normalized.append((normalized_name, region_str))
+
+    return normalized
+
+
+def build_preprocessed_payload(
+    validator_agent_regions,
+    n_slots,
+    metrics,
+    sources,
+    validator_count=None,
+    cost=None,
+    delta=None,
+    cutoff=None,
+    gamma=None,
+    description=None,
+):
+    payload = {}
+    resolved_validator_count = (
+        infer_validator_count(validator_agent_regions)
+        if validator_count is None
+        else validator_count
+    )
+    payload["v"] = int(resolved_validator_count)
+
+    if delta is not None:
+        payload["delta"] = int(delta)
+    if cutoff is not None:
+        payload["cutoff"] = int(cutoff)
+    if cost is not None:
+        payload["cost"] = float(cost)
+    if gamma is not None:
+        payload["gamma"] = float(gamma)
+    if description:
+        payload["description"] = description
+
+    payload["n_slots"] = n_slots
+    payload["metrics"] = metrics
+    payload["sources"] = sources
+    payload["slots"] = {int(slot): counter for slot, counter in validator_agent_regions.items()}
+    return payload
+
+
+def preprocess_simulation_data(
+    data_dir,
+    output_dir,
+    model="SSP",
+    validator_count=None,
+    cost=None,
+    delta=None,
+    cutoff=None,
+    gamma=None,
+    description=None,
+    source_label_style="published",
+):
     """
     Preprocess all simulation data and create optimized files for static loading.
     """
@@ -410,24 +492,30 @@ def preprocess_simulation_data(data_dir, output_dir, model="SSP"):
     # Pre-compute info distances
     print("Pre-computing info distances...")
     if model == "SSP":
-        info_names = [i[0] for i in relay_names]
         info_data = [region_to_xyz.get(i[1], (0.0, 0.0, 0.0)) for i in relay_names]
-        sources = relay_names
+        raw_sources = relay_names
     else:  # MSP
-        info_names = [i[0] for i in signal_names]
         info_data = [region_to_xyz.get(i[1], (0.0, 0.0, 0.0)) for i in signal_names]
-        sources = signal_names
+        raw_sources = signal_names
+
+    sources = normalize_sources(raw_sources, model, label_style=source_label_style)
     
     info_distances = precompute_info_distances(all_slot_data, [info_data]*len(all_slot_data))
     precomputed_metrics["info_avg_distance"] = info_distances
 
     # Compile all preprocessed data
-    preprocessed_data = {
-        'n_slots': n_slots,
-        'metrics': precomputed_metrics,
-        'sources': sources,
-        'slots': {int(slot): counter for slot, counter in validator_agent_regions.items()},
-    }
+    preprocessed_data = build_preprocessed_payload(
+        validator_agent_regions=validator_agent_regions,
+        n_slots=n_slots,
+        metrics=precomputed_metrics,
+        sources=sources,
+        validator_count=validator_count,
+        cost=cost,
+        delta=delta,
+        cutoff=cutoff,
+        gamma=gamma,
+        description=description,
+    )
     
     # Save preprocessed data
     output_file = f"{output_dir}/preprocessed_data.json"
@@ -467,7 +555,61 @@ if __name__ == "__main__":
         choices=["SSP", "MSP"],
         help="Simulation model type (SSP or MSP).",
     )
+    parser.add_argument(
+        "--validator-count",
+        type=int,
+        default=None,
+        help="Explicit validator count for the published-style output metadata (defaults to the first slot total).",
+    )
+    parser.add_argument(
+        "--cost",
+        type=float,
+        default=None,
+        help="Migration cost to include in the preprocessed dataset metadata.",
+    )
+    parser.add_argument(
+        "--delta",
+        type=int,
+        default=None,
+        help="Slot time in milliseconds to include in the preprocessed dataset metadata.",
+    )
+    parser.add_argument(
+        "--cutoff",
+        type=int,
+        default=None,
+        help="Attestation cutoff time in milliseconds to include in the preprocessed dataset metadata.",
+    )
+    parser.add_argument(
+        "--gamma",
+        type=float,
+        default=None,
+        help="Attestation threshold to include in the preprocessed dataset metadata.",
+    )
+    parser.add_argument(
+        "--description",
+        type=str,
+        default="",
+        help="Optional experiment summary to include in the preprocessed dataset metadata.",
+    )
+    parser.add_argument(
+        "--source-label-style",
+        type=str,
+        default="published",
+        choices=["published", "raw"],
+        help="How to label the sources array in the output JSON.",
+    )
 
     
     args = parser.parse_args()
-    preprocess_simulation_data(args.data_dir, args.output_dir, args.model)
+    preprocess_simulation_data(
+        args.data_dir,
+        args.output_dir,
+        args.model,
+        validator_count=args.validator_count,
+        cost=args.cost,
+        delta=args.delta,
+        cutoff=args.cutoff,
+        gamma=args.gamma,
+        description=args.description,
+        source_label_style=args.source_label_style,
+    )

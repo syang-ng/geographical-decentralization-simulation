@@ -29,6 +29,16 @@ import {
 } from '../src/types/simulation-view.ts'
 import { buildSimulationArtifactBundle, buildSimulationSummaryChart } from '../src/lib/simulation-artifact-blocks.ts'
 
+const __dirname = path.dirname(fileURLToPath(import.meta.url))
+const EXPLORER_ROOT = path.resolve(__dirname, '..')
+const DEFAULT_ANTHROPIC_MODEL = 'claude-sonnet-4-20250514'
+const MISSING_ANTHROPIC_CONFIG_MESSAGE = 'Anthropic API is not configured on this server. Add ANTHROPIC_API_KEY to explorer/.env or your shell environment.'
+
+const envFile = path.join(EXPLORER_ROOT, '.env')
+if (existsSync(envFile)) {
+  process.loadEnvFile(envFile)
+}
+
 const STOP_WORDS = new Set([
   'a',
   'an',
@@ -95,6 +105,7 @@ const SIMULATION_PRESETS = {
 } satisfies Record<string, Partial<SimulationRequest>>
 
 const apiKey = process.env.ANTHROPIC_API_KEY
+const anthropicModel = process.env.ANTHROPIC_MODEL?.trim() || DEFAULT_ANTHROPIC_MODEL
 const allowedOrigins = (process.env.ALLOWED_ORIGINS ?? 'http://localhost:3200,http://localhost:5180').split(',')
 
 const app = express()
@@ -1111,7 +1122,7 @@ app.post('/api/explore', async (req, res) => {
   }
 
   if (!client) {
-    res.status(503).json({ error: 'Anthropic API is not configured on this server.' })
+    res.status(503).json({ error: MISSING_ANTHROPIC_CONFIG_MESSAGE })
     return
   }
 
@@ -1129,7 +1140,7 @@ app.post('/api/explore', async (req, res) => {
 
     for (let round = 0; round <= MAX_TOOL_ROUNDS; round++) {
       const response = await client.messages.create({
-        model: 'claude-sonnet-4-20250514',
+        model: anthropicModel,
         max_tokens: 4096,
         system: [
           {
@@ -1208,7 +1219,7 @@ app.post('/api/explore', async (req, res) => {
         : false,
       provenance: {
         source: 'generated',
-        label: 'Fresh Claude response',
+        label: 'Fresh Sonnet response',
         detail: 'Generated a new block composition from the study context and the current question.',
         canonical: false,
       },
@@ -1245,7 +1256,7 @@ app.post('/api/simulation-copilot', async (req, res) => {
   }
 
   if (!client) {
-    res.status(503).json({ error: 'Anthropic API is not configured on this server.' })
+    res.status(503).json({ error: MISSING_ANTHROPIC_CONFIG_MESSAGE })
     return
   }
 
@@ -1265,7 +1276,7 @@ app.post('/api/simulation-copilot', async (req, res) => {
 
     for (let round = 0; round <= MAX_TOOL_ROUNDS; round++) {
       const response = await client.messages.create({
-        model: 'claude-sonnet-4-20250514',
+        model: anthropicModel,
         max_tokens: 4096,
         system: [
           {
@@ -1378,6 +1389,8 @@ app.get('/api/health', (_req, res) => {
     tools: exploreTools.length,
     simulationCopilotTools: simulationCopilotTools.length,
     anthropicEnabled: Boolean(client),
+    anthropicModel: client ? anthropicModel : null,
+    envFileLoaded: existsSync(envFile),
     simulations: simulationRuntime.health(),
   })
 })
@@ -1533,7 +1546,6 @@ app.post('/api/explorations/:id/vote', (req, res) => {
 
 // --- Static file serving for production (Railway serves both API + SPA) ---
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const DIST_DIR = path.join(__dirname, '..', 'dist')
 
 if (existsSync(DIST_DIR)) {

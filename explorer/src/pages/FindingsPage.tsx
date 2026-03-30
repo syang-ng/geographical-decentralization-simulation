@@ -8,7 +8,8 @@ import { QueryBar } from '../components/explore/QueryBar'
 import { QueryHistory, type HistoryEntry } from '../components/explore/QueryHistory'
 import { ShimmerLoading } from '../components/explore/ShimmerBlock'
 import { ErrorDisplay } from '../components/explore/ErrorDisplay'
-import { explore, type ExploreError, type ExploreProvenance, type ExploreResponse } from '../lib/api'
+import { explore, getApiHealth, type ApiHealth, type ExploreError, type ExploreProvenance, type ExploreResponse } from '../lib/api'
+import { NodeConstellation } from '../components/decorative/NodeConstellation'
 import { SPRING } from '../lib/theme'
 
 function upsertHistory(previous: HistoryEntry[], next: HistoryEntry): HistoryEntry[] {
@@ -41,7 +42,29 @@ export function FindingsPage({ initialQuery = null }: { initialQuery?: string | 
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<ExploreError | null>(null)
   const [history, setHistory] = useState<HistoryEntry[]>([])
+  const [apiHealth, setApiHealth] = useState<ApiHealth | null>(null)
+  const [healthError, setHealthError] = useState<string | null>(null)
   const initialQueryHandledRef = useRef(false)
+
+  useEffect(() => {
+    let cancelled = false
+
+    void getApiHealth()
+      .then(health => {
+        if (cancelled) return
+        setApiHealth(health)
+        setHealthError(null)
+      })
+      .catch(err => {
+        if (cancelled) return
+        setApiHealth(null)
+        setHealthError(err instanceof Error ? err.message : 'Failed to reach the API server.')
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   const handleTopicClick = (card: TopicCard) => {
     setAiResponse(null)
@@ -117,35 +140,54 @@ export function FindingsPage({ initialQuery = null }: { initialQuery?: string | 
     ?? (showTopic && activeTopic
       ? fallbackCuratedProvenance('Curated topic card', 'Editorial paper finding selected from the curated findings library.')
       : fallbackCuratedProvenance('Curated overview', "Editorial overview assembled from the paper's main findings and caveats."))
+  const queryBarDisabled = Boolean(healthError)
+  const queryBarDisabledReason = healthError
+    ? 'The API server is unreachable right now.'
+    : undefined
+  const queryBarHelperText = healthError
+    ? 'The API server is unreachable. Start the explorer API to restore live and cached query routing.'
+    : apiHealth?.anthropicEnabled
+      ? `Live model: ${apiHealth.anthropicModel}. Ask about a metric, scenario, mechanism, or comparison for the strongest answers.`
+      : apiHealth
+        ? 'Live Sonnet is offline. Curated and history matches still work, but fresh generation needs ANTHROPIC_API_KEY in explorer/.env.'
+        : 'Checking live model availability. Best prompts mention a paradigm, metric, experiment, or comparison.'
 
   return (
     <div>
-      {/* Page header */}
-      <div className="mb-8">
-        <h1 className="text-xl font-semibold text-text-primary">
+      {/* Page header with constellation decoration */}
+      <div className="mb-10 relative">
+        <NodeConstellation className="absolute right-0 top-0 w-32 h-32 opacity-40 pointer-events-none hidden sm:block" />
+
+        <h1 className="text-2xl sm:text-3xl font-bold text-text-primary font-serif leading-tight max-w-lg">
           Explore the paper without losing provenance.
         </h1>
-        <p className="mt-2 text-sm text-muted max-w-2xl">
+        <p className="mt-3 text-sm text-muted max-w-2xl leading-relaxed">
           Start from curated findings, revisit session history instantly, or ask a bounded question and inspect the resulting blocks.
         </p>
 
-        <div className="flex flex-wrap items-center gap-3 mt-3 text-xs text-muted">
+        <div className="flex flex-wrap items-center gap-4 mt-4 text-xs text-muted">
           <span className="inline-flex items-center gap-1.5">
-            <span className="w-1.5 h-1.5 rounded-full bg-success" />
+            <span className="w-2 h-2 rounded-full bg-success" />
             Curated cards first
           </span>
           <span className="inline-flex items-center gap-1.5">
-            <span className="w-1.5 h-1.5 rounded-full bg-warning" />
+            <span className="w-2 h-2 rounded-full bg-warning" />
             Session history reuse
           </span>
           <span className="inline-flex items-center gap-1.5">
-            <span className="w-1.5 h-1.5 rounded-full bg-accent" />
+            <span className="w-2 h-2 rounded-full bg-accent dot-pulse" />
             Fresh generation last
           </span>
         </div>
 
         <div className="mt-4">
-          <QueryBar onSubmit={handleQuery} loading={loading} />
+          <QueryBar
+            onSubmit={handleQuery}
+            loading={loading}
+            disabled={queryBarDisabled}
+            disabledReason={queryBarDisabledReason}
+            helperText={queryBarHelperText}
+          />
         </div>
       </div>
 
@@ -182,13 +224,13 @@ export function FindingsPage({ initialQuery = null }: { initialQuery?: string | 
                 key={card.id}
                 onClick={() => handleTopicClick(card)}
                 layout
-                whileHover={{ y: -2 }}
-                whileTap={{ scale: 0.98 }}
+                whileHover={{ y: -2, boxShadow: '0 4px 12px rgba(0,0,0,0.06)' }}
+                whileTap={{ scale: 0.985 }}
                 transition={SPRING}
                 aria-label={card.title}
                 aria-pressed={isActive}
                 className={cn(
-                  'text-left rounded-lg border p-3 transition-all',
+                  'text-left rounded-lg border p-4 transition-all topo-bg group',
                   isActive
                     ? 'border-accent bg-white'
                     : isDimmed
@@ -215,15 +257,15 @@ export function FindingsPage({ initialQuery = null }: { initialQuery?: string | 
         </div>
       </div>
 
-      <hr className="border-rule mb-6" />
+      <div className="topo-divider mb-6" />
 
       {/* Active lens */}
       <div className="mb-6">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between mb-4">
           <div>
-            <div className="text-base font-medium text-text-primary">
+            <h2 className="text-lg font-semibold text-text-primary font-serif">
               {heading}
-            </div>
+            </h2>
           </div>
           <div className="flex items-center gap-1.5 text-xs text-muted shrink-0">
             <span className={cn('w-1.5 h-1.5 rounded-full', dotColor[displayProvenance.source] ?? 'bg-accent')} />

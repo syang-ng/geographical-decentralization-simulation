@@ -6,7 +6,7 @@
   <title>Geo Validator Lab</title>
   <meta
     name="description"
-    content="A lightweight launcher for the geographical decentralization simulation research demo."
+    content="A frozen local baseline of the published geographical decentralization simulation research demo."
   />
   <style>
     :root {
@@ -334,7 +334,7 @@ To make these results accessible without requiring users to re-run large experim
     </section>
   </main>
   <footer>
-    Static viewer launcher
+    Frozen research demo baseline
   </footer>
 </div>
 
@@ -456,19 +456,14 @@ To make these results accessible without requiring users to re-run large experim
       dataset,
       theme: document.getElementById("theme").value,
       step: parseInt(document.getElementById("step").value || "1", 10),
-      autoplay: document.querySelector('input[name="autoplay"]:checked').value === "on",
-      decimation: 5,
-      density_radius: 0.2
+      autoplay: document.querySelector('input[name="autoplay"]:checked').value === "on"
     };
 
     try {
       localStorage.setItem("app_settings", JSON.stringify(settings));
     } catch (_) {}
 
-    const params = new URLSearchParams({
-      ...settings,
-      radius: String(settings.density_radius)
-    });
+    const params = new URLSearchParams(settings);
     window.location.href = `${TARGET_PAGE}?${params.toString()}`;
   }
 

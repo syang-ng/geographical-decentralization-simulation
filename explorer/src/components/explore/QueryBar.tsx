@@ -5,21 +5,26 @@ import { cn } from '../../lib/cn'
 import { SPRING } from '../../lib/theme'
 
 const EXAMPLE_CHIPS = [
-  'How does SSP compare to MSP?',
-  'Why does attestation threshold have opposite effects?',
-  'What happens with shorter slots?',
-  'Where do validators concentrate geographically?',
+  'Compare SSP and MSP under the baseline setup.',
+  'Why does gamma affect SSP and MSP differently?',
+  'What changes under shorter slots?',
+  'Which regions dominate and why?',
 ] as const
 
 interface QueryBarProps {
   onSubmit?: (query: string) => void
   disabled?: boolean
   loading?: boolean
+  disabledReason?: string
+  helperText?: string
 }
 
-export function QueryBar({ onSubmit, disabled, loading }: QueryBarProps) {
+export function QueryBar({ onSubmit, disabled, loading, disabledReason, helperText }: QueryBarProps) {
   const [query, setQuery] = useState('')
   const isEnabled = !disabled && !loading
+  const placeholder = disabled
+    ? disabledReason ?? 'Anthropic search is unavailable right now.'
+    : 'Ask about a metric, scenario, mechanism, or SSP vs MSP comparison...'
 
   const handleSubmit = () => {
     const trimmed = query.trim()
@@ -50,7 +55,7 @@ export function QueryBar({ onSubmit, disabled, loading }: QueryBarProps) {
             value={query}
             onChange={e => setQuery(e.target.value)}
             onKeyDown={e => e.key === 'Enter' && handleSubmit()}
-            placeholder={disabled ? 'AI search coming in Phase 2 — explore the findings below' : 'Ask anything about the paper...'}
+            placeholder={placeholder}
             disabled={!isEnabled}
             aria-label="Search the paper"
             className="flex-1 bg-transparent text-sm text-text-primary placeholder:text-text-faint outline-none disabled:opacity-50"
@@ -97,9 +102,13 @@ export function QueryBar({ onSubmit, disabled, loading }: QueryBarProps) {
         </AnimatePresence>
       )}
 
-      {disabled && (
+      <p className="text-xs text-text-faint text-center mt-1.5">
+        {helperText ?? 'Best results mention a paradigm, metric, experiment, or comparison. The guide stays concise and evidence-first.'}
+      </p>
+
+      {disabled && disabledReason && (
         <p className="text-xs text-text-faint text-center mt-1.5">
-          AI search coming in Phase 2 — explore the findings below
+          {disabledReason}
         </p>
       )}
     </div>

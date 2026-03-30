@@ -1,3 +1,4 @@
+// Frozen researcher-facing dataset manifest for the local MVP dashboard.
 window.RESEARCH_CATALOG = {
   introBlurb: `This project provides a lightweight interface for the simulations of the geographical decentralization of Ethereum validators that we developed as part of our research.
 Our motivation is to better understand the dynamics of validator placement, latency, and performance in decentralized networks. Running such simulations allows us to test different assumptions, compare strategies, and identify where centralization pressures may arise.

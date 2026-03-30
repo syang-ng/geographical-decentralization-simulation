@@ -3,7 +3,7 @@ import { motion } from 'framer-motion'
 import { Download } from 'lucide-react'
 import type { Block } from '../../types/blocks'
 import { BlockRenderer } from '../blocks/BlockRenderer'
-import { SPRING } from '../../lib/theme'
+import { STAGGER_CONTAINER, STAGGER_ITEM } from '../../lib/theme'
 
 interface BlockCanvasProps {
   readonly blocks: readonly Block[]
@@ -50,10 +50,7 @@ export function BlockCanvas({ blocks, showExport = true }: BlockCanvasProps) {
       <motion.div
         initial="hidden"
         animate="visible"
-        variants={{
-          hidden: {},
-          visible: { transition: { staggerChildren: 0.08, delayChildren: 0.04 } },
-        }}
+        variants={STAGGER_CONTAINER}
         className="space-y-3"
       >
       {leadingStats ? (
@@ -63,10 +60,7 @@ export function BlockCanvas({ blocks, showExport = true }: BlockCanvasProps) {
             {blocks.slice(0, 3).map((block, i) => (
               <motion.div
                 key={i}
-                variants={{
-                  hidden: { opacity: 0, y: 16, filter: 'blur(6px)' },
-                  visible: { opacity: 1, y: 0, filter: 'blur(0px)', transition: SPRING },
-                }}
+                variants={STAGGER_ITEM}
               >
                 <BlockRenderer block={block} />
               </motion.div>
@@ -76,10 +70,7 @@ export function BlockCanvas({ blocks, showExport = true }: BlockCanvasProps) {
           {blocks.slice(3).map((block, i) => (
             <motion.div
               key={i + 3}
-              variants={{
-                hidden: { opacity: 0, y: 16, filter: 'blur(6px)' },
-                visible: { opacity: 1, y: 0, filter: 'blur(0px)', transition: SPRING },
-              }}
+              variants={STAGGER_ITEM}
             >
               <BlockRenderer block={block} />
             </motion.div>
@@ -89,10 +80,7 @@ export function BlockCanvas({ blocks, showExport = true }: BlockCanvasProps) {
         blocks.map((block, i) => (
           <motion.div
             key={i}
-            variants={{
-              hidden: { opacity: 0, y: 16, filter: 'blur(6px)' },
-              visible: { opacity: 1, y: 0, filter: 'blur(0px)', transition: SPRING },
-            }}
+            variants={STAGGER_ITEM}
           >
             <BlockRenderer block={block} />
           </motion.div>

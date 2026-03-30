@@ -10,6 +10,8 @@ interface ChartBlockProps {
 
 export function ChartBlock({ block }: ChartBlockProps) {
   const maxValue = Math.max(1, ...block.data.map(d => Math.abs(d.value)))
+  const minValue = Math.min(...block.data.map(d => d.value))
+  const topDatum = [...block.data].sort((left, right) => Math.abs(right.value) - Math.abs(left.value))[0]
   const categoryColors = new Map<string, string>()
   let colorIndex = 0
 
@@ -20,7 +22,7 @@ export function ChartBlock({ block }: ChartBlockProps) {
   }
 
   return (
-    <div className="bg-white border border-border-subtle rounded-lg overflow-hidden">
+    <div className="lab-panel overflow-hidden rounded-xl">
       <div className="border-b border-border-subtle px-5 py-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
@@ -32,6 +34,17 @@ export function ChartBlock({ block }: ChartBlockProps) {
                 ? 'Trend view across the selected values.'
                 : 'Exact values rendered as proportional bars.'}
             </p>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            {topDatum && (
+              <span className="lab-chip">
+                peak {topDatum.label}: {topDatum.value}{block.unit ?? ''}
+              </span>
+            )}
+            <span className="lab-chip">
+              range {minValue} to {maxValue}{block.unit ?? ''}
+            </span>
           </div>
 
           {categoryColors.size > 0 && (
@@ -61,10 +74,13 @@ export function ChartBlock({ block }: ChartBlockProps) {
                 : (d.value >= 0 ? '#3B82F6' : '#EF4444')
 
               return (
-                <div key={`${d.label}-${i}`} className="rounded-lg border border-border-subtle p-3">
+                <div key={`${d.label}-${i}`} className="rounded-xl border border-border-subtle bg-[linear-gradient(180deg,rgba(255,255,255,0.94),rgba(245,245,243,0.8))] p-3">
                   <div className="mb-2 flex items-center justify-between gap-3">
                     <div className="min-w-0">
-                      <div className="truncate text-xs font-medium text-text-primary">
+                      <div className="truncate text-[11px] font-medium uppercase tracking-[0.16em] text-text-faint">
+                        Measurement
+                      </div>
+                      <div className="mt-1 truncate text-xs font-medium text-text-primary">
                         {d.label}
                       </div>
                       {d.category && (
@@ -78,12 +94,13 @@ export function ChartBlock({ block }: ChartBlockProps) {
                     </span>
                   </div>
 
-                  <div className="relative h-6 overflow-hidden rounded bg-[#F5F5F3]">
+                  <div className="relative h-6 overflow-hidden rounded-full border border-border-subtle bg-[#F5F5F3]">
+                    <div className="absolute inset-y-0 left-0 w-full bg-[linear-gradient(90deg,rgba(26,26,26,0.03)_1px,transparent_1px)] bg-[length:14%_100%]" />
                     <motion.div
                       initial={{ width: 0, opacity: 0.7 }}
                       animate={{ width: `${(Math.abs(d.value) / maxValue) * 100}%`, opacity: 1 }}
                       transition={{ ...SPRING, delay: i * 0.06 }}
-                      className="absolute inset-y-0 left-0 rounded"
+                      className="absolute inset-y-0 left-0 rounded-full shadow-[inset_0_1px_0_rgba(255,255,255,0.35)]"
                       style={{ backgroundColor: barColor }}
                     />
                   </div>
@@ -129,9 +146,12 @@ function LineChart({ data, unit }: { data: ChartBlockType['data']; unit?: string
   const areaD = points.length > 0
     ? `${pathD} L ${points[points.length - 1].x} ${baselineY} L ${points[0].x} ${baselineY} Z`
     : ''
+  const latestPoint = points[points.length - 1]
+  const highestPoint = [...points].sort((left, right) => right.value - left.value)[0]
 
   return (
     <div>
+      <div className="rounded-xl border border-border-subtle bg-[radial-gradient(circle_at_top,rgba(59,130,246,0.08),transparent_60%),linear-gradient(180deg,rgba(255,255,255,0.96),rgba(245,245,243,0.82))] p-3">
       <svg viewBox={`0 0 ${width} ${height}`} className="w-full" preserveAspectRatio="xMidYMid meet">
         <defs>
           <linearGradient id={gradientId} x1="0%" x2="0%" y1="0%" y2="100%">
@@ -196,13 +216,30 @@ function LineChart({ data, unit }: { data: ChartBlockType['data']; unit?: string
           </g>
         ))}
       </svg>
+      </div>
 
-      <div className="mt-3 grid gap-2 sm:grid-cols-2">
+      <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+        {highestPoint && (
+          <div className="rounded-xl border border-border-subtle bg-[linear-gradient(180deg,rgba(255,255,255,0.94),rgba(245,245,243,0.8))] px-2.5 py-2 text-xs">
+            <div className="text-text-faint">Highest point</div>
+            <div className="mt-1 font-medium tabular-nums text-text-primary">
+              {highestPoint.label}: {highestPoint.value}{unit ?? ''}
+            </div>
+          </div>
+        )}
+        {latestPoint && (
+          <div className="rounded-xl border border-accent/20 bg-[#F8FAFF] px-2.5 py-2 text-xs">
+            <div className="text-text-faint">Latest value</div>
+            <div className="mt-1 font-medium tabular-nums text-text-primary">
+              {latestPoint.label}: {latestPoint.value}{unit ?? ''}
+            </div>
+          </div>
+        )}
         {points.map((point, index) => (
           <div
             key={`${point.label}-label-${index}`}
             className={cn(
-              'rounded-lg border border-border-subtle px-2.5 py-2 text-xs',
+              'rounded-xl border border-border-subtle bg-[linear-gradient(180deg,rgba(255,255,255,0.94),rgba(245,245,243,0.8))] px-2.5 py-2 text-xs',
               index === points.length - 1 && 'border-accent bg-[#F8FAFF]',
             )}
           >

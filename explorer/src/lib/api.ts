@@ -31,6 +31,21 @@ export interface ExploreError {
   readonly status: number
 }
 
+export interface ApiHealth {
+  readonly status: 'ok'
+  readonly tools: number
+  readonly simulationCopilotTools: number
+  readonly anthropicEnabled: boolean
+  readonly anthropicModel: string | null
+  readonly envFileLoaded: boolean
+  readonly simulations: {
+    readonly readyWorkers: number
+    readonly busyWorkers: number
+    readonly queuedJobs: number
+    readonly cacheEntries: number
+  }
+}
+
 export type ExploreResult =
   | { ok: true; data: ExploreResponse }
   | { ok: false; error: ExploreError }
@@ -108,10 +123,19 @@ export async function explore(
   }
 }
 
+export async function getApiHealth(): Promise<ApiHealth> {
+  const res = await fetch(`${API_BASE}/health`)
+  if (!res.ok) {
+    throw new Error(`Failed to fetch API health: ${res.statusText}`)
+  }
+
+  return await res.json() as ApiHealth
+}
+
 export async function healthCheck(): Promise<boolean> {
   try {
-    const res = await fetch(`${API_BASE}/health`)
-    return res.ok
+    await getApiHealth()
+    return true
   } catch {
     return false
   }

@@ -2,6 +2,9 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import vm from "node:vm";
 
+// Maintenance-only helper.
+// The MVP uses the checked-in dataset payloads under dashboard/simulations.
+
 const ROOT = process.cwd();
 const DASHBOARD_DIR = path.join(ROOT, "dashboard");
 const CATALOG_PATH = path.join(DASHBOARD_DIR, "assets", "research-catalog.js");

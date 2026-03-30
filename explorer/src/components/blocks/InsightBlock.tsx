@@ -1,4 +1,6 @@
+import { motion } from 'framer-motion'
 import { cn } from '../../lib/cn'
+import { HOVER_LIFT } from '../../lib/theme'
 import type { InsightBlock as InsightBlockType } from '../../types/blocks'
 
 interface InsightBlockProps {
@@ -21,20 +23,23 @@ export function InsightBlock({ block }: InsightBlockProps) {
   const emphasis = block.emphasis ?? 'normal'
 
   return (
-    <div className={cn(
-      'bg-white border border-border-subtle rounded-lg p-5 border-l-[3px]',
-      emphasisStyles[emphasis],
-    )}>
+    <motion.div
+      {...HOVER_LIFT}
+      className={cn(
+        'bg-white border border-border-subtle rounded-lg p-5 border-l-[3px] topo-bg',
+        emphasisStyles[emphasis],
+      )}
+    >
       {block.title && (
-        <h3 className="flex items-center gap-2 text-base font-semibold text-text-primary mb-2">
+        <h3 className="flex items-center gap-2 text-base font-semibold text-text-primary mb-3">
           <span className={cn('w-2 h-2 rounded-full shrink-0', dotColors[emphasis])} />
           {block.title}
         </h3>
       )}
-      <p className="text-sm leading-relaxed text-text-body font-serif">
+      <p className="text-[15px] leading-[1.7] text-text-body font-serif">
         <InlineMarkdown text={block.text} />
       </p>
-    </div>
+    </motion.div>
   )
 }
 
@@ -47,7 +52,7 @@ function InlineMarkdown({ text }: { text: string }) {
           return <strong key={i} className="text-text-primary font-semibold">{part.slice(2, -2)}</strong>
         }
         if (part.startsWith('*') && part.endsWith('*')) {
-          return <em key={i}>{part.slice(1, -1)}</em>
+          return <em key={i} className="text-text-primary">{part.slice(1, -1)}</em>
         }
         return <span key={i}>{part}</span>
       })}

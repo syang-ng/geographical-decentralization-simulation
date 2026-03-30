@@ -179,6 +179,10 @@ async function main() {
       assert(healthResponse.ok, 'Expected /api/health to succeed')
       const health = await healthResponse.json() as Record<string, unknown>
       assert(typeof health.tools === 'number' && health.tools >= 7, 'Expected expanded tool catalog in /api/health')
+      assert(
+        health.anthropicModel === null || typeof health.anthropicModel === 'string',
+        'Expected /api/health to expose the configured Anthropic model or null',
+      )
       const simulations = health.simulations as Record<string, unknown> | undefined
       assert(typeof simulations?.readyWorkers === 'number' && simulations.readyWorkers >= 1, 'Expected at least one ready simulation worker')
 
@@ -250,6 +254,50 @@ async function main() {
           }),
         })
         assert(copilotResponse.status === 503, 'Expected simulation copilot to return 503 when Anthropic is not configured')
+      } else {
+        const generatedExploreResponse = await fetch(`${BASE_URL}/api/explore`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            query: 'Explain the latency-critical-path difference between SSP and MSP and why it changes geographic concentration pressure.',
+          }),
+        })
+        assert(generatedExploreResponse.ok, 'Expected live /api/explore request to succeed')
+        const generatedExplorePayload = await generatedExploreResponse.json() as Record<string, unknown>
+        const generatedProvenance = generatedExplorePayload.provenance as Record<string, unknown> | undefined
+        assert(generatedProvenance?.source === 'generated', 'Expected live /api/explore request to hit the model path')
+        assert(Array.isArray(generatedExplorePayload.blocks) && generatedExplorePayload.blocks.length > 0, 'Expected live /api/explore request to return blocks')
+        assert(
+          typeof generatedExplorePayload.model === 'string' && generatedExplorePayload.model.includes('sonnet'),
+          'Expected live /api/explore request to report a Sonnet model',
+        )
+
+        const liveCopilotResponse = await fetch(`${BASE_URL}/api/simulation-copilot`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            question: 'Propose an exact SSP vs MSP comparison under shorter slots that stays within supported bounds.',
+            currentConfig: {
+              paradigm: 'SSP',
+              validators: 1000,
+              slots: 1000,
+              distribution: 'homogeneous',
+              sourcePlacement: 'homogeneous',
+              migrationCost: 0.0001,
+              attestationThreshold: 2 / 3,
+              slotTime: 12,
+              seed: 25873,
+            },
+          }),
+        })
+        assert(liveCopilotResponse.ok, 'Expected live /api/simulation-copilot request to succeed')
+        const liveCopilotPayload = await liveCopilotResponse.json() as Record<string, unknown>
+        assert(typeof liveCopilotPayload.summary === 'string' && liveCopilotPayload.summary.length > 0, 'Expected live copilot to return a summary')
+        assert(Array.isArray(liveCopilotPayload.blocks) && liveCopilotPayload.blocks.length > 0, 'Expected live copilot to return blocks')
+        assert(
+          typeof liveCopilotPayload.model === 'string' && liveCopilotPayload.model.includes('sonnet'),
+          'Expected live copilot to report a Sonnet model',
+        )
       }
 
       process.stdout.write('Explorer smoke checks passed.\n')
