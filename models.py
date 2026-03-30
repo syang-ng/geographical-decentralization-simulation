@@ -2,7 +2,7 @@ import inspect
 import math
 import random
 
-from collections import deque
+from collections import Counter, deque
 from mesa import Model, DataCollector
 
 from consensus import ConsensusSettings
@@ -38,6 +38,7 @@ class EthereumRawModel(Model):
         validator_cloud_percentage=CLOUD_VALIDATOR_PERCENTAGE,
         validator_noncompliant_percentage=NON_COMPLIANT_VALIDATOR_PERCENTAGE,
         collect_full_history=False,
+        collect_raw_artifacts=True,
         verbose=False,
     ):
 
@@ -93,6 +94,7 @@ class EthereumRawModel(Model):
 
         # Exact-mode caches and lightweight slot histories.
         self.collect_full_history = collect_full_history
+        self.collect_raw_artifacts = collect_raw_artifacts
         self.verbose = verbose
         self.slot_latency_params_cache = {}
         self.slot_minimal_needed_time_cache = {}
@@ -101,8 +103,15 @@ class EthereumRawModel(Model):
         self.latency_executor = None
         self.latency_executor_workers = 0
         self.slot_model_history = []
-        self.slot_validator_history = []
         self.slot_proposer_history = []
+        self.slot_mev_by_slot = []
+        self.slot_estimated_mev_by_slot = []
+        self.slot_attest_by_slot = []
+        self.slot_proposal_time_by_slot = []
+        self.slot_proposal_time_avg = []
+        self.slot_attestation_sum = []
+        self.slot_region_counter_per_slot = {}
+        self.top_regions_final = []
         self.validator_step_order = []
 
         # --- Setup DataCollector ---
@@ -170,20 +179,41 @@ class EthereumRawModel(Model):
             }
         )
 
-        slot_validator_records = []
+        mev_by_slot = []
+        estimated_mev_by_slot = []
+        attest_by_slot = []
+        proposal_time_by_slot = []
+        proposal_time_positive_values = []
+        attestation_sum = 0.0
+        region_counts = Counter()
+
         for validator in self.validator_step_order:
-            slot_validator_records.append(
-                {
-                    "Slot": self.current_slot_idx,
-                    "AgentID": validator.unique_id,
-                    "MEV_Captured_Slot": validator.mev_captured,
-                    "Estimated_Profit": validator.estimated_profit,
-                    "Attestation_Rate": validator.attestation_rate,
-                    "Proposal Time": validator.proposed_time_ms,
-                    "GCP_Region": validator.gcp_region,
-                }
-            )
-        self.slot_validator_history.append(slot_validator_records)
+            mev_by_slot.append(validator.mev_captured)
+            estimated_mev_by_slot.append(validator.estimated_profit)
+            attest_by_slot.append(validator.attestation_rate)
+            proposal_time_by_slot.append(validator.proposed_time_ms)
+
+            if validator.proposed_time_ms > 0:
+                proposal_time_positive_values.append(validator.proposed_time_ms)
+
+            attestation_sum += validator.attestation_rate
+            region_counts[validator.gcp_region] += 1
+
+        self.slot_proposal_time_avg.append(
+            (sum(proposal_time_positive_values) / len(proposal_time_positive_values))
+            if proposal_time_positive_values
+            else 0.0
+        )
+        self.slot_attestation_sum.append(attestation_sum)
+        top_regions = region_counts.most_common()
+        self.slot_region_counter_per_slot[self.current_slot_idx] = top_regions
+        self.top_regions_final = top_regions
+
+        if self.collect_raw_artifacts:
+            self.slot_mev_by_slot.append(mev_by_slot)
+            self.slot_estimated_mev_by_slot.append(estimated_mev_by_slot)
+            self.slot_attest_by_slot.append(attest_by_slot)
+            self.slot_proposal_time_by_slot.append(proposal_time_by_slot)
 
         if self.current_proposer_agent:
             self.slot_proposer_history.append(

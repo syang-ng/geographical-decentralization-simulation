@@ -1,14 +1,14 @@
 import { useState } from 'react'
-import { Search, Sparkles, Loader2 } from 'lucide-react'
+import { Search, Loader2 } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { cn } from '../../lib/cn'
 import { SPRING } from '../../lib/theme'
 
 const EXAMPLE_CHIPS = [
-  'Compare SSP and MSP under the baseline setup.',
-  'Why does gamma affect SSP and MSP differently?',
-  'What changes under shorter slots?',
-  'Which regions dominate and why?',
+  'Why does a higher gamma centralize SSP more but MSP less?',
+  'Does starting geography matter more than paradigm choice?',
+  'Why do the same low-latency regions keep winning?',
+  'What changes under shorter slots: geography or fairness?',
 ] as const
 
 interface QueryBarProps {
@@ -23,8 +23,8 @@ export function QueryBar({ onSubmit, disabled, loading, disabledReason, helperTe
   const [query, setQuery] = useState('')
   const isEnabled = !disabled && !loading
   const placeholder = disabled
-    ? disabledReason ?? 'Anthropic search is unavailable right now.'
-    : 'Ask about a metric, scenario, mechanism, or SSP vs MSP comparison...'
+    ? disabledReason ?? 'The reading guide is unavailable right now.'
+    : 'Ask a sharp paper-backed question about a mechanism, paradox, or comparison...'
 
   const handleSubmit = () => {
     const trimmed = query.trim()
@@ -48,7 +48,7 @@ export function QueryBar({ onSubmit, disabled, loading, disabledReason, helperTe
           {loading ? (
             <Loader2 className="w-4 h-4 text-accent shrink-0 animate-spin" />
           ) : (
-            <Sparkles className="w-4 h-4 text-text-faint shrink-0" />
+            <Search className="w-4 h-4 text-text-faint shrink-0" />
           )}
           <input
             type="text"
@@ -103,7 +103,7 @@ export function QueryBar({ onSubmit, disabled, loading, disabledReason, helperTe
       )}
 
       <p className="text-xs text-text-faint text-center mt-1.5">
-        {helperText ?? 'Best results mention a paradigm, metric, experiment, or comparison. The guide stays concise and evidence-first.'}
+        {helperText ?? 'Best questions ask why a result happens, when it flips, or where confidence should stop. The reading guide stays tied to the paper.'}
       </p>
 
       {disabled && disabledReason && (

@@ -174,12 +174,45 @@ REQUIRED_OUTPUTS = {
     "supermajority_success.json",
     "failed_block_proposals.json",
     "utility_increase.json",
-    "region_counter_per_slot.json",
-    "proposal_time_by_slot.json",
-    "attest_by_slot.json",
+    "proposal_time_avg.json",
+    "attestation_sum.json",
+    "top_regions_final.json",
 }
 
 CACHE_ROOT = REPO_ROOT / SIMULATION_CACHE_DIRNAME
+
+BUNDLE_SPECS = (
+    {
+        "bundle": "core-outcomes",
+        "name": "overview_bundle_core-outcomes.json",
+        "label": "Core outcomes",
+        "description": "Prebuilt exact overview for MEV, supermajority success, and failed proposals.",
+        "source_files": (
+            "avg_mev.json",
+            "supermajority_success.json",
+            "failed_block_proposals.json",
+        ),
+    },
+    {
+        "bundle": "timing-and-attestation",
+        "name": "overview_bundle_timing-and-attestation.json",
+        "label": "Timing and attestations",
+        "description": "Prebuilt exact overview for proposal latency and aggregate attestations.",
+        "source_files": (
+            "proposal_time_avg.json",
+            "attestation_sum.json",
+        ),
+    },
+    {
+        "bundle": "geography-overview",
+        "name": "overview_bundle_geography-overview.json",
+        "label": "Geography overview",
+        "description": "Prebuilt exact overview for final validator geography and top regions.",
+        "source_files": (
+            "top_regions_final.json",
+        ),
+    },
+)
 
 
 def load_yaml(path: Path) -> dict[str, Any]:
@@ -194,6 +227,14 @@ GCP_REGIONS = pd.read_csv(REPO_ROOT / "data" / "gcp_regions.csv").copy()
 GCP_REGIONS["gcp_region"] = GCP_REGIONS["Region"]
 GCP_REGIONS["lat"] = GCP_REGIONS["Nearest City Latitude"]
 GCP_REGIONS["lon"] = GCP_REGIONS["Nearest City Longitude"]
+REGION_INDEX = {
+    str(row["gcp_region"]): {
+        "lat": float(row["lat"]),
+        "lon": float(row["lon"]),
+        "city": str(row["location"]).split(",")[0].strip(),
+    }
+    for _, row in GCP_REGIONS.iterrows()
+}
 
 RAW_GCP_LATENCY = pd.read_csv(REPO_ROOT / "data" / "gcp_latency.csv")
 PARSED_GCP_LATENCY = parse_gcp_latency(RAW_GCP_LATENCY.copy())
@@ -338,6 +379,14 @@ def required_outputs_present(output_dir: Path) -> bool:
     return all((output_dir / name).is_file() for name in REQUIRED_OUTPUTS)
 
 
+def is_up_to_date(target_path: Path, source_paths: list[Path]) -> bool:
+    if not target_path.is_file():
+        return False
+
+    target_mtime = target_path.stat().st_mtime
+    return all(source.is_file() and source.stat().st_mtime <= target_mtime for source in source_paths)
+
+
 def maybe_gzip(path: Path) -> int | None:
     if path.suffix not in {".json", ".csv"}:
         return None
@@ -351,6 +400,122 @@ def maybe_gzip(path: Path) -> int | None:
     return int(gz_path.stat().st_size)
 
 
+def build_time_series_block(title: str, label: str, values: list[float], y_label: str) -> dict[str, Any]:
+    return {
+        "type": "timeseries",
+        "title": title,
+        "xLabel": "Slot",
+        "yLabel": y_label,
+        "series": [
+            {
+                "label": label,
+                "data": [
+                    {
+                        "x": index + 1,
+                        "y": float(value) if isinstance(value, (int, float)) else 0.0,
+                    }
+                    for index, value in enumerate(values)
+                ],
+            }
+        ],
+    }
+
+
+def read_numeric_series(path: Path) -> list[float]:
+    values = load_json(path)
+    if not isinstance(values, list):
+        return []
+    return [
+        float(value) if isinstance(value, (int, float)) else 0.0
+        for value in values
+    ]
+
+
+def build_overview_bundle_blocks(bundle: str, output_dir: Path) -> list[dict[str, Any]]:
+    if bundle == "core-outcomes":
+        return [
+            build_time_series_block(
+                "Average MEV Earned",
+                "Average MEV",
+                read_numeric_series(output_dir / "avg_mev.json"),
+                "ETH",
+            ),
+            build_time_series_block(
+                "Supermajority Success",
+                "Supermajority Success",
+                read_numeric_series(output_dir / "supermajority_success.json"),
+                "Success Rate (%)",
+            ),
+            build_time_series_block(
+                "Failed Block Proposals",
+                "Failed Block Proposals",
+                read_numeric_series(output_dir / "failed_block_proposals.json"),
+                "Count",
+            ),
+        ]
+
+    if bundle == "timing-and-attestation":
+        return [
+            build_time_series_block(
+                "Average Proposal Time",
+                "Average Proposal Time",
+                read_numeric_series(output_dir / "proposal_time_avg.json"),
+                "Milliseconds",
+            ),
+            build_time_series_block(
+                "Aggregate Attestations",
+                "Attestation Sum",
+                read_numeric_series(output_dir / "attestation_sum.json"),
+                "Aggregate Attestations",
+            ),
+        ]
+
+    if bundle == "geography-overview":
+        rows = load_json(output_dir / "top_regions_final.json")
+        if not isinstance(rows, list):
+            return []
+
+        regions = []
+        table_rows = []
+        for entry in rows[:12]:
+            if not isinstance(entry, list) or len(entry) < 2:
+                continue
+
+            name = str(entry[0])
+            count = int(entry[1])
+            table_rows.append([name, str(count)])
+
+            region = REGION_INDEX.get(name)
+            if not region:
+                continue
+
+            regions.append({
+                "name": name,
+                "lat": region["lat"],
+                "lon": region["lon"],
+                "value": count,
+                "label": f"{name} - {region['city']}",
+            })
+
+        return [
+            {
+                "type": "map",
+                "title": "Final Validator Geography",
+                "colorScale": "density",
+                "regions": regions,
+            },
+            {
+                "type": "table",
+                "title": "Top Final Regions",
+                "headers": ["Region", "Validators"],
+                "rows": table_rows,
+                "highlight": [0, 1, 2],
+            },
+        ]
+
+    return []
+
+
 def ensure_summary_outputs(output_dir: Path) -> None:
     proposal_time_avg_path = output_dir / "proposal_time_avg.json"
     attestation_sum_path = output_dir / "attestation_sum.json"
@@ -360,7 +525,7 @@ def ensure_summary_outputs(output_dir: Path) -> None:
     attest_trace_path = output_dir / "attest_by_slot.json"
     region_trace_path = output_dir / "region_counter_per_slot.json"
 
-    if proposal_time_trace_path.is_file():
+    if proposal_time_trace_path.is_file() and not is_up_to_date(proposal_time_avg_path, [proposal_time_trace_path]):
         proposal_time_by_slot = load_json(proposal_time_trace_path)
         proposal_time_avg = []
         for slot_values in proposal_time_by_slot:
@@ -373,7 +538,7 @@ def ensure_summary_outputs(output_dir: Path) -> None:
         with proposal_time_avg_path.open("w", encoding="utf-8") as handle:
             json.dump(proposal_time_avg, handle)
 
-    if attest_trace_path.is_file():
+    if attest_trace_path.is_file() and not is_up_to_date(attestation_sum_path, [attest_trace_path]):
         attest_by_slot = load_json(attest_trace_path)
         attestation_sum = [
             sum(float(value) for value in slot_values)
@@ -382,7 +547,7 @@ def ensure_summary_outputs(output_dir: Path) -> None:
         with attestation_sum_path.open("w", encoding="utf-8") as handle:
             json.dump(attestation_sum, handle)
 
-    if region_trace_path.is_file():
+    if region_trace_path.is_file() and not is_up_to_date(top_regions_final_path, [region_trace_path]):
         region_counter_per_slot = load_json(region_trace_path)
         final_slot_key = None
         if region_counter_per_slot:
@@ -411,6 +576,23 @@ def last_numeric(series: list[Any]) -> float:
         return 0.0
 
 
+def ensure_overview_bundle_outputs(output_dir: Path) -> None:
+    for spec in BUNDLE_SPECS:
+        target_path = output_dir / spec["name"]
+        source_paths = [output_dir / name for name in spec["source_files"]]
+        if is_up_to_date(target_path, source_paths):
+            continue
+
+        blocks = build_overview_bundle_blocks(spec["bundle"], output_dir)
+        with target_path.open("w", encoding="utf-8") as handle:
+            json.dump(blocks, handle, separators=(",", ":"))
+
+
+def ensure_derived_outputs(output_dir: Path) -> None:
+    ensure_summary_outputs(output_dir)
+    ensure_overview_bundle_outputs(output_dir)
+
+
 def build_manifest(
     *,
     job_id: str,
@@ -425,12 +607,7 @@ def build_manifest(
     supermajority_success = load_json(output_dir / "supermajority_success.json")
     failed_block_proposals = load_json(output_dir / "failed_block_proposals.json")
     utility_increase = load_json(output_dir / "utility_increase.json")
-    region_counter_per_slot = load_json(output_dir / "region_counter_per_slot.json")
-
-    final_slot_key = None
-    if region_counter_per_slot:
-        final_slot_key = max(region_counter_per_slot.keys(), key=lambda raw_key: int(raw_key))
-    top_regions_raw = region_counter_per_slot.get(final_slot_key, []) if final_slot_key is not None else []
+    top_regions_raw = load_json(output_dir / "top_regions_final.json")
     top_regions = [
         {"name": str(region), "count": int(count)}
         for region, count in top_regions_raw[:8]
@@ -450,9 +627,28 @@ def build_manifest(
                 "contentType": spec["content_type"],
                 "bytes": int(artifact_path.stat().st_size),
                 "gzipBytes": maybe_gzip(artifact_path),
+                "brotliBytes": None,
                 "sha256": file_sha256(artifact_path),
                 "lazy": spec["lazy"],
                 "renderable": spec["renderable"],
+            }
+        )
+
+    overview_bundles = []
+    for spec in BUNDLE_SPECS:
+        bundle_path = output_dir / spec["name"]
+        if not bundle_path.is_file():
+            continue
+        overview_bundles.append(
+            {
+                "bundle": spec["bundle"],
+                "name": spec["name"],
+                "label": spec["label"],
+                "description": spec["description"],
+                "bytes": int(bundle_path.stat().st_size),
+                "gzipBytes": maybe_gzip(bundle_path),
+                "brotliBytes": None,
+                "sha256": file_sha256(bundle_path),
             }
         )
 
@@ -474,6 +670,7 @@ def build_manifest(
             "topRegions": top_regions,
         },
         "artifacts": artifacts,
+        "overviewBundles": overview_bundles,
     }
 
     with (output_dir / "explorer_manifest.json").open("w", encoding="utf-8") as handle:
@@ -532,7 +729,7 @@ def run_job(job_id: str, raw_config: dict[str, Any]) -> dict[str, Any]:
     cache_dir = CACHE_ROOT / cache_key
 
     if cache_dir.exists():
-        ensure_summary_outputs(cache_dir)
+        ensure_derived_outputs(cache_dir)
 
     if required_outputs_present(cache_dir):
         return ensure_manifest(
@@ -573,11 +770,12 @@ def run_job(job_id: str, raw_config: dict[str, Any]) -> dict[str, Any]:
                 cost=float(config["migrationCost"]),
                 seed=int(config["seed"]),
                 collect_full_history=False,
+                export_raw_artifacts=False,
                 verbose=False,
             )
         runtime_seconds = time.perf_counter() - start_time
 
-        ensure_summary_outputs(temp_output_dir)
+        ensure_derived_outputs(temp_output_dir)
         build_manifest(
             job_id=job_id,
             config=config,

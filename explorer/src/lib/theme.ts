@@ -1,25 +1,25 @@
 /** Shared animation + color constants. Import these instead of re-declaring per file. */
 
-export const SPRING = { type: 'spring' as const, stiffness: 240, damping: 30 }
-export const SPRING_SOFT = { type: 'spring' as const, stiffness: 180, damping: 24 }
-export const SPRING_SNAPPY = { type: 'spring' as const, stiffness: 400, damping: 35 }
+export const SPRING = { type: 'spring' as const, stiffness: 220, damping: 28, mass: 0.92 }
+export const SPRING_SOFT = { type: 'spring' as const, stiffness: 170, damping: 24, mass: 0.96 }
+export const SPRING_SNAPPY = { type: 'spring' as const, stiffness: 360, damping: 30, mass: 0.88 }
 
 /** Hover lift preset — subtle card elevation on hover */
 export const HOVER_LIFT = {
-  whileHover: { y: -2, boxShadow: '0 4px 12px rgba(0,0,0,0.06)' },
+  whileHover: { y: -1, scale: 1.002, boxShadow: '0 12px 28px rgba(26,26,26,0.08)' },
   whileTap: { scale: 0.985 },
-  transition: SPRING,
+  transition: SPRING_SOFT,
 } as const
 
 /** Stagger children preset for scroll-triggered reveals */
 export const STAGGER_CONTAINER = {
   hidden: {},
-  visible: { transition: { staggerChildren: 0.06, delayChildren: 0.02 } },
+  visible: { transition: { staggerChildren: 0.04, delayChildren: 0.015 } },
 } as const
 
 export const STAGGER_ITEM = {
-  hidden: { opacity: 0, y: 16, filter: 'blur(4px)' },
-  visible: { opacity: 1, y: 0, filter: 'blur(0px)', transition: SPRING },
+  hidden: { opacity: 0, y: 10, scale: 0.995 },
+  visible: { opacity: 1, y: 0, scale: 1, transition: SPRING_SOFT },
 } as const
 
 /** Block visualization palette — SSP ocean, MSP earth, plus supporting colors */

@@ -20,9 +20,9 @@ export const DEFAULT_BLOCKS: readonly Block[] = [
   },
   {
     type: 'stat',
-    value: '7',
-    label: 'Experiments Analyzed',
-    sublabel: 'baseline + 6 sensitivity evaluations',
+    value: '6',
+    label: 'Scenario Families',
+    sublabel: 'baseline plus five bounded variations',
   },
 
   // Row 2: Core finding (key-finding emphasis)
@@ -30,35 +30,33 @@ export const DEFAULT_BLOCKS: readonly Block[] = [
     type: 'insight',
     emphasis: 'key-finding',
     title: 'Both paradigms centralize, but differently',
-    text: 'Both SSP and MSP push toward geographic concentration but through **opposite mechanisms** with different protocol sensitivities. SSP validators cluster at relay locations (US-East, EU-West) to minimize proposer-relay latency. MSP validators cluster along the Atlantic corridor where proximity to many distributed signals AND many attesters overlaps. Under baseline conditions, **MSP centralizes faster and more severely** than SSP.',
+    text: 'Both SSP and MSP push toward geographic concentration through different latency-critical paths. SSP is shaped more directly by relay placement, while MSP adds value from many sources and consensus pressure at the same time. Under baseline homogeneous conditions, **MSP centralizes faster and more severely** than SSP.',
   },
 
   // Row 3: Head-to-head comparison
   {
     type: 'comparison',
     title: 'SSP vs MSP: Baseline Centralization',
-    left: {
-      label: 'SSP (External)',
-      items: [
-        { key: 'Gini_g', value: 'Moderate ↑' },
-        { key: 'HHI_g', value: 'Moderate ↑' },
-        { key: 'CV_g', value: 'Moderate ↑' },
-        { key: 'LC_g', value: 'Moderate ↓' },
-        { key: 'Locus', value: 'NA + Middle East' },
-      ],
-    },
-    right: {
-      label: 'MSP (Local)',
-      items: [
-        { key: 'Gini_g', value: 'Higher ↑' },
-        { key: 'HHI_g', value: 'Higher ↑' },
-        { key: 'CV_g', value: 'Higher ↑' },
-        { key: 'LC_g', value: 'Sharper ↓' },
-        { key: 'Locus', value: 'NA + EU' },
-      ],
-    },
-    verdict: 'MSP centralizes faster in baseline conditions — higher Gini/HHI, lower LC, and consistently larger reward disparities (CV_g).',
-  },
+        left: {
+          label: 'SSP (External)',
+          items: [
+            { key: 'Convergence speed', value: 'Slower baseline rise' },
+            { key: 'Migration cost', value: 'More sensitive to friction' },
+            { key: 'Reward variance', value: 'Lower than MSP' },
+            { key: 'Dominant pull', value: 'Relay geography' },
+          ],
+        },
+        right: {
+          label: 'MSP (Local)',
+          items: [
+            { key: 'Convergence speed', value: 'Faster baseline rise' },
+            { key: 'Migration cost', value: 'Less sensitive than SSP' },
+            { key: 'Reward variance', value: 'Higher than SSP' },
+            { key: 'Dominant pull', value: 'Source plus attester overlap' },
+          ],
+        },
+        verdict: 'MSP centralizes faster in the neutral baseline family, while SSP remains more path-dependent to infrastructure placement and migration cost.',
+      },
 
   // Row 4: Surprising finding
   {
@@ -76,7 +74,7 @@ export const DEFAULT_BLOCKS: readonly Block[] = [
       name: r.id,
       lat: r.lat,
       lon: r.lon,
-      value: 25, // homogeneous initial distribution
+      value: 1, // geography canvas only; not a stake allocation claim
       label: r.city.split(',')[0],
     })),
     colorScale: 'binary',
@@ -121,14 +119,14 @@ export interface TopicCard {
 
 export const OVERVIEW_CARD: TopicCard = {
   id: 'overview',
-  title: 'Main findings',
-  description: 'A curated overview of the paper’s central results and caveats.',
+  title: 'Start with the sharpest questions',
+  description: 'A curated entry point to the paper’s stakes, paradoxes, and caveats.',
   prompts: [
-    'What are the main findings?',
-    'Give me a summary of the paper.',
-    'What does the paper find?',
-    'What is the main takeaway?',
-    'Give me the key findings.',
+    'Why is Ethereum geography not neutral in these models?',
+    'Why does gamma push SSP and MSP in opposite directions?',
+    'Does starting geography matter more than paradigm choice?',
+    'What changes under shorter slots: geography or fairness?',
+    'Where should confidence stop in this model?',
   ],
   blocks: DEFAULT_BLOCKS,
 }
@@ -136,13 +134,14 @@ export const OVERVIEW_CARD: TopicCard = {
 export const TOPIC_CARDS: readonly TopicCard[] = [
   {
     id: 'ssp-vs-msp',
-    title: 'SSP vs MSP: Which centralizes more?',
-    description: 'Head-to-head comparison of external vs local block building under baseline conditions.',
+    title: 'Why does MSP centralize faster than SSP?',
+    description: 'The baseline head-to-head, plus the mechanism that makes MSP harsher.',
     prompts: [
+      'Why does MSP centralize faster than SSP?',
       'How does SSP compare to MSP?',
-      'Which paradigm centralizes more?',
-      'SSP vs MSP',
-      'Compare external and local block building.',
+      'What is the baseline SSP vs MSP result?',
+      'What mechanism makes MSP more aggressive?',
+      'Compare external and local block building under the same baseline.',
     ],
     blocks: [
       {
@@ -154,7 +153,7 @@ export const TOPIC_CARDS: readonly TopicCard[] = [
             { key: 'Mechanism', value: 'Co-locate with relay' },
             { key: 'Path', value: 'Proposer→Relay→Attesters (2 hops)' },
             { key: 'Centralizing force', value: 'Relay latency dominates' },
-            { key: 'Convergence locus', value: 'NA + Middle East' },
+            { key: 'Baseline tendency', value: 'Centralizes, but usually less than MSP' },
           ],
         },
         right: {
@@ -163,7 +162,7 @@ export const TOPIC_CARDS: readonly TopicCard[] = [
             { key: 'Mechanism', value: 'Optimize signal+attester proximity' },
             { key: 'Path', value: 'Proposer→Attesters (1 hop)' },
             { key: 'Centralizing force', value: 'Distributed pull to many sources' },
-            { key: 'Convergence locus', value: 'NA primary, EU secondary' },
+            { key: 'Baseline tendency', value: 'Centralizes faster and more strongly' },
           ],
         },
         verdict: 'Both centralize, but MSP is faster and more severe under baseline homogeneous conditions.',
@@ -178,13 +177,13 @@ export const TOPIC_CARDS: readonly TopicCard[] = [
   },
   {
     id: 'geographic-convergence',
-    title: 'Where do validators end up?',
-    description: 'Geographic convergence patterns across experiments and paradigms.',
+    title: 'Why do the same regions keep winning?',
+    description: 'Which low-latency hubs dominate, and when the starting state matters more than the paradigm.',
     prompts: [
-      'Where do validators concentrate geographically?',
-      'Where do validators end up?',
-      'Where do they converge?',
-      'What regions win out?',
+      'Why do the same regions keep winning?',
+      'Which regions become focal hubs and why?',
+      'How much is geography inherited from the starting state?',
+      'Where do validators concentrate under each experiment?',
     ],
     blocks: [
       {
@@ -192,28 +191,28 @@ export const TOPIC_CARDS: readonly TopicCard[] = [
         title: 'Convergence Loci by Paradigm and Experiment',
         headers: ['Experiment', 'SSP Convergence', 'MSP Convergence'],
         rows: [
-          ['Baseline (Uniform)', 'NA + Middle East', 'NA primary, SA/Africa→EU'],
-          ['SE1: Aligned sources', 'Low-latency hubs', 'Same hubs (reinforced)'],
-          ['SE1: Misaligned sources', 'Peripheral relay region', 'Balanced (lower CV_g)'],
-          ['SE2: Real ETH distribution', 'US + EU (amplified)', 'US + EU (rapid convergence)'],
-          ['SE4a: Higher γ', 'Stronger NA/EU', 'More dispersed'],
+          ['Baseline (migration-free)', 'North America becomes a focal hub', 'North America becomes a focal hub faster'],
+          ['Baseline (with migration cost)', 'More persistence away from the tightest hubs', 'Still concentrates strongly toward North America'],
+          ['SE1: Aligned sources', 'Usually softer than misaligned SSP', 'Reinforces centralization pressure'],
+          ['SE1: Misaligned sources', 'Poorly connected relay sharpens co-location pull', 'Source vs attester trade-off becomes more visible'],
+          ['SE2 / SE3: Real ETH start', 'Existing US+EU hubs dominate; remote relays can cause a brief dip first', 'Existing US+EU hubs dominate; source placement matters less'],
         ],
         highlight: [4],
       },
       {
         type: 'insight',
-        text: 'The convergence locus depends on where **information sources** are placed (SE1), but **real Ethereum validator distribution** already concentrates in US+EU, so both paradigms converge there rapidly when starting from realistic conditions (SE2).',
+        text: 'The convergence locus depends on where **information sources** are placed, but **real Ethereum validator geography** already concentrates heavily enough that both paradigms inherit much of the answer from the starting state.',
       },
     ],
   },
   {
     id: 'source-placement',
-    title: 'Does source placement matter?',
-    description: 'SE1: How aligned vs misaligned information sources affect centralization.',
+    title: 'Why can moving sources help one paradigm and hurt the other?',
+    description: 'SE1 shows the same infrastructure change pushing SSP and MSP in opposite directions.',
     prompts: [
-      'Does source placement matter?',
-      'What happens with latency-aligned sources?',
-      'What happens with latency-misaligned sources?',
+      'Why can moving sources help one paradigm and hurt the other?',
+      'Why are aligned sources worse for MSP but misaligned sources worse for SSP?',
+      'What does source placement change in the model?',
       'How do source locations change centralization?',
     ],
     blocks: [
@@ -231,49 +230,46 @@ export const TOPIC_CARDS: readonly TopicCard[] = [
   },
   {
     id: 'initial-distribution',
-    title: 'What if validators start concentrated?',
-    description: 'SE2: Using real Ethereum validator distribution from Chainbound/Dune data.',
+    title: 'Does starting geography matter more than paradigm?',
+    description: 'SE2 asks how much of the result is already baked into today’s validator map.',
     prompts: [
-      'What if validators start concentrated?',
-      'What happens with real Ethereum validator distribution?',
-      'What if validators begin in US and Europe?',
-      'How does heterogeneous validator distribution change things?',
+      'Does starting geography matter more than paradigm choice?',
+      'What changes when validators start where Ethereum already is?',
+      'How much of the outcome is inherited from the real ETH distribution?',
+      'How does heterogeneous validator distribution change the result?',
     ],
     blocks: [
       {
         type: 'insight',
         emphasis: 'key-finding',
-        title: 'No substantial difference between paradigms',
-        text: 'When starting from the real Ethereum distribution (already concentrated in US + EU), metrics start elevated and both paradigms converge rapidly to co-location equilibrium. **The starting distribution matters more than the paradigm choice** when validators are already concentrated.',
+        title: 'Starting geography dominates the first-order outcome',
+        text: 'When starting from the real Ethereum distribution, metrics are already elevated and both paradigms converge rapidly. **The starting distribution matters more than the paradigm label** when validators begin concentrated.',
       },
       {
         type: 'insight',
-        text: 'SSP shows stronger **amplification** of reward disparities relative to its baseline — the gap between best and worst regions grows faster under SSP when starting concentrated. This suggests SSP is more sensitive to initial conditions.',
+        text: 'Once attester geography is already concentrated, MSP becomes less responsive to source placement. SSP can still deviate transiently when relay placement is remote from the starting hubs, but that is not a stable decentralization effect.',
       },
     ],
   },
   {
     id: 'attestation-threshold',
-    title: 'The attestation threshold surprise',
-    description: 'SE4a: Why higher γ centralizes SSP more but MSP less.',
+    title: 'Why does gamma flip direction across paradigms?',
+    description: 'The sharpest paradox in the paper: one protocol lever, opposite geographic effects.',
     prompts: [
-      'Why does attestation threshold have opposite effects?',
-      'What happens when gamma changes?',
-      'Explain the attestation threshold result.',
+      'Why does gamma flip direction across paradigms?',
+      'Why does a higher attestation threshold centralize SSP more but MSP less?',
+      'What is the paper’s sharpest paradox?',
       'How does higher gamma affect SSP and MSP?',
     ],
     blocks: [
       {
-        type: 'chart',
-        title: 'Attestation Threshold (γ) Effect on Centralization',
-        data: [
-          { label: 'γ = 1/3', value: 30, category: 'SSP' },
-          { label: 'γ = 1/2', value: 45, category: 'SSP' },
-          { label: 'γ = 2/3', value: 65, category: 'SSP' },
-          { label: 'γ = 4/5', value: 80, category: 'SSP' },
+        type: 'table',
+        title: 'Directional Effect of Attestation Threshold',
+        headers: ['Gamma move', 'SSP', 'MSP'],
+        rows: [
+          ['Lower γ', 'Looser timing reduces relay-latency pressure', 'Weaker incentive to balance sources against attesters'],
+          ['Higher γ', 'Tighter timing raises centralization pressure', 'Tighter timing can disperse equilibrium by sharpening competing pulls'],
         ],
-        unit: '% centralization index',
-        chartType: 'bar',
       },
       {
         type: 'insight',
@@ -285,12 +281,12 @@ export const TOPIC_CARDS: readonly TopicCard[] = [
   },
   {
     id: 'shorter-slots',
-    title: 'Shorter slot times (EIP-7782)',
-    description: 'SE4b: What happens with 6-second slots instead of 12.',
+    title: 'Do shorter slots worsen fairness more than geography?',
+    description: 'SE4b separates what changes on the map from what changes in reward inequality.',
     prompts: [
-      'What happens with shorter slots?',
-      'What about EIP-7782?',
-      'What changes with 6-second slots?',
+      'Do shorter slots worsen fairness more than geography?',
+      'What changes under 6-second slots?',
+      'Does EIP-7782 move the map or mostly the payoff spread?',
       'How do shorter slot times affect centralization?',
     ],
     blocks: [
@@ -308,12 +304,12 @@ export const TOPIC_CARDS: readonly TopicCard[] = [
   },
   {
     id: 'metrics-explained',
-    title: 'Key metrics explained',
-    description: 'Understanding Gini_g, HHI_g, CV_g, and LC_g.',
+    title: 'How should I read the paper metrics?',
+    description: 'A practical guide to Gini_g, HHI_g, CV_g, and LC_g.',
     prompts: [
-      'Explain the paper metrics.',
-      'What are Gini_g, HHI_g, CV_g, and LC_g?',
-      'How should I read the metrics?',
+      'How should I read the paper metrics?',
+      'Which metric best captures resilience to regional concentration?',
+      'What do Gini_g, HHI_g, CV_g, and LC_g mean?',
       'What metrics does the paper use?',
     ],
     blocks: [
@@ -337,11 +333,11 @@ export const TOPIC_CARDS: readonly TopicCard[] = [
   },
   {
     id: 'limitations',
-    title: 'Limitations & what\'s next',
-    description: 'What the authors acknowledge and open research directions.',
+    title: 'Where should confidence stop?',
+    description: 'The paper’s modeling limits and the research questions they leave open.',
     prompts: [
-      'What are the limitations?',
-      'What caveats should I keep in mind?',
+      'Where should confidence stop in this model?',
+      'What caveats matter most before generalizing these results?',
       'What assumptions does the paper make?',
       'What are the next research directions?',
     ],

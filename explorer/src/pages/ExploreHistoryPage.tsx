@@ -9,7 +9,25 @@ import { SPRING, SPRING_SOFT } from '../lib/theme'
 
 type SortMode = 'recent' | 'top'
 
-export function ExploreHistoryPage({ onGoToFindings }: { readonly onGoToFindings?: () => void } = {}) {
+function interpretationState(exploration: Exploration): string {
+  if (!exploration.model) {
+    return exploration.cached ? 'saved interpretation' : 'saved exploration'
+  }
+  return exploration.cached ? 'cached interpretation' : 'fresh interpretation'
+}
+
+function displayInterpretationState(exploration: Exploration): string {
+  const state = interpretationState(exploration)
+  return state.charAt(0).toUpperCase() + state.slice(1)
+}
+
+export function ExploreHistoryPage({
+  onGoToFindings,
+  onOpenQuery,
+}: {
+  readonly onGoToFindings?: () => void
+  readonly onOpenQuery?: (query: string) => void
+} = {}) {
   const [sort, setSort] = useState<SortMode>('recent')
   const [search, setSearch] = useState('')
   const [expandedId, setExpandedId] = useState<string | null>(null)
@@ -82,6 +100,7 @@ export function ExploreHistoryPage({ onGoToFindings }: { readonly onGoToFindings
                 isExpanded={expandedId === exploration.id}
                 onToggleExpand={() => toggleExpand(exploration.id)}
                 onVote={delta => voteMutation.mutate({ id: exploration.id, delta })}
+                onOpenQuery={onOpenQuery}
               />
             ))}
           </AnimatePresence>
@@ -141,11 +160,13 @@ function ExplorationCard({
   isExpanded,
   onToggleExpand,
   onVote,
+  onOpenQuery,
 }: {
   readonly exploration: Exploration
   readonly isExpanded: boolean
   readonly onToggleExpand: () => void
   readonly onVote: (delta: 1 | -1) => void
+  readonly onOpenQuery?: (query: string) => void
 }) {
   const timeAgo = formatTimeAgo(exploration.createdAt)
   const allTags = [...exploration.paradigmTags, ...exploration.experimentTags]
@@ -180,7 +201,7 @@ function ExplorationCard({
           <div className="flex flex-wrap items-center gap-3 mt-3">
             <span className="inline-flex items-center gap-1.5 text-xs text-muted">
               <span className="w-1.5 h-1.5 rounded-full bg-accent" />
-              Generated
+              {displayInterpretationState(exploration)}
             </span>
 
             {exploration.verified && (
@@ -210,8 +231,7 @@ function ExplorationCard({
           </div>
 
           <div className="flex flex-wrap gap-2 mt-2 text-xs text-text-faint">
-            {exploration.model && <span>{exploration.model}</span>}
-            <span>{exploration.cached ? 'prompt cache hit' : 'new generation'}</span>
+            <span>{interpretationState(exploration)}</span>
           </div>
         </button>
 
@@ -235,8 +255,18 @@ function ExplorationCard({
           >
             <div className="border-t border-border-subtle p-4">
               <BlockCanvas blocks={exploration.blocks} />
+              {onOpenQuery && (
+                <div className="mt-4 flex justify-end">
+                  <button
+                    onClick={() => onOpenQuery(exploration.query)}
+                    className="rounded-md border border-border-subtle bg-white px-3 py-2 text-xs text-text-primary transition-colors hover:border-border-hover"
+                  >
+                    Reopen in Findings
+                  </button>
+                </div>
+              )}
               {exploration.followUps.length > 0 && (
-                <FollowUpList followUps={exploration.followUps} />
+                <FollowUpList followUps={exploration.followUps} onSelect={onOpenQuery} />
               )}
             </div>
           </motion.div>
@@ -283,20 +313,28 @@ function VoteControls({
   )
 }
 
-function FollowUpList({ followUps }: { readonly followUps: readonly string[] }) {
+function FollowUpList({
+  followUps,
+  onSelect,
+}: {
+  readonly followUps: readonly string[]
+  readonly onSelect?: (query: string) => void
+}) {
   return (
     <div className="mt-4 pt-3 border-t border-border-subtle">
       <span className="text-xs text-muted mb-2 block">
-        Follow-up questions
+        Useful next questions
       </span>
       <div className="flex flex-wrap gap-2">
         {followUps.map(q => (
-          <span
+          <button
             key={q}
-            className="text-xs text-muted hover:text-text-primary transition-colors"
+            onClick={() => onSelect?.(q)}
+            disabled={!onSelect}
+            className="text-left text-xs text-muted transition-colors hover:text-text-primary disabled:cursor-default disabled:hover:text-muted"
           >
             {q}
-          </span>
+          </button>
         ))}
       </div>
     </div>
@@ -309,8 +347,8 @@ function EmptyState({ onGoToFindings }: { readonly onGoToFindings?: () => void }
       <Tag className="w-8 h-8 text-text-faint mb-4" />
       <h2 className="text-lg font-medium text-text-primary mb-2">No explorations yet</h2>
       <p className="text-sm text-muted max-w-md mb-5">
-        Ask a question on the Findings tab to get started. Every Sonnet response is
-        automatically saved here for the community to browse and vote on.
+        Ask a sharp question on the Findings tab to seed this archive. The best entries usually
+        explain a paradox, compare paradigms, or pressure-test a caveat.
       </p>
       {onGoToFindings && (
         <button

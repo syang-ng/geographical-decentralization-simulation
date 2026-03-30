@@ -1,14 +1,14 @@
 // Frozen researcher-facing dataset manifest for the local MVP dashboard.
 window.RESEARCH_CATALOG = {
   introBlurb: `This project provides a lightweight interface for the simulations of the geographical decentralization of Ethereum validators that we developed as part of our research.
-Our motivation is to better understand the dynamics of validator placement, latency, and performance in decentralized networks. Running such simulations allows us to test different assumptions, compare strategies, and identify where centralization pressures may arise.
+Our motivation is to better understand the dynamics of validator placement, latency, and performance in decentralized networks.
 
-To make these results accessible without requiring users to re-run large experiments, we have  preprocessed several simulation datasets and included them here as interactive demos. By selecting  among these results and adjusting a few viewer options, you can quickly visualize the spatial  distribution of validators, observe the impact of parameters such as density and distance, and  gain an intuition for how validator ecosystems evolve under different conditions.`,
+This frozen dashboard is for inspecting reported simulation outputs without re-running the experiments. You can switch among the checked-in published datasets and adjust viewer controls that change presentation, but you are not varying the model itself here. For new parameter choices or fresh runs, use the Simulation Lab.`,
   defaultSelection: {
     evaluation: "Baseline",
     paradigm: "Local",
-    result: "cost_0.001",
-    path: "simulations/baseline/MSP/cost_0.001/data.json"
+    result: "cost_0.002",
+    path: "simulations/baseline/MSP/cost_0.002/data.json"
   },
   datasets: [
     {
@@ -64,7 +64,7 @@ To make these results accessible without requiring users to re-run large experim
       sourceRole: "signal",
       metadata: {
         v: 1000,
-        cost: 0.002,
+        cost: 0,
         delta: 12000,
         cutoff: 4000,
         gamma: 0.6667,

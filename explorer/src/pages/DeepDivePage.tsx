@@ -7,6 +7,10 @@ import { PAPER_SECTIONS, type PaperSection } from '../data/paper-sections'
 
 function summarizeSection(section: PaperSection): string[] {
   const tags: string[] = []
+  if (section.id === 'se4a-attestation') tags.push('best paradox')
+  if (section.id === 'se2-distribution') tags.push('starting-state effect')
+  if (section.id === 'limitations') tags.push('confidence boundary')
+  if (section.id === 'discussion') tags.push('design implications')
   const blockTypes = new Set(section.blocks.map(block => block.type))
   if (blockTypes.has('chart') || blockTypes.has('timeseries')) tags.push('charts')
   if (blockTypes.has('table')) tags.push('tables')
@@ -16,6 +20,33 @@ function summarizeSection(section: PaperSection): string[] {
   }
   if (section.blocks.some(block => block.type === 'caveat')) tags.push('caveat')
   return tags.slice(0, 3)
+}
+
+function sectionEntryLine(section: PaperSection): string {
+  switch (section.id) {
+    case 'system-model':
+      return 'Start here for the core mechanism: how latency turns geography into payoff.'
+    case 'simulation-design':
+      return 'Start here for the model boundary: what is simplified, fixed, and directly measured.'
+    case 'baseline-results':
+      return 'Start here for the baseline claim that both paradigms centralize without exotic assumptions.'
+    case 'se1-source-placement':
+      return 'Start here for the infrastructure-placement flip that helps one paradigm while hurting the other.'
+    case 'se2-distribution':
+      return 'Start here if you want to ask whether starting geography matters more than paradigm choice.'
+    case 'se3-joint':
+      return 'Start here for the transient dip and the warning against overreading it as mitigation.'
+    case 'se4a-attestation':
+      return 'Start here for the paper’s sharpest paradox: the same gamma change pushes SSP and MSP in opposite directions.'
+    case 'se4b-slots':
+      return 'Start here for the fairness-versus-geography distinction under shorter slots.'
+    case 'discussion':
+      return 'Start here for design implications without overstating what the model has solved.'
+    case 'limitations':
+      return 'Start here for the confidence boundary of the model.'
+    default:
+      return section.description
+  }
 }
 
 export function DeepDivePage() {
@@ -51,10 +82,10 @@ export function DeepDivePage() {
               <span className="text-xs text-muted">Paper deep dive</span>
             </div>
             <h1 className="text-xl font-semibold text-text-primary">
-              Walk the paper section by section.
+              Jump to the argument, paradoxes, and caveats.
             </h1>
             <p className="mt-2 text-sm text-muted">
-              Each accordion mirrors a section of the study and preserves the same blocks, metrics, and caveats used elsewhere in the explorer.
+              Use this when you want the paper in order, but with clearer entry points into the sections that carry the most explanatory weight.
             </p>
           </div>
 
@@ -80,12 +111,12 @@ export function DeepDivePage() {
             <div className="text-sm text-text-primary">{PAPER_SECTIONS.length} paper checkpoints</div>
           </div>
           <div>
-            <div className="mb-1">Expanded</div>
-            <div className="text-sm text-text-primary">{expandedIds.size} currently open</div>
+            <div className="mb-1">Sharpest paradox</div>
+            <div className="text-sm text-text-primary">SE4a attestation threshold</div>
           </div>
           <div>
-            <div className="mb-1">Coverage</div>
-            <div className="text-sm text-text-primary">Model, experiments, results, and caveats</div>
+            <div className="mb-1">Confidence boundary</div>
+            <div className="text-sm text-text-primary">Limitations and assumptions</div>
           </div>
         </div>
       </div>
@@ -161,7 +192,7 @@ export function DeepDivePage() {
                   >
                     <div className="border-t border-border-subtle px-4 pb-4 pt-3">
                       <div className="mb-4 rounded-md border border-border-subtle bg-[#FAFAF8] px-3 py-3 text-xs text-muted">
-                        <span className="font-medium text-text-primary">Section focus:</span> {section.description}
+                        <span className="font-medium text-text-primary">Start here if:</span> {sectionEntryLine(section)}
                       </div>
                       <BlockCanvas blocks={section.blocks} />
                     </div>

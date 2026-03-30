@@ -45,6 +45,7 @@ export function TimeSeriesBlock({ block }: TimeSeriesBlockProps) {
     return latest ? [{ label: series.label, value: latest.y }] : []
   })
   const highestValue = Math.max(...allPoints.map(point => point.y))
+  const pointStep = Math.max(1, Math.floor(Math.max(...block.series.map(series => series.data.length)) / 18))
 
   function toSvg(x: number, y: number) {
     return {
@@ -65,7 +66,7 @@ export function TimeSeriesBlock({ block }: TimeSeriesBlockProps) {
               {block.title}
             </h3>
             <p className="mt-1 text-xs text-muted">
-              Exact series values, rendered with the same annotations and slot ordering as the simulation output.
+              Exact series values, rendered with the same slot ordering as the simulation output and framed like a measurement surface.
             </p>
           </div>
 
@@ -82,7 +83,7 @@ export function TimeSeriesBlock({ block }: TimeSeriesBlockProps) {
               return (
                 <span
                   key={series.label}
-                  className="inline-flex items-center gap-1.5 rounded-full border border-border-subtle bg-white px-2.5 py-1 text-xs text-muted"
+                  className="lab-chip"
                 >
                   <span
                     className="h-2 w-2 rounded-full"
@@ -106,7 +107,7 @@ export function TimeSeriesBlock({ block }: TimeSeriesBlockProps) {
           {latestValues.map((entry, index) => (
             <div
               key={`${entry.label}-${index}`}
-              className="rounded-xl border border-border-subtle bg-[linear-gradient(180deg,rgba(255,255,255,0.96),rgba(245,245,243,0.84))] px-3 py-2"
+              className="rounded-2xl border border-border-subtle bg-[linear-gradient(180deg,rgba(255,255,255,0.97),rgba(246,245,241,0.86))] px-3 py-2.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.78)]"
             >
               <div className="text-[10px] uppercase tracking-[0.16em] text-text-faint">Latest</div>
               <div className="mt-1 text-xs font-medium text-text-primary">{entry.label}</div>
@@ -117,7 +118,15 @@ export function TimeSeriesBlock({ block }: TimeSeriesBlockProps) {
           ))}
         </div>
 
-        <div className="rounded-xl border border-border-subtle bg-[radial-gradient(circle_at_top,rgba(59,130,246,0.08),transparent_58%),linear-gradient(180deg,rgba(255,255,255,0.98),rgba(245,245,243,0.82))] px-3 py-4">
+        <div className="rounded-2xl border border-border-subtle bg-[radial-gradient(circle_at_15%_0%,rgba(59,130,246,0.1),transparent_28%),radial-gradient(circle_at_85%_0%,rgba(194,85,58,0.08),transparent_24%),linear-gradient(180deg,rgba(255,255,255,0.98),rgba(243,242,238,0.84))] px-3 py-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.84)]">
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+            <div className="text-[11px] uppercase tracking-[0.18em] text-text-faint">
+              Measurement deck
+            </div>
+            <div className="text-[11px] text-muted">
+              {block.series.length} series · x {formatSeriesNumber(minX)} to {formatSeriesNumber(maxX)}
+            </div>
+          </div>
           <svg
             viewBox={`0 0 ${svgW} ${svgH}`}
             className="w-full"
@@ -232,29 +241,31 @@ export function TimeSeriesBlock({ block }: TimeSeriesBlockProps) {
                       fill={`url(#${gradientBaseId}-${index})`}
                       initial={{ opacity: 0 }}
                       animate={{ opacity: 1 }}
-                      transition={{ duration: 0.45, ease: 'easeOut', delay: index * 0.06 }}
+                      transition={{ duration: 0.4, ease: 'easeOut', delay: index * 0.05 }}
                     />
                   )}
                   <motion.path
                     d={pathD}
                     fill="none"
                     stroke={color}
-                    strokeWidth={2}
+                    strokeWidth={2.15}
                     strokeLinecap="round"
                     strokeLinejoin="round"
                     initial={{ pathLength: 0 }}
                     animate={{ pathLength: 1 }}
-                    transition={{ duration: 0.8, ease: 'easeOut', delay: index * 0.1 }}
+                    transition={{ duration: 0.72, ease: 'easeOut', delay: index * 0.08 }}
                   />
                   {coordinates.map((point, pointIndex) => (
+                    (pointIndex % pointStep === 0 || pointIndex === coordinates.length - 1) ? (
                     <circle
                       key={`${series.label}-${pointIndex}`}
                       cx={point.sx}
                       cy={point.sy}
-                      r={2}
+                      r={pointIndex === coordinates.length - 1 ? 3.75 : 1.8}
                       fill={color}
-                      opacity={0.85}
+                      opacity={pointIndex === coordinates.length - 1 ? 0.95 : 0.65}
                     />
+                    ) : null
                   ))}
                   {latest && (
                     <circle cx={latest.sx} cy={latest.sy} r={4} fill="white" stroke={color} strokeWidth={1.5} />
@@ -272,7 +283,7 @@ export function TimeSeriesBlock({ block }: TimeSeriesBlockProps) {
                     y1={padding.top}
                     x2={sx}
                     y2={padding.top + chartH}
-                    stroke="#9CA3AF"
+                    stroke="#C2553A"
                     strokeWidth={1}
                     strokeDasharray="3 3"
                   />
@@ -280,7 +291,7 @@ export function TimeSeriesBlock({ block }: TimeSeriesBlockProps) {
                     x={sx}
                     y={padding.top - 5}
                     textAnchor="middle"
-                    className="fill-[#6B7280] text-[8px]"
+                    className="fill-[#8B5E4D] text-[8px]"
                   >
                     {annotation.label}
                   </text>
@@ -307,7 +318,7 @@ export function TimeSeriesBlock({ block }: TimeSeriesBlockProps) {
             {block.annotations.map(annotation => (
               <span
                 key={`${annotation.x}-${annotation.label}`}
-                className="rounded-full border border-border-subtle bg-white px-2.5 py-1 text-xs text-muted"
+                className="lab-chip"
               >
                 x={annotation.x}: {annotation.label}
               </span>

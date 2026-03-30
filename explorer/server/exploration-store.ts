@@ -4,14 +4,18 @@
  * current backend still uses a local JSON file rather than an external DB.
  */
 
-import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs'
-import { join, dirname } from 'node:path'
+import { readFileSync, writeFileSync, mkdirSync, existsSync, renameSync, rmSync } from 'node:fs'
+import { join, dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { randomUUID } from 'node:crypto'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const DATA_DIR = join(__dirname, 'data')
-const DATA_FILE = join(DATA_DIR, 'explorations.json')
+const DATA_FILE = process.env.EXPLORATION_STORE_FILE
+  ? resolve(process.env.EXPLORATION_STORE_FILE)
+  : join(DATA_DIR, 'explorations.json')
+const DATA_FILE_DIR = dirname(DATA_FILE)
+const MAX_EXPLORATIONS = Math.max(200, Number(process.env.EXPLORATION_STORE_MAX_ITEMS ?? 4000))
 
 const STOP_WORDS = new Set([
   'a',
@@ -160,6 +164,8 @@ function hydrateExploration(raw: Partial<Exploration> & Pick<Exploration, 'query
 export class ExplorationStore {
   private explorations: Exploration[] = []
   private persistTimer: ReturnType<typeof setTimeout> | null = null
+  private byId = new Map<string, Exploration>()
+  private byNormalizedQuery = new Map<string, Exploration>()
 
   constructor() {
     this.loadFromDisk()
@@ -189,7 +195,7 @@ export class ExplorationStore {
       cached: data.cached,
     })
 
-    this.explorations = [exploration, ...this.explorations]
+    this.setExplorations([exploration, ...this.explorations].slice(0, MAX_EXPLORATIONS))
     this.schedulePersist()
     return exploration
   }
@@ -244,7 +250,7 @@ export class ExplorationStore {
 
   findExactQuery(query: string): Exploration | null {
     const normalized = normalizeQuery(query)
-    return this.explorations.find(exploration => exploration.normalizedQuery === normalized) ?? null
+    return this.byNormalizedQuery.get(normalized) ?? null
   }
 
   findBestMatch(query: string, minimumScore = 0.72): ExplorationMatch | null {
@@ -279,9 +285,9 @@ export class ExplorationStore {
       votes: this.explorations[index].votes + delta,
     }
 
-    this.explorations = this.explorations.map((exploration, currentIndex) =>
+    this.setExplorations(this.explorations.map((exploration, currentIndex) =>
       currentIndex === index ? updated : exploration,
-    )
+    ))
     this.schedulePersist()
     return updated
   }
@@ -291,13 +297,13 @@ export class ExplorationStore {
     if (index === -1) return null
 
     const updated: Exploration = { ...this.explorations[index], verified }
-    this.explorations = this.explorations.map((e, i) => (i === index ? updated : e))
+    this.setExplorations(this.explorations.map((e, i) => (i === index ? updated : e)))
     this.schedulePersist()
     return updated
   }
 
   getById(id: string): Exploration | null {
-    return this.explorations.find(exploration => exploration.id === id) ?? null
+    return this.byId.get(id) ?? null
   }
 
   private loadFromDisk(): void {
@@ -306,12 +312,16 @@ export class ExplorationStore {
       const raw = readFileSync(DATA_FILE, 'utf-8')
       const parsed = JSON.parse(raw) as unknown
       if (Array.isArray(parsed)) {
-        this.explorations = parsed.map(item => hydrateExploration(item as Exploration))
+        this.setExplorations(
+          parsed
+            .map(item => hydrateExploration(item as Exploration))
+            .slice(0, MAX_EXPLORATIONS),
+        )
       }
     } catch (error) {
       // eslint-disable-next-line no-console
       console.warn('Failed to load exploration history from disk, starting with an empty store.', error)
-      this.explorations = []
+      this.setExplorations([])
     }
   }
 
@@ -322,13 +332,24 @@ export class ExplorationStore {
 
   private persistToDisk(): void {
     try {
-      if (!existsSync(DATA_DIR)) {
-        mkdirSync(DATA_DIR, { recursive: true })
+      if (!existsSync(DATA_FILE_DIR)) {
+        mkdirSync(DATA_FILE_DIR, { recursive: true })
       }
-      writeFileSync(DATA_FILE, JSON.stringify(this.explorations, null, 2), 'utf-8')
+      const tempFile = `${DATA_FILE}.${process.pid}.tmp`
+      writeFileSync(tempFile, JSON.stringify(this.explorations, null, 2), 'utf-8')
+      rmSync(DATA_FILE, { force: true })
+      renameSync(tempFile, DATA_FILE)
     } catch (error) {
       // eslint-disable-next-line no-console
       console.warn('Failed to persist exploration history to disk.', error)
     }
+  }
+
+  private setExplorations(explorations: Exploration[]): void {
+    this.explorations = explorations
+    this.byId = new Map(explorations.map(exploration => [exploration.id, exploration]))
+    this.byNormalizedQuery = new Map(
+      explorations.map(exploration => [exploration.normalizedQuery, exploration]),
+    )
   }
 }

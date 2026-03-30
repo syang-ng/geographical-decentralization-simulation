@@ -18,7 +18,13 @@ import { buildTools } from './catalog.ts'
 import { SimulationRuntime, parseSimulationRequest, type SimulationRequest } from './simulation-runtime.ts'
 import { ExplorationStore, normalizeQuery, type ListOptions } from './exploration-store.ts'
 import { OVERVIEW_CARD, TOPIC_CARDS, type TopicCard } from '../src/data/default-blocks.ts'
-import { parseSimulationArtifactToBlocks, type SimulationRenderableArtifact } from '../src/lib/simulation-artifact-blocks.ts'
+import {
+  buildSimulationArtifactBundle,
+  buildSimulationSummaryChart,
+  parseSimulationArtifactToBlocks,
+  parseSimulationBlockBundle,
+  type SimulationRenderableArtifact,
+} from '../src/lib/simulation-artifact-blocks.ts'
 import { parseBlocks, type Block } from '../src/types/blocks.ts'
 import {
   type SimulationArtifactBundle,
@@ -27,7 +33,6 @@ import {
   type SimulationViewSection,
   type SimulationViewSpec,
 } from '../src/types/simulation-view.ts'
-import { buildSimulationArtifactBundle, buildSimulationSummaryChart } from '../src/lib/simulation-artifact-blocks.ts'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const EXPLORER_ROOT = path.resolve(__dirname, '..')
@@ -100,27 +105,39 @@ const DEFAULT_SIMULATION_CONFIG: SimulationRequest = {
   seed: 25873,
 }
 
+const PAPER_REFERENCE_OVERRIDES = {
+  validators: 1000,
+  slots: 10000,
+  distribution: 'homogeneous',
+  sourcePlacement: 'homogeneous',
+  migrationCost: 0.002,
+  attestationThreshold: 2 / 3,
+  slotTime: 12,
+} satisfies Partial<SimulationRequest>
+
 const SIMULATION_PRESETS = {
   'baseline-ssp': {
+    ...PAPER_REFERENCE_OVERRIDES,
     paradigm: 'SSP',
-    distribution: 'homogeneous',
-    sourcePlacement: 'homogeneous',
   },
   'baseline-msp': {
+    ...PAPER_REFERENCE_OVERRIDES,
     paradigm: 'MSP',
-    distribution: 'homogeneous',
-    sourcePlacement: 'homogeneous',
   },
   'latency-aligned': {
+    ...PAPER_REFERENCE_OVERRIDES,
     sourcePlacement: 'latency-aligned',
   },
   'latency-misaligned': {
+    ...PAPER_REFERENCE_OVERRIDES,
     sourcePlacement: 'latency-misaligned',
   },
   'heterogeneous-start': {
+    ...PAPER_REFERENCE_OVERRIDES,
     distribution: 'heterogeneous',
   },
   'eip-7782': {
+    ...PAPER_REFERENCE_OVERRIDES,
     slotTime: 6,
   },
 } satisfies Record<string, Partial<SimulationRequest>>
@@ -128,8 +145,58 @@ const SIMULATION_PRESETS = {
 const apiKey = process.env.ANTHROPIC_API_KEY
 const anthropicModel = process.env.ANTHROPIC_MODEL?.trim() || DEFAULT_ANTHROPIC_MODEL
 const allowedOrigins = (process.env.ALLOWED_ORIGINS ?? 'http://localhost:3200,http://localhost:5180').split(',')
+const MAX_EXPLORE_QUERY_LENGTH = Math.max(120, Number(process.env.MAX_EXPLORE_QUERY_LENGTH ?? 600))
+const MAX_SIMULATION_QUESTION_LENGTH = Math.max(160, Number(process.env.MAX_SIMULATION_QUESTION_LENGTH ?? 900))
+const MAX_SESSION_HISTORY_ENTRIES = Math.max(1, Number(process.env.MAX_SESSION_HISTORY_ENTRIES ?? 6))
+const MAX_SESSION_SUMMARY_LENGTH = Math.max(80, Number(process.env.MAX_SESSION_SUMMARY_LENGTH ?? 280))
+const MAX_CLIENT_ID_LENGTH = Math.max(16, Number(process.env.MAX_CLIENT_ID_LENGTH ?? 128))
+
+function getRequesterId(req: express.Request): string {
+  const forwarded = req.headers['x-forwarded-for']
+  if (typeof forwarded === 'string' && forwarded.trim()) {
+    return forwarded.split(',')[0]!.trim()
+  }
+  return req.ip || 'unknown'
+}
+
+function createRateLimitMiddleware(
+  label: string,
+  windowMs: number,
+  maxRequests: number,
+): express.RequestHandler {
+  const buckets = new Map<string, RateLimitBucket>()
+
+  return (req, res, next) => {
+    const now = Date.now()
+    const requesterId = `${label}:${getRequesterId(req)}`
+    const bucket = buckets.get(requesterId)
+
+    if (!bucket || bucket.resetAt <= now) {
+      buckets.set(requesterId, { count: 1, resetAt: now + windowMs })
+      next()
+      return
+    }
+
+    if (bucket.count >= maxRequests) {
+      const retryAfterSeconds = Math.max(1, Math.ceil((bucket.resetAt - now) / 1000))
+      res.setHeader('Retry-After', String(retryAfterSeconds))
+      res.status(429).json({
+        error: `Too many ${label} requests from this client. Retry in about ${retryAfterSeconds} seconds.`,
+      })
+      return
+    }
+
+    bucket.count += 1
+    next()
+  }
+}
+
+const exploreRateLimit = createRateLimitMiddleware('explore', 60_000, 24)
+const simulationCopilotRateLimit = createRateLimitMiddleware('simulation-copilot', 60_000, 18)
+const simulationSubmitRateLimit = createRateLimitMiddleware('simulations', 60_000, 10)
 
 const app = express()
+app.set('trust proxy', true)
 app.use(cors({ origin: allowedOrigins }))
 app.use(express.json({ limit: '1mb' }))
 
@@ -190,9 +257,25 @@ interface SimulationCopilotResponse {
   cached: boolean
 }
 
+interface RateLimitBucket {
+  count: number
+  resetAt: number
+}
+
 interface CuratedMatch {
   card: TopicCard
   score: number
+}
+
+const TOPIC_HINTS: Partial<Record<TopicCard['id'], readonly string[]>> = {
+  'ssp-vs-msp': ['ssp', 'msp', 'external', 'local', 'compare', 'comparison', 'paradigm'],
+  'geographic-convergence': ['where', 'geographic', 'geography', 'concentrate', 'concentration', 'convergence', 'regions'],
+  'source-placement': ['source', 'sources', 'placement', 'relay', 'aligned', 'misaligned', 'latency aligned', 'latency misaligned'],
+  'initial-distribution': ['start', 'starting', 'initial', 'begin', 'begins', 'heterogeneous', 'distribution', 'real ethereum'],
+  'attestation-threshold': ['attestation', 'threshold', 'gamma'],
+  'shorter-slots': ['shorter', 'slot', 'slots', '6s', '6 second', '6-second', 'eip-7782'],
+  'metrics-explained': ['metric', 'metrics', 'gini', 'hhi', 'cv', 'lc'],
+  limitations: ['limitation', 'limitations', 'caveat', 'caveats', 'assumption', 'assumptions', 'next', 'future'],
 }
 
 function tokenize(text: string): string[] {
@@ -213,13 +296,33 @@ function overlapScore(left: readonly string[], right: readonly string[]): number
   return intersection / Math.max(left.length, right.length)
 }
 
+function hintScore(query: string, card: TopicCard): number {
+  const normalizedQuery = normalizeQuery(query)
+  if (!normalizedQuery) return 0
+
+  const hints = TOPIC_HINTS[card.id]
+  if (!hints?.length) return 0
+
+  let matches = 0
+  for (const hint of hints) {
+    const normalizedHint = normalizeQuery(hint)
+    if (!normalizedHint) continue
+    if (normalizedQuery.includes(normalizedHint)) {
+      matches += 1
+    }
+  }
+
+  if (matches === 0) return 0
+  return Math.min(0.36, 0.18 + (matches - 1) * 0.08)
+}
+
 function scoreTopicCard(query: string, card: TopicCard): number {
   const normalizedQuery = normalizeQuery(query)
   if (!normalizedQuery) return 0
 
   const candidates = [card.title, card.description, ...card.prompts]
   const queryTokens = tokenize(query)
-  let best = 0
+  let best = hintScore(query, card)
 
   for (const candidate of candidates) {
     const normalizedCandidate = normalizeQuery(candidate)
@@ -834,7 +937,7 @@ function buildSimulationConfig(input: Record<string, unknown>) {
     attestationCutoffMs: attestationCutoffMs(parsed.slotTime),
     scenarioLabels: paperScenarioLabels(parsed),
     notes: [
-      'This config stays within the website limits while matching the upstream baseline defaults more closely.',
+      'Named study presets use the paper-style 10,000-slot and 0.002 ETH reference setup unless you override fields.',
       'It composes a run configuration only; it does not execute the simulation.',
     ],
   }
@@ -850,17 +953,17 @@ function formatMetricNumber(value: number, digits = 2): string {
 function defaultSimulationPrompts(manifest: { config: SimulationRequest } | null): string[] {
   if (!manifest) {
     return [
-      'Set up the baseline SSP run from the paper.',
-      'Suggest a paper-aligned MSP comparison to run next.',
-      'What exact simulation can test shorter slot times safely?',
-      'What can I ask that stays inside the supported simulation model?',
+      'Set up the paper baseline SSP run (10,000 slots, 0.002 ETH).',
+      'Mirror that paper baseline for MSP so I can compare paradigms.',
+      'Hold the paradigm fixed and switch from latency-aligned to latency-misaligned sources.',
+      'Load the real Ethereum validator start and explain what should change.',
     ]
   }
 
   return [
     'Build a core outcomes overview from this exact run.',
     'Explain which regions dominate in this run and why.',
-    'What parameter change would be the nearest paper-aligned follow-up?',
+    'What is the nearest paper-backed follow-up to run next?',
   ]
 }
 
@@ -1133,6 +1236,29 @@ async function summarizeRenderableArtifacts(
   return lines.join('\n')
 }
 
+async function loadOverviewBundleBlocks(
+  manifest: {
+    outputDir: string
+    overviewBundles?: ReadonlyArray<{
+      bundle: SimulationArtifactBundle
+      name: string
+    }>
+  },
+  bundle: SimulationArtifactBundle,
+): Promise<readonly Block[] | null> {
+  const overviewBundle = manifest.overviewBundles?.find(candidate => candidate.bundle === bundle)
+  if (!overviewBundle) {
+    return null
+  }
+
+  try {
+    const rawText = await fs.readFile(path.join(manifest.outputDir, overviewBundle.name), 'utf8')
+    return parseSimulationBlockBundle(rawText)
+  } catch {
+    return null
+  }
+}
+
 async function resolveSimulationViewSpec(
   viewSpec: SimulationViewSpec,
   manifest: {
@@ -1143,6 +1269,10 @@ async function resolveSimulationViewSpec(
       label: string
       kind: 'timeseries' | 'map' | 'table' | 'raw'
       renderable: boolean
+    }>
+    overviewBundles?: ReadonlyArray<{
+      bundle: SimulationArtifactBundle
+      name: string
     }>
     config: SimulationRequest
   } | null,
@@ -1240,11 +1370,14 @@ async function resolveSimulationViewSpec(
         continue
       }
 
-      const artifactTexts = await loadArtifactTexts(manifest, bundleArtifactNames(section.bundle))
-      const bundleBlocks = buildSimulationArtifactBundle(
-        section.bundle,
-        artifactTexts as Partial<Record<SimulationRenderableArtifact['name'], string>>,
-      )
+      const prebuiltBundleBlocks = await loadOverviewBundleBlocks(manifest, section.bundle)
+      const bundleBlocks = prebuiltBundleBlocks ?? await (async () => {
+        const artifactTexts = await loadArtifactTexts(manifest, bundleArtifactNames(section.bundle))
+        return buildSimulationArtifactBundle(
+          section.bundle,
+          artifactTexts as Partial<Record<SimulationRenderableArtifact['name'], string>>,
+        )
+      })()
 
       if (section.note) {
         blocks.push({
@@ -1460,7 +1593,7 @@ function executeToolCall(
   return { error: `Unknown tool: ${name}` }
 }
 
-app.post('/api/explore', async (req, res) => {
+app.post('/api/explore', exploreRateLimit, async (req, res) => {
   const { query, history } = req.body as ExploreRequest
   const trimmedQuery = query?.trim()
 
@@ -1468,6 +1601,27 @@ app.post('/api/explore', async (req, res) => {
     res.status(400).json({ error: 'Query is required' })
     return
   }
+  if (trimmedQuery.length > MAX_EXPLORE_QUERY_LENGTH) {
+    res.status(400).json({
+      error: `Query is too long. Keep it under ${MAX_EXPLORE_QUERY_LENGTH} characters and narrow the ask.`,
+    })
+    return
+  }
+
+  const sessionHistory = Array.isArray(history)
+    ? history
+      .filter((entry): entry is { query: string; summary: string } =>
+        Boolean(entry)
+        && typeof entry.query === 'string'
+        && typeof entry.summary === 'string',
+      )
+      .slice(-MAX_SESSION_HISTORY_ENTRIES)
+      .map(entry => ({
+        query: limitText(entry.query.trim(), MAX_EXPLORE_QUERY_LENGTH),
+        summary: limitText(entry.summary.trim(), MAX_SESSION_SUMMARY_LENGTH),
+      }))
+      .filter(entry => entry.query.length > 0 && entry.summary.length > 0)
+    : []
 
   const curatedMatch = findCuratedMatch(trimmedQuery)
   if (curatedMatch) {
@@ -1488,8 +1642,8 @@ app.post('/api/explore', async (req, res) => {
   }
 
   try {
-    const sessionContext = history?.length
-      ? `\n\n## Session Context\nPrevious queries this session:\n${history.map((entry, index) => `${index + 1}. "${entry.query}" -> ${entry.summary}`).join('\n')}\n\nBuild on prior context where relevant.`
+    const sessionContext = sessionHistory.length
+      ? `\n\n## Session Context\nPrevious queries this session:\n${sessionHistory.map((entry, index) => `${index + 1}. "${entry.query}" -> ${entry.summary}`).join('\n')}\n\nBuild on prior context where relevant.`
       : ''
 
     // Multi-turn tool execution loop
@@ -1507,7 +1661,7 @@ app.post('/api/explore', async (req, res) => {
           {
             type: 'text',
             text: STUDY_CONTEXT + sessionContext,
-            cache_control: history?.length ? undefined : { type: 'ephemeral' },
+            cache_control: sessionHistory.length ? undefined : { type: 'ephemeral' },
           },
         ],
         tools: exploreTools,
@@ -1583,8 +1737,8 @@ app.post('/api/explore', async (req, res) => {
         : false,
       provenance: {
         source: 'generated',
-        label: 'Fresh Sonnet response',
-        detail: 'Generated a new block composition from the study context and the current question.',
+        label: 'Fresh interpretation',
+        detail: 'Generated a new structured reading from the study context and the current question.',
         canonical: false,
       },
     }
@@ -1610,12 +1764,18 @@ app.post('/api/explore', async (req, res) => {
   }
 })
 
-app.post('/api/simulation-copilot', async (req, res) => {
+app.post('/api/simulation-copilot', simulationCopilotRateLimit, async (req, res) => {
   const { question, currentJobId, currentConfig } = req.body as SimulationCopilotRequest
   const trimmedQuestion = question?.trim()
 
   if (!trimmedQuestion) {
     res.status(400).json({ error: 'Question is required.' })
+    return
+  }
+  if (trimmedQuestion.length > MAX_SIMULATION_QUESTION_LENGTH) {
+    res.status(400).json({
+      error: `Question is too long. Keep it under ${MAX_SIMULATION_QUESTION_LENGTH} characters and focus on one comparison or hypothesis at a time.`,
+    })
     return
   }
 
@@ -1761,7 +1921,7 @@ app.get('/api/health', (_req, res) => {
   })
 })
 
-app.post('/api/simulations', (req, res) => {
+app.post('/api/simulations', simulationSubmitRateLimit, (req, res) => {
   const config = parseSimulationRequest(req.body)
   if (!config) {
     res.status(400).json({ error: 'Invalid simulation request payload.' })
@@ -1769,8 +1929,22 @@ app.post('/api/simulations', (req, res) => {
   }
 
   const rawClientId = typeof req.body?.clientId === 'string' ? req.body.clientId : null
-  const job = simulationRuntime.submit(config, { clientId: rawClientId })
-  res.status(job.status === 'completed' ? 200 : 202).json(job)
+  const clientId = rawClientId?.trim()
+  if (clientId && clientId.length > MAX_CLIENT_ID_LENGTH) {
+    res.status(400).json({ error: `clientId is too long. Keep it under ${MAX_CLIENT_ID_LENGTH} characters.` })
+    return
+  }
+
+  try {
+    const job = simulationRuntime.submit(config, { clientId })
+    res.status(job.status === 'completed' ? 200 : 202).json(job)
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Simulation submission failed.'
+    const status = message.includes('queue is full') || message.includes('Too many active simulation jobs')
+      ? 429
+      : 500
+    res.status(status).json({ error: message })
+  }
 })
 
 app.get('/api/simulations/:jobId', (req, res) => {
@@ -1853,16 +2027,25 @@ app.get('/api/simulations/:jobId/manifest', (req, res) => {
   res.json(manifest)
 })
 
+function clientAcceptsEncoding(acceptEncoding: string, encoding: 'br' | 'gzip'): boolean {
+  const pattern = encoding === 'br' ? /\bbr\b/i : /\bgzip\b/i
+  return pattern.test(acceptEncoding)
+}
+
 app.get('/api/simulations/:jobId/artifacts/:artifactName', async (req, res) => {
   try {
     const acceptEncoding = req.header('accept-encoding') ?? ''
     const { artifact, body, contentEncoding } = await simulationRuntime.readArtifact(
       req.params.jobId,
       req.params.artifactName,
-      { preferGzip: /\bgzip\b/i.test(acceptEncoding) },
+      {
+        preferBrotli: clientAcceptsEncoding(acceptEncoding, 'br'),
+        preferGzip: clientAcceptsEncoding(acceptEncoding, 'gzip'),
+      },
     )
     res.setHeader('Content-Type', `${artifact.contentType}; charset=utf-8`)
     res.setHeader('ETag', artifact.sha256)
+    res.setHeader('Cache-Control', 'public, max-age=31536000, immutable')
     res.setHeader('Vary', 'Accept-Encoding')
     if (contentEncoding) {
       res.setHeader('Content-Encoding', contentEncoding)
@@ -1872,6 +2055,34 @@ app.get('/api/simulations/:jobId/artifacts/:artifactName', async (req, res) => {
     const message = error instanceof Error ? error.message : 'Unable to read artifact.'
     const status = message.includes('not available') ? 409 :
       message.includes('Unknown artifact') ? 404 :
+      500
+    res.status(status).json({ error: message })
+  }
+})
+
+app.get('/api/simulations/:jobId/overview-bundles/:bundleName', async (req, res) => {
+  try {
+    const acceptEncoding = req.header('accept-encoding') ?? ''
+    const { overviewBundle, body, contentEncoding } = await simulationRuntime.readOverviewBundle(
+      req.params.jobId,
+      req.params.bundleName,
+      {
+        preferBrotli: clientAcceptsEncoding(acceptEncoding, 'br'),
+        preferGzip: clientAcceptsEncoding(acceptEncoding, 'gzip'),
+      },
+    )
+    res.setHeader('Content-Type', 'application/json; charset=utf-8')
+    res.setHeader('ETag', overviewBundle.sha256)
+    res.setHeader('Cache-Control', 'public, max-age=31536000, immutable')
+    res.setHeader('Vary', 'Accept-Encoding')
+    if (contentEncoding) {
+      res.setHeader('Content-Encoding', contentEncoding)
+    }
+    res.send(body)
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unable to read overview bundle.'
+    const status = message.includes('not available') ? 409 :
+      message.includes('Unknown overview bundle') ? 404 :
       500
     res.status(status).json({ error: message })
   }

@@ -1,4 +1,5 @@
 import type { Block } from '../types/blocks'
+import { parseBlocks } from '../types/blocks'
 import type { SimulationViewSpec } from '../types/simulation-view'
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL
@@ -38,9 +39,21 @@ export interface SimulationArtifact {
   readonly contentType: string
   readonly bytes: number
   readonly gzipBytes: number | null
+  readonly brotliBytes: number | null
   readonly sha256: string
   readonly lazy: boolean
   readonly renderable: boolean
+}
+
+export interface SimulationOverviewBundle {
+  readonly bundle: 'core-outcomes' | 'timing-and-attestation' | 'geography-overview'
+  readonly name: string
+  readonly label: string
+  readonly description: string
+  readonly bytes: number
+  readonly gzipBytes: number | null
+  readonly brotliBytes: number | null
+  readonly sha256: string
 }
 
 export interface SimulationManifest {
@@ -53,6 +66,7 @@ export interface SimulationManifest {
   readonly config: SimulationConfig
   readonly summary: SimulationSummary
   readonly artifacts: ReadonlyArray<SimulationArtifact>
+  readonly overviewBundles: ReadonlyArray<SimulationOverviewBundle>
 }
 
 export interface SimulationJob {
@@ -146,6 +160,18 @@ export async function getSimulationArtifact(jobId: string, artifactName: string)
     throw await parseError(res)
   }
   return await res.text()
+}
+
+export async function getSimulationOverviewBundle(
+  jobId: string,
+  bundleName: SimulationOverviewBundle['bundle'],
+): Promise<readonly Block[]> {
+  const res = await fetch(`${API_BASE}/simulations/${jobId}/overview-bundles/${encodeURIComponent(bundleName)}`)
+  if (!res.ok) {
+    throw await parseError(res)
+  }
+  const raw = await res.json().catch(() => []) as unknown
+  return parseBlocks(Array.isArray(raw) ? raw : [])
 }
 
 export async function submitSimulationCopilot(request: {

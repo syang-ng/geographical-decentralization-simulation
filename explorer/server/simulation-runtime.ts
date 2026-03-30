@@ -1,10 +1,13 @@
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process'
 import crypto from 'node:crypto'
-import { existsSync } from 'node:fs'
+import { existsSync, readdirSync } from 'node:fs'
 import fs from 'node:fs/promises'
+import { availableParallelism } from 'node:os'
 import path from 'node:path'
 import readline from 'node:readline'
 import { fileURLToPath } from 'node:url'
+import { promisify } from 'node:util'
+import { brotliCompress as brotliCompressCallback, constants as zlibConstants } from 'node:zlib'
 
 const SERVER_DIR = path.dirname(fileURLToPath(import.meta.url))
 const EXPLORER_ROOT = path.resolve(SERVER_DIR, '..')
@@ -12,9 +15,134 @@ const REPO_ROOT = process.env.SIMULATION_REPO_ROOT
   ? path.resolve(process.env.SIMULATION_REPO_ROOT)
   : path.resolve(EXPLORER_ROOT, '..')
 const WORKER_PATH = path.join(SERVER_DIR, 'simulation_worker.py')
+const SIMULATION_CACHE_ROOT = path.join(REPO_ROOT, '.simulation_cache')
 const DEFAULT_PYTHON_EXECUTABLE = process.platform === 'win32' ? 'python' : 'python3'
-const DEFAULT_WORKER_POOL_SIZE = Math.max(1, Math.min(Number(process.env.SIMULATION_WORKERS ?? 2), 4))
+const DEFAULT_WORKER_POOL_SIZE = Math.max(
+  1,
+  Math.min(
+    Number(process.env.SIMULATION_WORKERS ?? Math.max(2, Math.ceil(availableParallelism() / 4))),
+    6,
+  ),
+)
 const DEFAULT_QUEUED_JOB_TTL_MS = Math.max(60_000, Number(process.env.SIMULATION_QUEUE_TTL_MS ?? 10 * 60_000))
+const ENABLE_CANONICAL_PREWARM = !/^false$/i.test(process.env.SIMULATION_PREWARM ?? 'true')
+const CANONICAL_PREWARM_CONFIGS: ReadonlyArray<SimulationRequest> = [
+  {
+    paradigm: 'SSP',
+    validators: 1000,
+    slots: 1000,
+    distribution: 'homogeneous',
+    sourcePlacement: 'homogeneous',
+    migrationCost: 0.0001,
+    attestationThreshold: roundTo(2 / 3, 6),
+    slotTime: 12,
+    seed: 25873,
+  },
+  {
+    paradigm: 'MSP',
+    validators: 1000,
+    slots: 1000,
+    distribution: 'homogeneous',
+    sourcePlacement: 'homogeneous',
+    migrationCost: 0.0001,
+    attestationThreshold: roundTo(2 / 3, 6),
+    slotTime: 12,
+    seed: 25873,
+  },
+  {
+    paradigm: 'SSP',
+    validators: 1000,
+    slots: 1000,
+    distribution: 'homogeneous',
+    sourcePlacement: 'latency-aligned',
+    migrationCost: 0.0001,
+    attestationThreshold: roundTo(2 / 3, 6),
+    slotTime: 12,
+    seed: 25873,
+  },
+  {
+    paradigm: 'MSP',
+    validators: 1000,
+    slots: 1000,
+    distribution: 'homogeneous',
+    sourcePlacement: 'latency-aligned',
+    migrationCost: 0.0001,
+    attestationThreshold: roundTo(2 / 3, 6),
+    slotTime: 12,
+    seed: 25873,
+  },
+  {
+    paradigm: 'SSP',
+    validators: 1000,
+    slots: 1000,
+    distribution: 'homogeneous',
+    sourcePlacement: 'latency-misaligned',
+    migrationCost: 0.0001,
+    attestationThreshold: roundTo(2 / 3, 6),
+    slotTime: 12,
+    seed: 25873,
+  },
+  {
+    paradigm: 'MSP',
+    validators: 1000,
+    slots: 1000,
+    distribution: 'homogeneous',
+    sourcePlacement: 'latency-misaligned',
+    migrationCost: 0.0001,
+    attestationThreshold: roundTo(2 / 3, 6),
+    slotTime: 12,
+    seed: 25873,
+  },
+  {
+    paradigm: 'SSP',
+    validators: 1000,
+    slots: 1000,
+    distribution: 'heterogeneous',
+    sourcePlacement: 'homogeneous',
+    migrationCost: 0.0001,
+    attestationThreshold: roundTo(2 / 3, 6),
+    slotTime: 12,
+    seed: 25873,
+  },
+  {
+    paradigm: 'MSP',
+    validators: 1000,
+    slots: 1000,
+    distribution: 'heterogeneous',
+    sourcePlacement: 'homogeneous',
+    migrationCost: 0.0001,
+    attestationThreshold: roundTo(2 / 3, 6),
+    slotTime: 12,
+    seed: 25873,
+  },
+  {
+    paradigm: 'SSP',
+    validators: 1000,
+    slots: 1000,
+    distribution: 'homogeneous',
+    sourcePlacement: 'homogeneous',
+    migrationCost: 0.0001,
+    attestationThreshold: roundTo(2 / 3, 6),
+    slotTime: 6,
+    seed: 25873,
+  },
+  {
+    paradigm: 'MSP',
+    validators: 1000,
+    slots: 1000,
+    distribution: 'homogeneous',
+    sourcePlacement: 'homogeneous',
+    migrationCost: 0.0001,
+    attestationThreshold: roundTo(2 / 3, 6),
+    slotTime: 6,
+    seed: 25873,
+  },
+] as const
+const brotliCompress = promisify(brotliCompressCallback)
+const DEFAULT_COMPLETED_JOB_RETENTION_MS = Math.max(10 * 60_000, Number(process.env.SIMULATION_COMPLETED_RETENTION_MS ?? 6 * 60 * 60_000))
+const DEFAULT_MAX_STORED_JOBS = Math.max(100, Number(process.env.SIMULATION_MAX_STORED_JOBS ?? 500))
+const DEFAULT_MAX_QUEUE_LENGTH = Math.max(DEFAULT_WORKER_POOL_SIZE, Number(process.env.SIMULATION_MAX_QUEUE_LENGTH ?? 48))
+const DEFAULT_MAX_ACTIVE_JOBS_PER_CLIENT = Math.max(1, Number(process.env.SIMULATION_MAX_ACTIVE_JOBS_PER_CLIENT ?? 4))
 const REQUIRED_RUNTIME_PATHS = [
   'data/gcp_regions.csv',
   'data/gcp_latency.csv',
@@ -62,9 +190,21 @@ export interface SimulationArtifact {
   readonly contentType: string
   readonly bytes: number
   readonly gzipBytes: number | null
+  readonly brotliBytes: number | null
   readonly sha256: string
   readonly lazy: boolean
   readonly renderable: boolean
+}
+
+export interface SimulationOverviewBundle {
+  readonly bundle: 'core-outcomes' | 'timing-and-attestation' | 'geography-overview'
+  readonly name: string
+  readonly label: string
+  readonly description: string
+  readonly bytes: number
+  readonly gzipBytes: number | null
+  readonly brotliBytes: number | null
+  readonly sha256: string
 }
 
 export interface SimulationManifest {
@@ -77,6 +217,7 @@ export interface SimulationManifest {
   readonly config: SimulationRequest
   readonly summary: SimulationSummary
   readonly artifacts: ReadonlyArray<SimulationArtifact>
+  readonly overviewBundles: ReadonlyArray<SimulationOverviewBundle>
 }
 
 export type SimulationJobStatus = 'queued' | 'running' | 'completed' | 'failed' | 'cancelled'
@@ -99,6 +240,7 @@ interface JobRecord {
   createdAt: string
   createdAtMs: number
   updatedAt: string
+  updatedAtMs: number
   status: SimulationJobStatus
   configHash: string
   queuePosition: number | null
@@ -127,6 +269,16 @@ interface PendingRequest {
   readonly reject: (error: Error) => void
 }
 
+interface PrewarmState {
+  enabled: boolean
+  running: boolean
+  startedAt: string | null
+  finishedAt: string | null
+  completed: number
+  total: number
+  lastError: string | null
+}
+
 interface WorkerSlot {
   readonly index: number
   process: ChildProcessWithoutNullStreams | null
@@ -137,6 +289,12 @@ interface WorkerSlot {
 }
 
 type JobListener = (snapshot: SimulationJobSnapshot) => void
+type CompressionEncoding = 'br' | 'gzip' | null
+
+function isWithinDirectory(directoryPath: string, candidatePath: string): boolean {
+  const relative = path.relative(directoryPath, candidatePath)
+  return relative === '' || (!relative.startsWith('..') && !path.isAbsolute(relative))
+}
 
 function stableStringify(value: unknown): string {
   if (Array.isArray(value)) {
@@ -231,12 +389,17 @@ export class SimulationRuntime {
   private readonly pythonExecutable = process.env.PYTHON_EXECUTABLE ?? DEFAULT_PYTHON_EXECUTABLE
   private readonly workerPoolSize = DEFAULT_WORKER_POOL_SIZE
   private readonly queuedJobTtlMs = DEFAULT_QUEUED_JOB_TTL_MS
+  private readonly completedJobRetentionMs = DEFAULT_COMPLETED_JOB_RETENTION_MS
+  private readonly maxStoredJobs = DEFAULT_MAX_STORED_JOBS
+  private readonly maxQueueLength = DEFAULT_MAX_QUEUE_LENGTH
+  private readonly maxActiveJobsPerClient = DEFAULT_MAX_ACTIVE_JOBS_PER_CLIENT
   private readonly jobs = new Map<string, JobRecord>()
   private readonly configToJob = new Map<string, string>()
   private readonly queue: string[] = []
   private readonly pending = new Map<number, PendingRequest>()
   private readonly listeners = new Map<string, Set<JobListener>>()
   private readonly workers: WorkerSlot[]
+  private readonly prewarmState: PrewarmState
   private requestCounter = 0
   private jobCounter = 0
   private pumping = false
@@ -250,10 +413,20 @@ export class SimulationRuntime {
       lastError: null,
       lastStartedAt: null,
     }))
-    void this.warmWorkers()
+    this.prewarmState = {
+      enabled: ENABLE_CANONICAL_PREWARM,
+      running: false,
+      startedAt: null,
+      finishedAt: null,
+      completed: 0,
+      total: CANONICAL_PREWARM_CONFIGS.length,
+      lastError: null,
+    }
+    void this.initialize()
   }
 
   submit(config: SimulationRequest, options: { clientId?: string | null } = {}): SimulationJobSnapshot {
+    this.pruneJobs()
     const normalized = normalizeConfig(config)
     const hash = configHash(normalized)
     const existingJobId = this.configToJob.get(hash)
@@ -268,8 +441,16 @@ export class SimulationRuntime {
     const clientId = options.clientId?.trim() ? options.clientId.trim() : null
     if (clientId) {
       this.cancelSupersededQueuedJobs(clientId)
+      if (this.countActiveJobsForClient(clientId) >= this.maxActiveJobsPerClient) {
+        throw new Error(
+          `Too many active simulation jobs for this client. Wait for a running job to finish before submitting another.`,
+        )
+      }
     }
     this.dropStaleQueuedJobs()
+    if (this.queue.length >= this.maxQueueLength) {
+      throw new Error('Simulation queue is full. Try again once a queued job has started or completed.')
+    }
 
     const id = `sim-${Date.now()}-${++this.jobCounter}`
     const createdAt = nowIso()
@@ -279,6 +460,7 @@ export class SimulationRuntime {
       createdAt,
       createdAtMs,
       updatedAt: createdAt,
+      updatedAtMs: createdAtMs,
       status: 'queued',
       configHash: hash,
       queuePosition: this.queue.length + 1,
@@ -337,11 +519,13 @@ export class SimulationRuntime {
   }
 
   getJob(jobId: string): SimulationJobSnapshot | null {
+    this.pruneJobs()
     const job = this.jobs.get(jobId)
     return job ? this.snapshot(job) : null
   }
 
   getManifest(jobId: string): SimulationManifest | null {
+    this.pruneJobs()
     return this.jobs.get(jobId)?.manifest ?? null
   }
 
@@ -371,8 +555,8 @@ export class SimulationRuntime {
   async readArtifact(
     jobId: string,
     artifactName: string,
-    options: { preferGzip?: boolean } = {},
-  ): Promise<{ artifact: SimulationArtifact; body: Buffer | string; contentEncoding: 'gzip' | null }> {
+    options: { preferGzip?: boolean; preferBrotli?: boolean } = {},
+  ): Promise<{ artifact: SimulationArtifact; body: Buffer | string; contentEncoding: CompressionEncoding }> {
     const manifest = this.getManifest(jobId)
     if (!manifest) {
       throw new Error('Manifest not available for this job yet.')
@@ -383,37 +567,47 @@ export class SimulationRuntime {
       throw new Error(`Unknown artifact: ${artifactName}`)
     }
 
-    const outputDir = path.resolve(manifest.outputDir)
-    const artifactPath = path.resolve(outputDir, artifact.name)
-    if (!artifactPath.startsWith(outputDir)) {
-      throw new Error('Artifact path escapes the output directory.')
+    return await this.readManifestAsset(manifest, artifact, options)
+  }
+
+  async readOverviewBundle(
+    jobId: string,
+    bundleName: string,
+    options: { preferGzip?: boolean; preferBrotli?: boolean } = {},
+  ): Promise<{ overviewBundle: SimulationOverviewBundle; body: Buffer | string; contentEncoding: CompressionEncoding }> {
+    const manifest = this.getManifest(jobId)
+    if (!manifest) {
+      throw new Error('Manifest not available for this job yet.')
     }
 
-    if (options.preferGzip) {
-      const gzipPath = `${artifactPath}.gz`
-      try {
-        const body = await fs.readFile(gzipPath)
-        return { artifact, body, contentEncoding: 'gzip' }
-      } catch {
-        // Fall through to the raw file.
-      }
+    const overviewBundle = manifest.overviewBundles.find(item =>
+      item.bundle === bundleName || item.name === bundleName,
+    )
+    if (!overviewBundle) {
+      throw new Error(`Unknown overview bundle: ${bundleName}`)
     }
 
-    const body = await fs.readFile(artifactPath, 'utf8')
-    return { artifact, body, contentEncoding: null }
+    const { asset, body, contentEncoding } = await this.readManifestAsset(manifest, overviewBundle, options)
+    return { overviewBundle: asset, body, contentEncoding }
   }
 
   health() {
+    this.pruneJobs()
     const readyWorkers = this.workers.filter(worker => worker.process !== null).length
     const busyWorkers = this.workers.filter(worker => worker.currentJobId !== null).length
     return {
       workerPoolSize: this.workerPoolSize,
+      maxQueueLength: this.maxQueueLength,
+      maxStoredJobs: this.maxStoredJobs,
+      completedJobRetentionMs: this.completedJobRetentionMs,
       readyWorkers,
       busyWorkers,
       queuedJobs: this.queue.length,
       totalJobs: this.jobs.size,
+      cacheEntries: this.countCacheEntries(),
       pythonExecutable: this.pythonExecutable,
       repoRoot: REPO_ROOT,
+      prewarm: { ...this.prewarmState },
       requiredPaths: REQUIRED_RUNTIME_PATHS.map(relativePath => ({
         path: relativePath,
         exists: existsSync(path.join(REPO_ROOT, relativePath)),
@@ -459,6 +653,7 @@ export class SimulationRuntime {
 
   private touch(job: JobRecord): void {
     job.updatedAt = nowIso()
+    job.updatedAtMs = Date.now()
     this.notify(job)
   }
 
@@ -471,6 +666,7 @@ export class SimulationRuntime {
       this.configToJob.delete(job.configHash)
     }
     this.touch(job)
+    this.pruneJobs()
   }
 
   private cancelSupersededQueuedJobs(clientId: string): void {
@@ -492,6 +688,64 @@ export class SimulationRuntime {
       this.finalizeCancelled(job, 'Dropped from the queue after exceeding the stale-job timeout.')
     }
     this.refreshQueuePositions()
+  }
+
+  private countActiveJobsForClient(clientId: string): number {
+    let count = 0
+    for (const job of this.jobs.values()) {
+      if (job.clientId !== clientId) continue
+      if (job.status === 'queued' || job.status === 'running') {
+        count += 1
+      }
+    }
+    return count
+  }
+
+  private isTerminal(job: JobRecord): boolean {
+    return job.status === 'completed' || job.status === 'failed' || job.status === 'cancelled'
+  }
+
+  private evictJob(job: JobRecord): void {
+    if (this.configToJob.get(job.configHash) === job.id) {
+      this.configToJob.delete(job.configHash)
+    }
+    this.listeners.delete(job.id)
+    this.jobs.delete(job.id)
+  }
+
+  private pruneJobs(): void {
+    const now = Date.now()
+    const retentionCutoff = now - this.completedJobRetentionMs
+
+    const expiredJobs = [...this.jobs.values()]
+      .filter(job =>
+        this.isTerminal(job)
+        && job.updatedAtMs < retentionCutoff
+        && job.workerSlot == null
+        && !this.listeners.has(job.id),
+      )
+      .sort((left, right) => left.updatedAtMs - right.updatedAtMs)
+
+    for (const job of expiredJobs) {
+      this.evictJob(job)
+    }
+
+    if (this.jobs.size <= this.maxStoredJobs) {
+      return
+    }
+
+    const overflowCandidates = [...this.jobs.values()]
+      .filter(job =>
+        this.isTerminal(job)
+        && job.workerSlot == null
+        && !this.listeners.has(job.id),
+      )
+      .sort((left, right) => left.updatedAtMs - right.updatedAtMs)
+
+    for (const job of overflowCandidates) {
+      if (this.jobs.size <= this.maxStoredJobs) break
+      this.evictJob(job)
+    }
   }
 
   private refreshQueuePositions(): void {
@@ -529,7 +783,7 @@ export class SimulationRuntime {
           continue
         }
 
-        this.dispatchToWorker(worker, job)
+      this.dispatchToWorker(worker, job)
       }
 
       this.refreshQueuePositions()
@@ -560,15 +814,17 @@ export class SimulationRuntime {
     this.touch(job)
 
     void this.sendToWorker(worker, job.id, job.config)
-      .then(manifest => {
+      .then(async manifest => {
         if (job.status === 'cancelled') {
           return
         }
+        const primedManifest = await this.primeManifestAssets(manifest)
         job.status = 'completed'
-        job.cacheHit = manifest.cacheHit
-        job.manifest = manifest
+        job.cacheHit = primedManifest.cacheHit
+        job.manifest = primedManifest
         job.workerSlot = null
         this.touch(job)
+        this.pruneJobs()
       })
       .catch(error => {
         if (job.status === 'cancelled') {
@@ -581,6 +837,7 @@ export class SimulationRuntime {
           this.configToJob.delete(job.configHash)
         }
         this.touch(job)
+        this.pruneJobs()
       })
       .finally(() => {
         if (worker.currentJobId === job.id) {
@@ -621,6 +878,13 @@ export class SimulationRuntime {
         }
       })
     })
+  }
+
+  private async initialize(): Promise<void> {
+    await this.warmWorkers()
+    if (this.prewarmState.enabled) {
+      void this.runCanonicalPrewarm()
+    }
   }
 
   private async ensureWorker(worker: WorkerSlot): Promise<void> {
@@ -731,6 +995,268 @@ export class SimulationRuntime {
 
   private async warmWorkers(): Promise<void> {
     await Promise.all(this.workers.map(worker => this.ensureWorker(worker).catch(() => undefined)))
+  }
+
+  private countCacheEntries(): number {
+    try {
+      return readdirSync(SIMULATION_CACHE_ROOT, { withFileTypes: true })
+        .filter(entry => entry.isDirectory())
+        .length
+    } catch {
+      return 0
+    }
+  }
+
+  private async readManifestAsset<T extends { name: string }>(
+    manifest: SimulationManifest,
+    asset: T,
+    options: { preferGzip?: boolean; preferBrotli?: boolean } = {},
+  ): Promise<{ asset: T; body: Buffer | string; contentEncoding: CompressionEncoding }> {
+    const outputDir = path.resolve(manifest.outputDir)
+    const assetPath = path.resolve(outputDir, asset.name)
+    if (!isWithinDirectory(outputDir, assetPath)) {
+      throw new Error('Artifact path escapes the output directory.')
+    }
+
+    if (options.preferBrotli) {
+      try {
+        const body = await fs.readFile(`${assetPath}.br`)
+        return { asset, body, contentEncoding: 'br' }
+      } catch {
+        // Fall through to the next encoding.
+      }
+    }
+
+    if (options.preferGzip) {
+      try {
+        const body = await fs.readFile(`${assetPath}.gz`)
+        return { asset, body, contentEncoding: 'gzip' }
+      } catch {
+        // Fall through to the raw file.
+      }
+    }
+
+    const body = await fs.readFile(assetPath, 'utf8')
+    return { asset, body, contentEncoding: null }
+  }
+
+  private async ensureBrotliFile(filePath: string): Promise<number | null> {
+    let sourceStat
+    try {
+      sourceStat = await fs.stat(filePath)
+    } catch (error) {
+      const code = error && typeof error === 'object' && 'code' in error ? String(error.code) : null
+      if (code === 'ENOENT') {
+        return null
+      }
+      throw error
+    }
+
+    const brotliPath = `${filePath}.br`
+    try {
+      const brotliStat = await fs.stat(brotliPath)
+      if (brotliStat.mtimeMs >= sourceStat.mtimeMs) {
+        return brotliStat.size
+      }
+    } catch {
+      // Rebuild the Brotli sidecar below.
+    }
+
+    const body = await fs.readFile(filePath)
+    const compressed = await brotliCompress(body, {
+      params: {
+        [zlibConstants.BROTLI_PARAM_QUALITY]: 5,
+      },
+    })
+    await fs.writeFile(brotliPath, compressed)
+    return compressed.length
+  }
+
+  private async primeManifestAssets(manifest: SimulationManifest): Promise<SimulationManifest> {
+    const outputDir = path.resolve(manifest.outputDir)
+
+    const nextArtifacts = await Promise.all(manifest.artifacts.map(async artifact => {
+      const assetPath = path.resolve(outputDir, artifact.name)
+      if (!isWithinDirectory(outputDir, assetPath)) {
+        return artifact
+      }
+
+      try {
+        const brotliBytes = await this.ensureBrotliFile(assetPath)
+        return brotliBytes === artifact.brotliBytes
+          ? artifact
+          : { ...artifact, brotliBytes }
+      } catch (error) {
+        // eslint-disable-next-line no-console
+        console.warn(`[simulation-runtime] failed to prime Brotli artifact ${artifact.name}`, error)
+        return artifact
+      }
+    }))
+
+    const nextOverviewBundles = await Promise.all(manifest.overviewBundles.map(async overviewBundle => {
+      const assetPath = path.resolve(outputDir, overviewBundle.name)
+      if (!isWithinDirectory(outputDir, assetPath)) {
+        return overviewBundle
+      }
+
+      try {
+        const brotliBytes = await this.ensureBrotliFile(assetPath)
+        return brotliBytes === overviewBundle.brotliBytes
+          ? overviewBundle
+          : { ...overviewBundle, brotliBytes }
+      } catch (error) {
+        // eslint-disable-next-line no-console
+        console.warn(`[simulation-runtime] failed to prime Brotli overview bundle ${overviewBundle.name}`, error)
+        return overviewBundle
+      }
+    }))
+
+    const changed = nextArtifacts.some((artifact, index) => artifact !== manifest.artifacts[index])
+      || nextOverviewBundles.some((bundle, index) => bundle !== manifest.overviewBundles[index])
+    if (!changed) {
+      return manifest
+    }
+
+    const nextManifest: SimulationManifest = {
+      ...manifest,
+      artifacts: nextArtifacts,
+      overviewBundles: nextOverviewBundles,
+    }
+
+    try {
+      await fs.writeFile(
+        path.join(outputDir, 'explorer_manifest.json'),
+        JSON.stringify(nextManifest, null, 2),
+        'utf8',
+      )
+    } catch (error) {
+      // eslint-disable-next-line no-console
+      console.warn('[simulation-runtime] failed to rewrite primed manifest', error)
+    }
+
+    return nextManifest
+  }
+
+  private async runCanonicalPrewarm(): Promise<void> {
+    if (!this.prewarmState.enabled || this.prewarmState.running || CANONICAL_PREWARM_CONFIGS.length === 0) {
+      return
+    }
+
+    this.prewarmState.running = true
+    this.prewarmState.startedAt = nowIso()
+    this.prewarmState.finishedAt = null
+    this.prewarmState.completed = 0
+    this.prewarmState.lastError = null
+
+    const processHandle = spawn(this.pythonExecutable, [WORKER_PATH], {
+      cwd: REPO_ROOT,
+      stdio: ['pipe', 'pipe', 'pipe'],
+      env: {
+        ...process.env,
+        PYTHONUNBUFFERED: '1',
+      },
+    })
+
+    const stdout = readline.createInterface({ input: processHandle.stdout })
+    const pending = new Map<number, { resolve: (manifest: SimulationManifest) => void; reject: (error: Error) => void }>()
+    let exited = false
+
+    const rejectPending = (error: Error) => {
+      for (const request of pending.values()) {
+        request.reject(error)
+      }
+      pending.clear()
+    }
+
+    stdout.on('line', line => {
+      if (!line.trim()) return
+
+      let message: WorkerResponse
+      try {
+        message = JSON.parse(line) as WorkerResponse
+      } catch (error) {
+        rejectPending(new Error(`Canonical prewarm worker returned invalid JSON: ${String(error)}`))
+        return
+      }
+
+      const request = pending.get(message.id)
+      if (!request) {
+        return
+      }
+
+      pending.delete(message.id)
+      if (message.ok && message.result) {
+        request.resolve(message.result)
+        return
+      }
+
+      const description = [
+        message.error?.message ?? 'Unknown simulation worker error',
+        message.error?.traceback,
+      ]
+        .filter(Boolean)
+        .join('\n')
+      request.reject(new Error(description))
+    })
+
+    processHandle.stderr.on('data', chunk => {
+      const message = chunk.toString('utf8').trim()
+      if (message) {
+        // eslint-disable-next-line no-console
+        console.error(`[simulation-prewarm] ${message}`)
+      }
+    })
+
+    processHandle.on('error', error => {
+      exited = true
+      rejectPending(error instanceof Error ? error : new Error(String(error)))
+    })
+
+    processHandle.on('exit', (code, signal) => {
+      if (exited) return
+      exited = true
+      rejectPending(
+        new Error(`Canonical prewarm worker exited unexpectedly (code=${code ?? 'null'}, signal=${signal ?? 'null'}).`),
+      )
+    })
+
+    const sendRequest = async (requestId: number, config: SimulationRequest): Promise<SimulationManifest> => await new Promise((resolve, reject) => {
+      pending.set(requestId, { resolve, reject })
+      const payload = JSON.stringify({
+        id: requestId,
+        type: 'run',
+        payload: {
+          job_id: `prewarm-${configHash(config).slice(0, 12)}`,
+          config,
+        },
+      })
+
+      processHandle.stdin.write(`${payload}\n`, 'utf8', error => {
+        if (!error) {
+          return
+        }
+        pending.delete(requestId)
+        reject(error)
+      })
+    })
+
+    try {
+      for (const [index, config] of CANONICAL_PREWARM_CONFIGS.entries()) {
+        const requestId = index + 1
+        const manifest = await sendRequest(requestId, config)
+        await this.primeManifestAssets(manifest)
+        this.prewarmState.completed = requestId
+      }
+    } catch (error) {
+      this.prewarmState.lastError = error instanceof Error ? error.message : 'Canonical prewarm failed.'
+    } finally {
+      this.prewarmState.running = false
+      this.prewarmState.finishedAt = nowIso()
+      stdout.close()
+      if (!exited) {
+        processHandle.kill()
+      }
+    }
   }
 
   private describeWorkerUnavailableReason(): string {

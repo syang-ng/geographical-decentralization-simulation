@@ -129,41 +129,14 @@ def build_export_payloads(model_standard):
         slot["Utility_Increase"] for slot in model_standard.slot_model_history
     ]
 
-    mev_by_slot = []
-    estimated_mev_by_slot = []
-    attest_by_slot = []
-    proposal_time_by_slot = []
-    region_counter_per_slot = defaultdict(list)
-
-    for slot_index, slot_records in enumerate(model_standard.slot_validator_history):
-        mev_by_slot.append([record["MEV_Captured_Slot"] for record in slot_records])
-        estimated_mev_by_slot.append(
-            [record["Estimated_Profit"] for record in slot_records]
-        )
-        attest_by_slot.append([record["Attestation_Rate"] for record in slot_records])
-        proposal_time_by_slot.append(
-            [record["Proposal Time"] for record in slot_records]
-        )
-        region_counts = Counter(record["GCP_Region"] for record in slot_records)
-        region_counter_per_slot[slot_index] = region_counts.most_common()
-
-    proposal_time_avg = []
-    attestation_sum = []
-    for proposal_times, attestations in zip(proposal_time_by_slot, attest_by_slot):
-        positive_proposal_times = [value for value in proposal_times if value > 0]
-        proposal_time_avg.append(
-            (sum(positive_proposal_times) / len(positive_proposal_times))
-            if positive_proposal_times
-            else 0.0
-        )
-        attestation_sum.append(sum(attestations))
-
-    final_region_slot = max(region_counter_per_slot.keys(), default=None)
-    top_regions_final = (
-        region_counter_per_slot[final_region_slot]
-        if final_region_slot is not None
-        else []
-    )
+    mev_by_slot = list(getattr(model_standard, "slot_mev_by_slot", []))
+    estimated_mev_by_slot = list(getattr(model_standard, "slot_estimated_mev_by_slot", []))
+    attest_by_slot = list(getattr(model_standard, "slot_attest_by_slot", []))
+    proposal_time_by_slot = list(getattr(model_standard, "slot_proposal_time_by_slot", []))
+    proposal_time_avg = list(getattr(model_standard, "slot_proposal_time_avg", []))
+    attestation_sum = list(getattr(model_standard, "slot_attestation_sum", []))
+    region_counter_per_slot = dict(getattr(model_standard, "slot_region_counter_per_slot", {}))
+    top_regions_final = list(getattr(model_standard, "top_regions_final", []))
 
     return {
         "avg_mev": avg_mev_series,
@@ -310,6 +283,7 @@ def simulation(
     cost=0.0001,  # Cost for migration, default to 0.0001
     seed=DEFAULT_SIMULATION_SEED,
     collect_full_history=False,
+    export_raw_artifacts=True,
     verbose=False,
 ):
     # --- Simulation Execution ---
@@ -349,6 +323,7 @@ def simulation(
         "fast_mode": fast_mode,  # Fast mode for latency computation
         "cost": cost,  # Cost for migration
         "collect_full_history": collect_full_history,
+        "collect_raw_artifacts": export_raw_artifacts,
         "verbose": verbose,
     }
 
@@ -420,24 +395,26 @@ def simulation(
         )
         action_reasons_df.to_csv(f"{output_folder}/action_reasons.csv", index=False)
 
-        with open(f"{output_folder}/mev_by_slot.json", "w") as f:
-            json.dump(export_payloads["mev_by_slot"], f)
-        with open(f"{output_folder}/estimated_mev_by_slot.json", "w") as f:
-            json.dump(export_payloads["estimated_mev_by_slot"], f)
-        with open(f"{output_folder}/attest_by_slot.json", "w") as f:
-            json.dump(export_payloads["attest_by_slot"], f)
-        with open(f"{output_folder}/proposal_time_by_slot.json", "w") as f:
-            json.dump(export_payloads["proposal_time_by_slot"], f)
         with open(f"{output_folder}/proposal_time_avg.json", "w") as f:
             json.dump(export_payloads["proposal_time_avg"], f)
         with open(f"{output_folder}/attestation_sum.json", "w") as f:
             json.dump(export_payloads["attestation_sum"], f)
         with open(f"{output_folder}/proposer_strategy_and_mev.json", "w") as f:
             json.dump(export_payloads["proposer_strategy_and_mev"], f)
-        with open(f"{output_folder}/region_counter_per_slot.json", "w") as f:
-            json.dump(export_payloads["region_counter_per_slot"], f)
         with open(f"{output_folder}/top_regions_final.json", "w") as f:
             json.dump(export_payloads["top_regions_final"], f)
+
+        if export_raw_artifacts:
+            with open(f"{output_folder}/mev_by_slot.json", "w") as f:
+                json.dump(export_payloads["mev_by_slot"], f)
+            with open(f"{output_folder}/estimated_mev_by_slot.json", "w") as f:
+                json.dump(export_payloads["estimated_mev_by_slot"], f)
+            with open(f"{output_folder}/attest_by_slot.json", "w") as f:
+                json.dump(export_payloads["attest_by_slot"], f)
+            with open(f"{output_folder}/proposal_time_by_slot.json", "w") as f:
+                json.dump(export_payloads["proposal_time_by_slot"], f)
+            with open(f"{output_folder}/region_counter_per_slot.json", "w") as f:
+                json.dump(export_payloads["region_counter_per_slot"], f)
 
         print("Saved data in JSON files in the output directory.")
         print("Information Sources:")

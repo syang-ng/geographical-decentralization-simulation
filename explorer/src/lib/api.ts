@@ -43,6 +43,15 @@ export interface ApiHealth {
     readonly busyWorkers: number
     readonly queuedJobs: number
     readonly cacheEntries: number
+    readonly prewarm?: {
+      readonly enabled: boolean
+      readonly running: boolean
+      readonly startedAt: string | null
+      readonly finishedAt: string | null
+      readonly completed: number
+      readonly total: number
+      readonly lastError: string | null
+    }
   }
 }
 
@@ -202,6 +211,15 @@ export async function listExplorations(options?: {
 
   const raw = (await res.json()) as RawExploration[]
   return raw.map(parseExploration)
+}
+
+export async function getExploration(id: string): Promise<Exploration> {
+  const res = await fetch(`${API_BASE}/explorations/${encodeURIComponent(id)}`)
+  if (!res.ok) {
+    throw new Error(`Failed to fetch exploration: ${res.statusText}`)
+  }
+  const raw = (await res.json()) as RawExploration
+  return parseExploration(raw)
 }
 
 export async function voteExploration(id: string, delta: 1 | -1): Promise<Exploration> {

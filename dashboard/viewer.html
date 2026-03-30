@@ -352,6 +352,7 @@ let DATA = null;
 let playing = !!SETTINGS.autoplay;
 let slot = 0;
 let stepSize = SETTINGS.step || 1;
+let drawFrame = 0;
 
 let nSlots = 1;
 let FULL_X = [0];
@@ -365,6 +366,14 @@ let globeReady = false;
 
 let RAW_GCP_CSV = null;
 let RAW_DATA_JSON = null;
+
+function scheduleDraw() {
+  if (drawFrame) return;
+  drawFrame = requestAnimationFrame(() => {
+    drawFrame = 0;
+    drawAll();
+  });
+}
 
 function plotlyTheme(isDark, title = '', yTitle = '') {
   if (isDark) {
@@ -427,7 +436,7 @@ const COUNTRY_ISO3 = {
 
 async function loadGCPData() {
   const csvUrl = './data/gcp_regions.csv';
-  const resp = await fetch(csvUrl, { cache: 'no-cache' });
+  const resp = await fetch(csvUrl, { cache: 'force-cache' });
   if (!resp.ok) throw new Error(`Failed to load ${csvUrl}`);
   RAW_GCP_CSV = await resp.text();
 
@@ -451,7 +460,7 @@ async function loadGCPData() {
 }
 
 async function loadData() {
-  const resp = await fetch(SETTINGS.dataset, { cache: 'no-cache' });
+  const resp = await fetch(SETTINGS.dataset, { cache: 'force-cache' });
   if (!resp.ok) throw new Error(`Failed to load ${SETTINGS.dataset}`);
   RAW_DATA_JSON = await resp.text();
   DATA = JSON.parse(RAW_DATA_JSON);
@@ -719,7 +728,7 @@ function drawAll() {
 function tick() {
   if (playing) {
     slot = (slot + stepSize) % nSlots;
-    drawAll();
+    scheduleDraw();
   }
 }
 
@@ -731,12 +740,12 @@ document.getElementById('theme').onclick = () => {
   document.documentElement.classList.toggle('dark', dark);
   plotsReady = false;
   globeReady = false;
-  drawAll();
+  scheduleDraw();
 };
 document.getElementById('slider').oninput = event => {
   slot = parseInt(event.target.value, 10) || 0;
   playing = false;
-  drawAll();
+  scheduleDraw();
 };
 
 document.getElementById('export').onclick = async () => {

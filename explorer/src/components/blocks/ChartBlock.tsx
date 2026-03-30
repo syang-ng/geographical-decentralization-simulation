@@ -12,6 +12,7 @@ export function ChartBlock({ block }: ChartBlockProps) {
   const maxValue = Math.max(1, ...block.data.map(d => Math.abs(d.value)))
   const minValue = Math.min(...block.data.map(d => d.value))
   const topDatum = [...block.data].sort((left, right) => Math.abs(right.value) - Math.abs(left.value))[0]
+  const observationCount = block.data.length
   const categoryColors = new Map<string, string>()
   let colorIndex = 0
 
@@ -31,12 +32,13 @@ export function ChartBlock({ block }: ChartBlockProps) {
             </h3>
             <p className="mt-1 text-xs text-muted">
               {block.chartType === 'line'
-                ? 'Trend view across the selected values.'
-                : 'Exact values rendered as proportional bars.'}
+                ? 'Exact trend view with restrained chrome and instrument-style reference framing.'
+                : 'Exact values rendered as proportional bars with the dominant measurement surfaced first.'}
             </p>
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
+            <span className="lab-chip">{observationCount} observations</span>
             {topDatum && (
               <span className="lab-chip">
                 peak {topDatum.label}: {topDatum.value}{block.unit ?? ''}
@@ -74,7 +76,7 @@ export function ChartBlock({ block }: ChartBlockProps) {
                 : (d.value >= 0 ? '#3B82F6' : '#EF4444')
 
               return (
-                <div key={`${d.label}-${i}`} className="rounded-xl border border-border-subtle bg-[linear-gradient(180deg,rgba(255,255,255,0.94),rgba(245,245,243,0.8))] p-3">
+                <div key={`${d.label}-${i}`} className="rounded-2xl border border-border-subtle bg-[linear-gradient(180deg,rgba(255,255,255,0.97),rgba(246,245,241,0.86))] p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.75)]">
                   <div className="mb-2 flex items-center justify-between gap-3">
                     <div className="min-w-0">
                       <div className="truncate text-[11px] font-medium uppercase tracking-[0.16em] text-text-faint">
@@ -148,107 +150,113 @@ function LineChart({ data, unit }: { data: ChartBlockType['data']; unit?: string
     : ''
   const latestPoint = points[points.length - 1]
   const highestPoint = [...points].sort((left, right) => right.value - left.value)[0]
+  const labelIndices = data.length <= 6
+    ? new Set(data.map((_, index) => index))
+    : new Set([0, Math.floor((data.length - 1) / 2), data.length - 1])
 
   return (
     <div>
-      <div className="rounded-xl border border-border-subtle bg-[radial-gradient(circle_at_top,rgba(59,130,246,0.08),transparent_60%),linear-gradient(180deg,rgba(255,255,255,0.96),rgba(245,245,243,0.82))] p-3">
-      <svg viewBox={`0 0 ${width} ${height}`} className="w-full" preserveAspectRatio="xMidYMid meet">
-        <defs>
-          <linearGradient id={gradientId} x1="0%" x2="0%" y1="0%" y2="100%">
-            <stop offset="0%" stopColor="#3B82F6" stopOpacity="0.18" />
-            <stop offset="100%" stopColor="#3B82F6" stopOpacity="0.02" />
-          </linearGradient>
-        </defs>
+      <div className="rounded-2xl border border-border-subtle bg-[radial-gradient(circle_at_15%_0%,rgba(59,130,246,0.1),transparent_32%),linear-gradient(180deg,rgba(255,255,255,0.98),rgba(243,242,238,0.86))] p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.82)]">
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+          <div className="text-[11px] uppercase tracking-[0.18em] text-text-faint">
+            Measurement rail
+          </div>
+          <div className="text-[11px] text-muted">
+            {data.length} points{unit ? ` · ${unit}` : ''}
+          </div>
+        </div>
+        <svg viewBox={`0 0 ${width} ${height}`} className="w-full" preserveAspectRatio="xMidYMid meet">
+          <defs>
+            <linearGradient id={gradientId} x1="0%" x2="0%" y1="0%" y2="100%">
+              <stop offset="0%" stopColor="#3B82F6" stopOpacity="0.16" />
+              <stop offset="100%" stopColor="#3B82F6" stopOpacity="0.015" />
+            </linearGradient>
+          </defs>
 
-        {/* Thin gray gridlines */}
-        {[0, 0.25, 0.5, 0.75, 1].map(frac => {
-          const y = padding.top + chartH * (1 - frac)
-          return (
-            <line
-              key={frac}
-              x1={padding.left}
-              y1={y}
-              x2={width - padding.right}
-              y2={y}
-              stroke="#E8E8E6"
-              strokeWidth={0.5}
-            />
-          )
-        })}
+          {[0, 0.25, 0.5, 0.75, 1].map(frac => {
+            const y = padding.top + chartH * (1 - frac)
+            return (
+              <line
+                key={frac}
+                x1={padding.left}
+                y1={y}
+                x2={width - padding.right}
+                y2={y}
+                stroke="#E8E8E6"
+                strokeWidth={0.5}
+              />
+            )
+          })}
 
-        <line
-          x1={padding.left}
-          y1={baselineY}
-          x2={width - padding.right}
-          y2={baselineY}
-          stroke="#D4D4D2"
-          strokeWidth={0.75}
-        />
-
-        {areaD && (
-          <motion.path
-            d={areaD}
-            fill={`url(#${gradientId})`}
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ duration: 0.45, ease: 'easeOut', delay: 0.2 }}
+          <line
+            x1={padding.left}
+            y1={baselineY}
+            x2={width - padding.right}
+            y2={baselineY}
+            stroke="#BFC5CC"
+            strokeWidth={0.8}
           />
-        )}
 
-        <motion.path
-          d={pathD}
-          fill="none"
-          stroke="#3B82F6"
-          strokeWidth={2}
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          initial={{ pathLength: 0 }}
-          animate={{ pathLength: 1 }}
-          transition={{ duration: 0.8, ease: 'easeOut' }}
-        />
+          {areaD && (
+            <motion.path
+              d={areaD}
+              fill={`url(#${gradientId})`}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ duration: 0.4, ease: 'easeOut', delay: 0.16 }}
+            />
+          )}
 
-        {points.map((p, i) => (
-          <g key={`${p.label}-${i}`}>
-            <circle cx={p.x} cy={p.y} r={3.5} fill="white" stroke="#3B82F6" strokeWidth={1.5} />
-            <text x={p.x} y={height - 5} textAnchor="middle" className="fill-[#6B7280] text-[9px]">
-              {p.label}
-            </text>
-          </g>
-        ))}
-      </svg>
+          <motion.path
+            d={pathD}
+            fill="none"
+            stroke="#2563EB"
+            strokeWidth={2.2}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            initial={{ pathLength: 0 }}
+            animate={{ pathLength: 1 }}
+            transition={{ duration: 0.72, ease: 'easeOut' }}
+          />
+
+          {points.map((p, i) => (
+            <g key={`${p.label}-${i}`}>
+              <circle cx={p.x} cy={p.y} r={i === points.length - 1 ? 4 : 2.5} fill="white" stroke="#2563EB" strokeWidth={1.5} />
+              {labelIndices.has(i) && (
+                <text x={p.x} y={height - 5} textAnchor="middle" className="fill-[#6B7280] text-[9px]">
+                  {p.label}
+                </text>
+              )}
+            </g>
+          ))}
+        </svg>
       </div>
 
-      <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="mt-3 grid gap-2 sm:grid-cols-3">
         {highestPoint && (
-          <div className="rounded-xl border border-border-subtle bg-[linear-gradient(180deg,rgba(255,255,255,0.94),rgba(245,245,243,0.8))] px-2.5 py-2 text-xs">
-            <div className="text-text-faint">Highest point</div>
+          <div className="rounded-2xl border border-border-subtle bg-[linear-gradient(180deg,rgba(255,255,255,0.97),rgba(246,245,241,0.86))] px-3 py-2.5 text-xs shadow-[inset_0_1px_0_rgba(255,255,255,0.75)]">
+            <div className="text-[10px] uppercase tracking-[0.16em] text-text-faint">Highest point</div>
             <div className="mt-1 font-medium tabular-nums text-text-primary">
               {highestPoint.label}: {highestPoint.value}{unit ?? ''}
             </div>
           </div>
         )}
         {latestPoint && (
-          <div className="rounded-xl border border-accent/20 bg-[#F8FAFF] px-2.5 py-2 text-xs">
-            <div className="text-text-faint">Latest value</div>
+          <div className="rounded-2xl border border-accent/20 bg-[#F8FAFF] px-3 py-2.5 text-xs shadow-[inset_0_1px_0_rgba(255,255,255,0.75)]">
+            <div className="text-[10px] uppercase tracking-[0.16em] text-text-faint">Latest value</div>
             <div className="mt-1 font-medium tabular-nums text-text-primary">
               {latestPoint.label}: {latestPoint.value}{unit ?? ''}
             </div>
           </div>
         )}
-        {points.map((point, index) => (
-          <div
-            key={`${point.label}-label-${index}`}
-            className={cn(
-              'rounded-xl border border-border-subtle bg-[linear-gradient(180deg,rgba(255,255,255,0.94),rgba(245,245,243,0.8))] px-2.5 py-2 text-xs',
-              index === points.length - 1 && 'border-accent bg-[#F8FAFF]',
-            )}
-          >
-            <div className="text-muted">{point.label}</div>
-            <div className="mt-1 font-medium tabular-nums text-text-primary">
-              {point.value}{unit ?? ''}
-            </div>
+        <div className={cn(
+          'rounded-2xl border border-border-subtle bg-[linear-gradient(180deg,rgba(255,255,255,0.97),rgba(246,245,241,0.86))] px-3 py-2.5 text-xs shadow-[inset_0_1px_0_rgba(255,255,255,0.75)]',
+        )}>
+          <div className="text-[10px] uppercase tracking-[0.16em] text-text-faint">Observed range</div>
+          <div className="mt-1 font-medium tabular-nums text-text-primary">
+            {minY}{unit ?? ''} to {maxY}{unit ?? ''}
           </div>
-        ))}
+        </div>
       </div>
     </div>
   )

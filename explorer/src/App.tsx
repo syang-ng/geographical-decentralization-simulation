@@ -1,12 +1,10 @@
-import { Suspense, lazy, useState, useCallback } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
+import { Suspense, lazy, useState, useCallback, useEffect } from 'react'
 import { Header } from './components/layout/Header'
 import { TabNav, type TabId } from './components/layout/TabNav'
 import { Footer } from './components/layout/Footer'
 import { FindingsPage } from './pages/FindingsPage'
 import { ExploreHistoryPage } from './pages/ExploreHistoryPage'
 import { cn } from './lib/cn'
-import { SPRING_SOFT } from './lib/theme'
 
 const DeepDivePage = lazy(async () => {
   const module = await import('./pages/DeepDivePage')
@@ -25,6 +23,12 @@ const SimulationLabPage = lazy(async () => {
 
 const VALID_TABS: readonly TabId[] = ['findings', 'history', 'paper', 'deep-dive', 'simulation']
 
+interface ExplorerRouteState {
+  readonly tab: TabId
+  readonly query: string | null
+  readonly explorationId: string | null
+}
+
 function getInitialTab(): TabId {
   const params = new URLSearchParams(window.location.search)
   const tab = params.get('tab') as TabId | null
@@ -35,100 +39,153 @@ function getInitialQuery(): string | null {
   return new URLSearchParams(window.location.search).get('q')
 }
 
+function getInitialExplorationId(): string | null {
+  return new URLSearchParams(window.location.search).get('eid')
+}
+
+function readRouteState(): ExplorerRouteState {
+  return {
+    tab: getInitialTab(),
+    query: getInitialQuery(),
+    explorationId: getInitialExplorationId(),
+  }
+}
+
+function writeRouteState(next: ExplorerRouteState, replace = false) {
+  const url = new URL(window.location.href)
+
+  if (next.tab === 'findings') {
+    url.searchParams.delete('tab')
+  } else {
+    url.searchParams.set('tab', next.tab)
+  }
+
+  if (next.query) {
+    url.searchParams.set('q', next.query)
+  } else {
+    url.searchParams.delete('q')
+  }
+
+  if (next.explorationId) {
+    url.searchParams.set('eid', next.explorationId)
+  } else {
+    url.searchParams.delete('eid')
+  }
+
+  if (replace) {
+    window.history.replaceState({}, '', url.toString())
+  } else {
+    window.history.pushState({}, '', url.toString())
+  }
+}
+
+function addVisitedTab(previous: readonly TabId[], tab: TabId): readonly TabId[] {
+  return previous.includes(tab) ? previous : [...previous, tab]
+}
+
 function App() {
-  const [activeTab, setActiveTab] = useState<TabId>(getInitialTab)
-  const [sharedQuery] = useState<string | null>(getInitialQuery)
+  const initialRoute = readRouteState()
+  const [activeTab, setActiveTab] = useState<TabId>(initialRoute.tab)
+  const [sharedQuery, setSharedQuery] = useState<string | null>(initialRoute.query)
+  const [sharedExplorationId, setSharedExplorationId] = useState<string | null>(initialRoute.explorationId)
+  const [visitedTabs, setVisitedTabs] = useState<readonly TabId[]>([initialRoute.tab])
+
+  const applyRouteState = useCallback((next: ExplorerRouteState, replace = false) => {
+    setActiveTab(next.tab)
+    setSharedQuery(next.query)
+    setSharedExplorationId(next.explorationId)
+    setVisitedTabs(previous => addVisitedTab(previous, next.tab))
+    writeRouteState(next, replace)
+  }, [])
+
+  const syncFromLocation = useCallback(() => {
+    const next = readRouteState()
+    setActiveTab(next.tab)
+    setSharedQuery(next.query)
+    setSharedExplorationId(next.explorationId)
+    setVisitedTabs(previous => addVisitedTab(previous, next.tab))
+  }, [])
+
+  useEffect(() => {
+    const handlePopState = () => {
+      syncFromLocation()
+    }
+
+    window.addEventListener('popstate', handlePopState)
+    return () => window.removeEventListener('popstate', handlePopState)
+  }, [syncFromLocation])
 
   const handleTabChange = useCallback((tab: TabId) => {
-    setActiveTab(tab)
-    const url = new URL(window.location.href)
-    if (tab === 'findings') {
-      url.searchParams.delete('tab')
-    } else {
-      url.searchParams.set('tab', tab)
-    }
-    url.searchParams.delete('q')
-    window.history.replaceState({}, '', url.toString())
-  }, [])
+    applyRouteState({ tab, query: sharedQuery, explorationId: null }, false)
+  }, [applyRouteState, sharedQuery])
+
+  const handleFindingsQueryChange = useCallback((query: string | null) => {
+    applyRouteState({ tab: 'findings', query, explorationId: null }, false)
+  }, [applyRouteState])
+
+  const handleExplorationIdChange = useCallback((explorationId: string | null) => {
+    applyRouteState({ tab: 'findings', query: null, explorationId }, false)
+  }, [applyRouteState])
+
+  const shouldRenderLazyTab = useCallback((tab: TabId) => {
+    return visitedTabs.includes(tab) || activeTab === tab
+  }, [activeTab, visitedTabs])
 
   return (
     <div className="min-h-screen bg-canvas">
+      <a href="#main-content" className="skip-to-content">
+        Skip to content
+      </a>
       <Header />
       <TabNav activeTab={activeTab} onTabChange={handleTabChange} />
 
       <main
+        id="main-content"
         className={cn(
           'mx-auto px-4 py-8 sm:px-6',
           activeTab === 'paper' ? 'max-w-7xl' : 'max-w-5xl',
         )}
       >
-        <AnimatePresence mode="wait">
-          {activeTab === 'findings' && (
-            <motion.div
-              key="findings"
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -20 }}
-              transition={SPRING_SOFT}
-            >
-              <FindingsPage initialQuery={sharedQuery} />
-            </motion.div>
-          )}
+        <div hidden={activeTab !== 'findings'} aria-hidden={activeTab !== 'findings'}>
+          <FindingsPage
+            initialQuery={sharedQuery}
+            initialExplorationId={sharedExplorationId}
+            isActive={activeTab === 'findings'}
+            onQueryChange={handleFindingsQueryChange}
+            onExplorationIdChange={handleExplorationIdChange}
+          />
+        </div>
 
-          {activeTab === 'history' && (
-            <motion.div
-              key="history"
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -20 }}
-              transition={SPRING_SOFT}
-            >
-              <ExploreHistoryPage onGoToFindings={() => handleTabChange('findings')} />
-            </motion.div>
-          )}
+        <div hidden={activeTab !== 'history'} aria-hidden={activeTab !== 'history'}>
+          <ExploreHistoryPage
+            onGoToFindings={() => handleTabChange('findings')}
+            onOpenQuery={handleFindingsQueryChange}
+          />
+        </div>
 
-          {activeTab === 'paper' && (
-            <motion.div
-              key="paper"
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -20 }}
-              transition={SPRING_SOFT}
-            >
-              <Suspense fallback={<TabLoading title="Loading Paper Reader" description="Preparing the editorial reading view of the paper." />}>
-                <PaperReaderPage />
-              </Suspense>
-            </motion.div>
-          )}
+        {shouldRenderLazyTab('paper') && (
+          <div hidden={activeTab !== 'paper'} aria-hidden={activeTab !== 'paper'}>
+            <Suspense fallback={<TabLoading title="Loading Paper Reader" description="Preparing the editorial reading view of the paper." />}>
+              <PaperReaderPage />
+            </Suspense>
+          </div>
+        )}
 
-          {activeTab === 'deep-dive' && (
-            <motion.div
-              key="deep-dive"
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -20 }}
-              transition={SPRING_SOFT}
-            >
-              <Suspense fallback={<TabLoading title="Loading Deep Dive" description="Preparing the paper deep-dive blocks." />}>
-                <DeepDivePage />
-              </Suspense>
-            </motion.div>
-          )}
+        {shouldRenderLazyTab('deep-dive') && (
+          <div hidden={activeTab !== 'deep-dive'} aria-hidden={activeTab !== 'deep-dive'}>
+            <Suspense fallback={<TabLoading title="Loading Deep Dive" description="Preparing the paper deep-dive blocks." />}>
+              <DeepDivePage />
+            </Suspense>
+          </div>
+        )}
 
-          {activeTab === 'simulation' && (
-            <motion.div
-              key="simulation"
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -20 }}
-              transition={SPRING_SOFT}
-            >
-              <Suspense fallback={<TabLoading title="Loading Simulation Lab" description="Preparing the exact-mode simulation controls." />}>
-                <SimulationLabPage />
-              </Suspense>
-            </motion.div>
-          )}
-        </AnimatePresence>
+        {shouldRenderLazyTab('simulation') && (
+          <div hidden={activeTab !== 'simulation'} aria-hidden={activeTab !== 'simulation'}>
+            <Suspense fallback={<TabLoading title="Loading Simulation Lab" description="Preparing the exact-mode simulation controls." />}>
+              <SimulationLabPage />
+            </Suspense>
+          </div>
+        )}
       </main>
 
       <Footer />

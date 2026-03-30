@@ -41,6 +41,15 @@ This log is intentionally short and skim-first. It tracks the core engineering s
 - `explorer/src/pages/SimulationLabPage.tsx`, `explorer/src/workers/simulationArtifactWorker.ts`
   The browser now loads manifest-first, parses heavy artifacts off the main thread, and renders exact outputs more responsively.
 
+- `explorer/server/simulation_worker.py`, `explorer/server/simulation-runtime.ts`, `explorer/server/index.ts`
+  Added prebuilt exact overview bundles, immutable gzip/Brotli delivery for artifacts and overview sidecars, and runtime-side manifest priming so the client can ask for render-ready exact views instead of rebuilding them from raw traces.
+
+- `explorer/server/simulation-runtime.ts`
+  Added isolated canonical prewarm in a dedicated background worker so common exact presets fill the shared cache without occupying the live user queue.
+
+- `explorer/src/pages/SimulationLabPage.tsx`, `explorer/src/lib/simulation-api.ts`
+  The lab now reads those prebuilt overview bundles directly and reuses parsed artifact blocks by artifact hash in browser session storage, which reduces repeated parse work on revisit.
+
 - `explorer/server/catalog.ts`, `explorer/server/study-context.ts`, `explorer/server/index.ts`
   Tightened the research-assistant flow with smaller atomic tools, stricter provenance, and bounded simulation-copilot schemas so the UI can help users explore without fabricating data or mutating research truth.
 
@@ -83,3 +92,52 @@ This log is intentionally short and skim-first. It tracks the core engineering s
 - Research truth boundary: kept intact for the exact path.
 - Dashboard parity: exact on published dataset payloads, close but not byte-for-byte identical on frontend source.
 - MVP status: uses frozen published baseline data locally; no live website dependency at runtime.
+
+## Contradictions Noted During Accuracy Review
+
+- Copy and prompt framing had drifted to older paper structure in a few places.
+  Section labels and experiment references no longer matched the current paper draft cleanly.
+
+- The SE3 summary had become wrong in the reader layer and simulation guidance.
+  Local copy said the transient decentralizing dip belonged to MSP with misaligned sources, while the current paper ties the brief dip to SSP under the real-Ethereum validator start with poorly connected relay placement.
+
+- The gamma card crossed the truth boundary.
+  It used a synthetic `% centralization index` chart and invented values rather than paper-backed directional language.
+
+- The Simulation Lab mixed two different defaults.
+  Website interactive defaults used 1,000 slots and 0.0001 ETH migration cost, but the copy presented them as if they were the paper reference runs, whose frozen public dataset family is centered on 10,000 slots and 0.002 ETH migration cost.
+
+- The frozen dashboard overpromised experimentation.
+  Its copy implied live parameter variation, even though the MVP dashboard only switches among checked-in published datasets and viewer controls.
+
+- The dashboard catalog contained at least one metadata contradiction.
+  The SE2 external `cost_0.0` entry pointed at the zero-cost dataset path but reported `metadata.cost = 0.002`.
+
+- These were copy, prompt, and catalog contradictions.
+  They did not require changing the canonical exact simulation math.
+
+## Service Hardening And Summary-First Exact Exports
+
+- `explorer/server/simulation-runtime.ts`
+  Added bounded queue capacity, per-client active-job limits, and retention-based pruning for completed / failed / cancelled jobs so the long-lived website runtime does not keep unbounded in-memory job state forever.
+
+- `explorer/server/index.ts`
+  Added local request throttles and input bounds around `/api/explore`, `/api/simulation-copilot`, and `/api/simulations`. This is an engineering control layer only; it does not alter exact simulation semantics.
+
+- `explorer/server/exploration-store.ts`
+  Tightened the local persistence layer with indexed exact-query lookups, bounded item retention, configurable data-file placement, and atomic-on-write replacement. This is still a local-file store rather than a true shared production database, but it reduces avoidable blocking and lookup cost.
+
+- `models.py`, `simulation.py`, `explorer/server/simulation_worker.py`
+  Added a summary-first exact export path for the website worker. The explorer worker now asks the canonical simulator for exact summary artifacts without emitting the heaviest raw per-validator trace files by default, while the original CLI/research path still keeps its full raw export behavior unless explicitly changed.
+
+- `dashboard/viewer.html`
+  Removed forced no-cache fetches for static assets and throttled redraws to the browser animation frame so the frozen dashboard baseline feels less heavy without changing the published data it renders.
+
+- Validation:
+  `npm run build`, `npm run smoke`, `python -m py_compile simulation.py models.py explorer/server/simulation_worker.py`, and `python tests/simulation_benchmark.py --repeat 1 --strict` all passed after the earlier runtime-hardening batch.
+
+- Validation for the exact overview delivery batch:
+  `npm --prefix explorer run build` and `python -m py_compile explorer/server/simulation_worker.py` passed after adding isolated prewarm, prebuilt overview sidecars, and immutable compressed delivery.
+
+- Truth-first note:
+  The summary-first worker path is a delivery optimization around the same exact engine. Fixed-seed benchmark hashes remained unchanged, so this batch did not move the canonical research outputs on the checked scenarios.

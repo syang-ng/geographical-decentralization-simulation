@@ -30,7 +30,7 @@ const PAPER_NARRATIVE: Record<string, PaperNarrative> = {
       'The costs of that clarity are explicit. MEV is modeled as deterministic and linear in latency, migration cost is fixed, and information is complete. Those assumptions make the engine more interpretable, but the paper is careful to treat them as modeling limits rather than claims about production Ethereum.',
     ],
     pullQuote: 'This is a paper about structural pressure, not about reproducing every empirical detail of block production.',
-    figureCaption: 'The simulation design is intentionally legible: 40 measured regions, 100 validators, and repeated migration under bounded exact-mode assumptions.',
+    figureCaption: 'The simulation design is intentionally legible: 40 measured regions, 1,000 validators, and paper-facing runs commonly reported over 10,000 slots under bounded modeling assumptions.',
   },
   'baseline-results': {
     lede: 'Under the homogeneous starting baseline, both paradigms centralize. The interesting part is how differently they get there.',
@@ -62,7 +62,7 @@ const PAPER_NARRATIVE: Record<string, PaperNarrative> = {
   'se3-joint': {
     lede: 'Joint heterogeneity is where the paper briefly finds something that looks like relief, then carefully refuses to overclaim it.',
     paragraphs: [
-      'In the combined heterogeneous case, MSP with misaligned sources produces a transient drop in concentration. That makes the trajectory visually unusual because it is one of the only times the model briefly moves away from geographic concentration rather than toward it.',
+      'In the combined heterogeneous case, the temporary dip in concentration appears when SSP starts from today’s concentrated validator geography and relay placement is poorly connected to that start. That makes the trajectory visually unusual because it is one of the only times the model briefly moves away from concentration rather than further into it.',
       'But the paper treats that as a temporary artifact of competing geographic pulls, not a recipe for decentralization. That caution is a good editorial anchor for the whole reader experience: the goal is to diagnose pressures, not to manufacture optimistic takeaways.',
     ],
     pullQuote: 'A temporary dip in Gini is not the same thing as a decentralization mechanism.',
@@ -224,7 +224,7 @@ export function PaperReaderPage() {
 
           <div className="border border-border-subtle rounded-lg p-5">
             <div className="flex items-center justify-between gap-3">
-              <span className="text-xs text-muted">Paper context</span>
+              <span className="text-xs text-muted">Reading guide</span>
               <button
                 onClick={() => setReaderMode(current => (current === 'editorial' ? 'focus' : 'editorial'))}
                 className="inline-flex items-center gap-1.5 text-xs text-muted transition-colors hover:text-text-primary"
@@ -237,17 +237,19 @@ export function PaperReaderPage() {
 
             <div className="mt-5 space-y-3 border-t border-border-subtle pt-4">
               <div>
-                <div className="text-xs text-muted">Sections</div>
-                <div className="mt-1 text-lg font-medium text-text-primary">{PAPER_SECTIONS.length}</div>
+                <div className="text-xs text-muted">Start with</div>
+                <div className="mt-1 text-sm font-medium text-text-primary">SE4a attestation threshold</div>
+                <div className="mt-1 text-xs text-muted">The same protocol lever pushes SSP and MSP in opposite geographic directions.</div>
               </div>
               <div>
-                <div className="text-xs text-muted">Paradigms</div>
-                <div className="mt-1 text-lg font-medium text-text-primary">SSP + MSP</div>
+                <div className="text-xs text-muted">Then test</div>
+                <div className="mt-1 text-sm font-medium text-text-primary">SE2 starting geography</div>
+                <div className="mt-1 text-xs text-muted">How much of the result is already baked into the real Ethereum map?</div>
               </div>
               <div>
-                <div className="text-xs text-muted">Reader mode</div>
-                <div className="mt-1 text-lg font-medium text-text-primary">
-                  {focusMode ? 'Focused reading' : 'Editorial, not generative'}
+                <div className="text-xs text-muted">Truth boundary</div>
+                <div className="mt-1 text-sm font-medium text-text-primary">
+                  {focusMode ? 'Focused, paper-backed' : 'Editorial, paper-backed'}
                 </div>
               </div>
             </div>
@@ -289,6 +291,32 @@ export function PaperReaderPage() {
                   animate={{ width: `${progressPercent}%` }}
                   transition={SPRING_SOFT}
                 />
+              </div>
+            </div>
+            <div className="mt-4 border border-border-subtle rounded-md p-3">
+              <div className="text-xs text-muted">Best entries</div>
+              <div className="mt-2 space-y-1">
+                <a
+                  href="#se4a-attestation"
+                  onClick={() => setActiveSectionId('se4a-attestation')}
+                  className="block text-sm text-text-primary transition-colors hover:text-accent"
+                >
+                  Paradox: gamma flips by paradigm
+                </a>
+                <a
+                  href="#se2-distribution"
+                  onClick={() => setActiveSectionId('se2-distribution')}
+                  className="block text-sm text-text-primary transition-colors hover:text-accent"
+                >
+                  Starting state can dominate
+                </a>
+                <a
+                  href="#limitations"
+                  onClick={() => setActiveSectionId('limitations')}
+                  className="block text-sm text-text-primary transition-colors hover:text-accent"
+                >
+                  Confidence boundary
+                </a>
               </div>
             </div>
             <nav className="mt-4 space-y-1">
@@ -474,7 +502,7 @@ export function PaperReaderPage() {
                   This reader view is meant to make the paper easier to absorb, not to replace the canonical study. The underlying findings, blocks, and simulation-backed claims remain the same as the rest of the explorer.
                 </p>
                 <p>
-                  The design goal is editorial clarity: more like a structured research feature than a dashboard. It should help people read the argument in order, then jump back into the Findings, Deep Dive, or Simulation Lab tabs when they want a different lens.
+                  The design goal is editorial clarity: more like a structured research feature than a dashboard. The best first stops are the gamma paradox, the starting-geography section, and the limitations, because those three sections define the paper’s surprise, its realism, and its confidence boundary.
                 </p>
               </div>
 

@@ -1,17 +1,18 @@
 import { useState, useCallback, useEffect, useRef } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { motion, AnimatePresence } from 'framer-motion'
-import { ArrowRight, ArrowLeft } from 'lucide-react'
+import { ArrowRight, ArrowLeft, Link2, FileText } from 'lucide-react'
 import { cn } from '../lib/cn'
-import { DEFAULT_BLOCKS, TOPIC_CARDS, type TopicCard } from '../data/default-blocks'
+import { DEFAULT_BLOCKS, OVERVIEW_CARD, TOPIC_CARDS, type TopicCard } from '../data/default-blocks'
 import { BlockCanvas } from '../components/explore/BlockCanvas'
 import { QueryBar } from '../components/explore/QueryBar'
 import { QueryHistory, type HistoryEntry } from '../components/explore/QueryHistory'
 import { ShimmerLoading } from '../components/explore/ShimmerBlock'
 import { ErrorDisplay } from '../components/explore/ErrorDisplay'
-import { explore, getApiHealth, type ExploreError, type ExploreProvenance, type ExploreResponse } from '../lib/api'
+import { explore, getApiHealth, getExploration, type ExploreError, type ExploreProvenance, type ExploreResponse } from '../lib/api'
 import { NodeConstellation } from '../components/decorative/NodeConstellation'
 import { SPRING } from '../lib/theme'
+import { blocksToMarkdown } from '../lib/export'
 
 function upsertHistory(previous: HistoryEntry[], next: HistoryEntry): HistoryEntry[] {
   return [
@@ -35,7 +36,19 @@ function fallbackCuratedProvenance(label: string, detail: string): ExploreProven
   }
 }
 
-export function FindingsPage({ initialQuery = null }: { initialQuery?: string | null }) {
+export function FindingsPage({
+  initialQuery = null,
+  initialExplorationId = null,
+  isActive = true,
+  onQueryChange,
+  onExplorationIdChange,
+}: {
+  initialQuery?: string | null
+  initialExplorationId?: string | null
+  isActive?: boolean
+  onQueryChange?: (query: string | null) => void
+  onExplorationIdChange?: (explorationId: string | null) => void
+}) {
   const [activeTopic, setActiveTopic] = useState<TopicCard | null>(null)
 
   const [aiResponse, setAiResponse] = useState<ExploreResponse | null>(null)
@@ -43,32 +56,55 @@ export function FindingsPage({ initialQuery = null }: { initialQuery?: string | 
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<ExploreError | null>(null)
   const [history, setHistory] = useState<HistoryEntry[]>([])
-  const initialQueryHandledRef = useRef(false)
+  const [shareState, setShareState] = useState<'idle' | 'copied'>('idle')
+  const [exportState, setExportState] = useState<'idle' | 'copied'>('idle')
+  const lastSyncedQueryRef = useRef<string | null>(initialQuery)
+  const lastSyncedEidRef = useRef<string | null>(initialExplorationId)
 
   const apiHealthQuery = useQuery({
     queryKey: ['api-health'],
     queryFn: getApiHealth,
+    enabled: isActive,
     staleTime: 30_000,
-    refetchInterval: 30_000,
+    refetchInterval: isActive ? 30_000 : false,
   })
 
   const handleTopicClick = (card: TopicCard) => {
+    lastSyncedQueryRef.current = null
+    lastSyncedEidRef.current = null
     setAiResponse(null)
     setActiveQuery(null)
     setError(null)
     setLoading(false)
     setActiveTopic(previous => (previous?.id === card.id ? null : card))
+    onQueryChange?.(null)
+    onExplorationIdChange?.(null)
   }
 
   const handleBackToOverview = () => {
+    lastSyncedQueryRef.current = null
+    lastSyncedEidRef.current = null
     setActiveTopic(null)
     setAiResponse(null)
     setActiveQuery(null)
     setError(null)
     setLoading(false)
+    onQueryChange?.(null)
+    onExplorationIdChange?.(null)
   }
 
-  const handleQuery = useCallback(async (query: string) => {
+  const handleQuery = useCallback(async (
+    query: string,
+    options?: {
+      readonly syncRoute?: boolean
+    },
+  ) => {
+    if (options?.syncRoute !== false) {
+      lastSyncedQueryRef.current = query
+      onQueryChange?.(query)
+      onExplorationIdChange?.(null)
+    }
+    lastSyncedEidRef.current = null
     setActiveTopic(null)
     setActiveQuery(query)
     setAiResponse(null)
@@ -84,6 +120,7 @@ export function FindingsPage({ initialQuery = null }: { initialQuery?: string | 
 
     if (result.ok) {
       setAiResponse(result.data)
+      onExplorationIdChange?.(result.data.provenance.explorationId ?? null)
       setHistory(previous => upsertHistory(previous, {
         query,
         summary: result.data.summary,
@@ -93,25 +130,109 @@ export function FindingsPage({ initialQuery = null }: { initialQuery?: string | 
     } else {
       setError(result.error)
     }
-  }, [history])
+  }, [history, onQueryChange])
 
   const handleHistorySelect = useCallback((entry: HistoryEntry) => {
+    lastSyncedQueryRef.current = entry.query
+    lastSyncedEidRef.current = entry.response.provenance.explorationId ?? null
     setActiveTopic(null)
     setActiveQuery(entry.query)
     setAiResponse(entry.response)
     setError(null)
     setLoading(false)
-  }, [])
+    onQueryChange?.(entry.query)
+    onExplorationIdChange?.(entry.response.provenance.explorationId ?? null)
+  }, [onExplorationIdChange, onQueryChange])
 
   const handleRetry = useCallback(() => {
     if (activeQuery) handleQuery(activeQuery)
   }, [activeQuery, handleQuery])
 
   useEffect(() => {
-    if (!initialQuery || initialQueryHandledRef.current) return
-    initialQueryHandledRef.current = true
-    void handleQuery(initialQuery)
-  }, [handleQuery, initialQuery])
+    if (!isActive) return
+
+    if (!initialQuery) {
+      if (lastSyncedQueryRef.current !== null) {
+        lastSyncedQueryRef.current = null
+        setActiveTopic(null)
+        setAiResponse(null)
+        setActiveQuery(null)
+        setError(null)
+        setLoading(false)
+      }
+      return
+    }
+
+    if (initialQuery === lastSyncedQueryRef.current) return
+    lastSyncedQueryRef.current = initialQuery
+    void handleQuery(initialQuery, { syncRoute: false })
+  }, [handleQuery, initialQuery, isActive])
+
+  // Deep-link by exploration ID (?eid=...)
+  useEffect(() => {
+    if (!isActive) return
+    if (!initialExplorationId) {
+      if (lastSyncedEidRef.current !== null) {
+        lastSyncedEidRef.current = null
+      }
+      return
+    }
+    if (initialExplorationId === lastSyncedEidRef.current) return
+    lastSyncedEidRef.current = initialExplorationId
+
+    void (async () => {
+      setActiveTopic(null)
+      setLoading(true)
+      setError(null)
+      setAiResponse(null)
+
+      try {
+        const exploration = await getExploration(initialExplorationId)
+        onExplorationIdChange?.(exploration.id)
+        setActiveQuery(exploration.query)
+        setAiResponse({
+          summary: exploration.summary,
+          blocks: exploration.blocks,
+          followUps: exploration.followUps,
+          model: exploration.model,
+          cached: exploration.cached,
+          provenance: {
+            source: 'history',
+            label: 'Shared exploration',
+            detail: `Deep-linked exploration ${exploration.id}`,
+            canonical: false,
+            explorationId: exploration.id,
+          },
+        })
+      } catch {
+        setError({ error: 'Could not load shared exploration. It may have been removed.', status: 404 })
+      }
+
+      setLoading(false)
+    })()
+  }, [initialExplorationId, isActive, onExplorationIdChange])
+
+  const handleShare = useCallback(async () => {
+    const explorationId = aiResponse?.provenance.explorationId
+    if (!explorationId) return
+    const url = new URL(window.location.href)
+    url.searchParams.delete('q')
+    url.searchParams.delete('tab')
+    url.searchParams.set('eid', explorationId)
+    await navigator.clipboard.writeText(url.toString())
+    setShareState('copied')
+    setTimeout(() => setShareState('idle'), 2000)
+  }, [aiResponse])
+
+  const handleExportMarkdown = useCallback(async () => {
+    const response = aiResponse
+    const blocks = response?.blocks
+    if (!response || !blocks?.length) return
+    const markdown = blocksToMarkdown(activeQuery ?? 'Exploration', response.summary, blocks)
+    await navigator.clipboard.writeText(markdown)
+    setExportState('copied')
+    setTimeout(() => setExportState('idle'), 2000)
+  }, [aiResponse, activeQuery])
 
   const showAi = aiResponse !== null || loading || error !== null
   const showTopic = activeTopic !== null && !showAi
@@ -120,7 +241,7 @@ export function FindingsPage({ initialQuery = null }: { initialQuery?: string | 
     ? aiResponse.summary
     : showTopic && activeTopic
       ? activeTopic.title
-      : 'Key findings at a glance'
+      : 'Start with the paper’s sharpest questions'
 
   const displayProvenance = aiResponse?.provenance
     ?? (showTopic && activeTopic
@@ -133,21 +254,28 @@ export function FindingsPage({ initialQuery = null }: { initialQuery?: string | 
   const queryBarHelperText = apiHealthQuery.isError
     ? 'The API server is unreachable. Start the explorer API to restore live and cached query routing.'
     : apiHealthQuery.data?.anthropicEnabled
-      ? `Live model: ${apiHealthQuery.data.anthropicModel}. Ask about a metric, scenario, mechanism, or comparison for the strongest answers.`
+      ? 'Fresh guided readings are available. Ask about a metric, scenario, mechanism, or comparison for the strongest answers.'
       : apiHealthQuery.data
-        ? 'Live Sonnet is offline. Curated and history matches still work, but fresh generation needs ANTHROPIC_API_KEY in explorer/.env.'
-        : 'Checking live model availability. Best prompts mention a paradigm, metric, experiment, or comparison.'
-  const modelPath = aiResponse
-    ? aiResponse.model
-      ? `${aiResponse.model}${aiResponse.cached ? ' · prompt cache hit' : ' · fresh call'}`
-      : aiResponse.provenance.source === 'curated'
-        ? 'No live model call'
-        : aiResponse.provenance.source === 'history'
-          ? 'Reused prior saved result'
-          : 'Model path unavailable'
+        ? 'Fresh guided readings are offline. Curated and prior readings still work, but fresh interpretation needs ANTHROPIC_API_KEY in explorer/.env.'
+        : 'Checking reading-guide availability. Best prompts mention a paradigm, metric, experiment, or comparison.'
+  const evidencePath = aiResponse
+    ? aiResponse.provenance.source === 'curated'
+      ? 'Curated paper finding'
+      : aiResponse.provenance.source === 'history'
+        ? 'Prior saved exploration'
+        : aiResponse.cached
+          ? 'Fresh interpretation with cached study context'
+          : 'Fresh interpretation from current study context'
     : showTopic
-      ? 'No live model call'
+      ? 'Curated paper finding'
       : 'Editorial default state'
+  const promptOptions = aiResponse
+    ? aiResponse.followUps
+    : activeTopic?.prompts ?? OVERVIEW_CARD.prompts
+  const promptSectionTitle = aiResponse ? 'Keep exploring' : 'Try one of these questions'
+  const promptCountLabel = aiResponse
+    ? `${aiResponse.followUps.length} suggested next questions`
+    : `${promptOptions.length} good entry questions`
 
   return (
     <div>
@@ -156,28 +284,39 @@ export function FindingsPage({ initialQuery = null }: { initialQuery?: string | 
         <NodeConstellation className="absolute right-0 top-0 w-32 h-32 opacity-40 pointer-events-none hidden sm:block" />
 
         <h1 className="text-2xl sm:text-3xl font-bold text-text-primary font-serif leading-tight max-w-lg">
-          Explore the paper without losing provenance.
+          Start with the paper’s sharpest questions.
         </h1>
         <p className="mt-3 text-sm text-muted max-w-2xl leading-relaxed">
-          Start from curated findings, revisit session history instantly, or ask a bounded question and inspect the resulting blocks.
+          Use curated lenses to get the stakes first: why geography is not neutral, where the paradoxes sit, and where the model stops short. Then ask a bounded question without losing provenance.
         </p>
 
         <div className="flex flex-wrap items-center gap-4 mt-4 text-xs text-muted">
           <span className="inline-flex items-center gap-1.5">
             <span className="w-2 h-2 rounded-full bg-success" />
-            Curated cards first
+            Strong entry lenses first
           </span>
           <span className="inline-flex items-center gap-1.5">
             <span className="w-2 h-2 rounded-full bg-warning" />
-            Session history reuse
+            Prior readings stay attributable
           </span>
           <span className="inline-flex items-center gap-1.5">
             <span className="w-2 h-2 rounded-full bg-accent dot-pulse" />
-            Fresh generation last
+            Fresh interpretation when needed
           </span>
         </div>
 
         <div className="mt-4">
+          <div className="mb-2 flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <div className="text-xs text-muted">Ask the paper</div>
+              <div className="text-sm text-text-primary">
+                Use this box for research questions, interpretations, and paper findings.
+              </div>
+            </div>
+            <div className="text-xs text-muted">
+              Use Simulation Lab for exact runs and bounded next-step guidance.
+            </div>
+          </div>
           <QueryBar
             onSubmit={handleQuery}
             loading={loading}
@@ -198,7 +337,7 @@ export function FindingsPage({ initialQuery = null }: { initialQuery?: string | 
       <div className="mb-8">
         <div className="mb-3 flex items-center justify-between">
           <span className="text-xs text-muted">
-            Explore a finding
+            Start with a lens
           </span>
           {(showTopic || showAi) && (
             <button
@@ -211,7 +350,7 @@ export function FindingsPage({ initialQuery = null }: { initialQuery?: string | 
           )}
         </div>
 
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3" role="group" aria-label="Topic cards">
           {TOPIC_CARDS.map(card => {
             const isActive = activeTopic?.id === card.id && !showAi
             const isDimmed = (activeTopic !== null || showAi) && !isActive
@@ -284,15 +423,15 @@ export function FindingsPage({ initialQuery = null }: { initialQuery?: string | 
             </div>
           </div>
           <div>
-            <div className="text-xs text-muted mb-1">Model path</div>
+            <div className="text-xs text-muted mb-1">Evidence path</div>
             <div className="text-sm text-text-primary line-clamp-2">
-              {modelPath}
+              {evidencePath}
             </div>
           </div>
           <div>
             <div className="text-xs text-muted mb-1">Follow-ups</div>
             <div className="text-sm text-text-primary">
-              {aiResponse?.followUps.length ?? 0} suggested next questions
+              {promptCountLabel}
             </div>
           </div>
         </div>
@@ -328,19 +467,41 @@ export function FindingsPage({ initialQuery = null }: { initialQuery?: string | 
             transition={SPRING}
           >
             <BlockCanvas blocks={aiResponse.blocks} />
+
+            {/* Share + Export actions */}
+            <div className="mt-4 flex items-center gap-3 text-xs">
+              {aiResponse.provenance.explorationId && (
+                <button
+                  onClick={handleShare}
+                  className="inline-flex items-center gap-1.5 text-muted hover:text-accent transition-colors"
+                >
+                  <Link2 className="w-3 h-3" />
+                  {shareState === 'copied' ? 'Link copied' : 'Share exploration'}
+                </button>
+              )}
+              <button
+                onClick={handleExportMarkdown}
+                className="inline-flex items-center gap-1.5 text-muted hover:text-accent transition-colors"
+              >
+                <FileText className="w-3 h-3" />
+                {exportState === 'copied' ? 'Markdown copied' : 'Copy as markdown'}
+              </button>
+            </div>
+
             {aiResponse.followUps.length > 0 && (
               <div className="mt-6 pt-4 border-t border-rule">
                 <span className="text-xs text-muted mb-2 block">
-                  Keep exploring
+                  {promptSectionTitle}
                 </span>
                 <div className="flex flex-wrap gap-2">
-                  {aiResponse.followUps.map((query, index) => (
+                  {promptOptions.map((query, index) => (
                     <button
                       key={`${query}-${index}`}
                       onClick={() => handleQuery(query)}
-                      className="text-xs text-muted hover:text-accent transition-colors"
+                      className="text-xs text-muted hover:text-accent transition-colors group/followup"
+                      title={`Ask: ${query}`}
                     >
-                      {query}
+                      <span className="group-hover/followup:underline underline-offset-2">{query}</span>
                     </button>
                   ))}
                 </div>
@@ -356,6 +517,25 @@ export function FindingsPage({ initialQuery = null }: { initialQuery?: string | 
             transition={SPRING}
           >
             <BlockCanvas blocks={activeTopic.blocks} />
+            {promptOptions.length > 0 && (
+              <div className="mt-6 pt-4 border-t border-rule">
+                <span className="text-xs text-muted mb-2 block">
+                  {promptSectionTitle}
+                </span>
+                <div className="flex flex-wrap gap-2">
+                  {promptOptions.map((query, index) => (
+                    <button
+                      key={`${query}-${index}`}
+                      onClick={() => handleQuery(query)}
+                      className="text-xs text-muted hover:text-accent transition-colors group/followup"
+                      title={`Ask: ${query}`}
+                    >
+                      <span className="group-hover/followup:underline underline-offset-2">{query}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
           </motion.div>
         ) : (
           <motion.div
@@ -366,6 +546,25 @@ export function FindingsPage({ initialQuery = null }: { initialQuery?: string | 
             transition={SPRING}
           >
             <BlockCanvas blocks={DEFAULT_BLOCKS} />
+            {promptOptions.length > 0 && (
+              <div className="mt-6 pt-4 border-t border-rule">
+                <span className="text-xs text-muted mb-2 block">
+                  {promptSectionTitle}
+                </span>
+                <div className="flex flex-wrap gap-2">
+                  {promptOptions.map((query, index) => (
+                    <button
+                      key={`${query}-${index}`}
+                      onClick={() => handleQuery(query)}
+                      className="text-xs text-muted hover:text-accent transition-colors group/followup"
+                      title={`Ask: ${query}`}
+                    >
+                      <span className="group-hover/followup:underline underline-offset-2">{query}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
           </motion.div>
         )}
       </AnimatePresence>

@@ -1,5 +1,5 @@
 import { GCP_REGIONS } from '../data/gcp-regions'
-import type { Block } from '../types/blocks'
+import { parseBlocks, type Block } from '../types/blocks'
 import type {
   SimulationArtifactBundle,
   SimulationChartMetricKey,
@@ -41,6 +41,11 @@ function parseNumericSeries(rawText: string): number[] {
 
 function parseTopRegions(rawText: string) {
   return JSON.parse(rawText) as Array<[string, number]>
+}
+
+export function parseSimulationBlockBundle(rawText: string): readonly Block[] {
+  const values = JSON.parse(rawText) as unknown
+  return Array.isArray(values) ? parseBlocks(values) : []
 }
 
 export function parseSimulationArtifactToBlocks(

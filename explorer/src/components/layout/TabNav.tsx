@@ -1,3 +1,4 @@
+import * as React from 'react'
 import { motion } from 'framer-motion'
 import { cn } from '../../lib/cn'
 import { SPRING } from '../../lib/theme'
@@ -18,18 +19,39 @@ const tabs: { id: TabId; label: string; shortLabel: string }[] = [
 ]
 
 export function TabNav({ activeTab, onTabChange }: TabNavProps) {
+  const tabRefs = React.useRef<Map<TabId, HTMLButtonElement>>(new Map())
+
+  React.useEffect(() => {
+    tabRefs.current.get(activeTab)?.focus()
+  }, [activeTab])
+
   return (
     <div className="sticky top-0 z-20 border-b border-border-subtle bg-white">
       <div className="max-w-5xl mx-auto px-4 sm:px-6">
-        <nav className="flex gap-1" aria-label="Explorer sections">
+        <nav className="flex gap-1" role="tablist" aria-label="Explorer sections">
           {tabs.map(tab => {
             const isActive = activeTab === tab.id
             return (
               <button
                 key={tab.id}
+                ref={el => { if (el) tabRefs.current.set(tab.id, el) }}
+                role="tab"
                 onClick={() => onTabChange(tab.id)}
+                onKeyDown={e => {
+                  const currentIndex = tabs.findIndex(t => t.id === tab.id)
+                  if (e.key === 'ArrowRight') {
+                    e.preventDefault()
+                    const next = tabs[(currentIndex + 1) % tabs.length]
+                    onTabChange(next.id)
+                  } else if (e.key === 'ArrowLeft') {
+                    e.preventDefault()
+                    const prev = tabs[(currentIndex - 1 + tabs.length) % tabs.length]
+                    onTabChange(prev.id)
+                  }
+                }}
                 aria-label={tab.label}
-                aria-current={isActive ? 'page' : undefined}
+                aria-selected={isActive}
+                tabIndex={isActive ? 0 : -1}
                 className={cn(
                   'relative flex items-center gap-1.5 px-3 py-3 text-sm transition-colors',
                   isActive

@@ -54,7 +54,7 @@ export function MapBlock({ block }: MapBlockProps) {
               {block.title}
             </h3>
             <p className="mt-1 text-xs text-muted">
-              Geographic distribution rendered directly from exact region counts, with emphasis on dominant corridors rather than decorative 3D distortion.
+              Geographic distribution rendered directly from exact region counts, with emphasis on dominant corridors and spatial reading rather than decorative 3D distortion.
             </p>
           </div>
 
@@ -66,9 +66,11 @@ export function MapBlock({ block }: MapBlockProps) {
       </div>
 
       <div className="grid gap-4 px-5 py-5 lg:grid-cols-[1.45fr_minmax(0,0.7fr)]">
-        <div className="relative overflow-hidden rounded-xl border border-border-subtle bg-[radial-gradient(circle_at_20%_15%,rgba(59,130,246,0.12),transparent_26%),radial-gradient(circle_at_80%_18%,rgba(217,119,87,0.12),transparent_28%),linear-gradient(180deg,#fbfbf9,#f1f1ed)]" style={{ minHeight: 320 }}>
+        <div className="relative overflow-hidden rounded-2xl border border-border-subtle bg-[radial-gradient(circle_at_20%_15%,rgba(59,130,246,0.12),transparent_26%),radial-gradient(circle_at_80%_18%,rgba(217,119,87,0.12),transparent_28%),linear-gradient(180deg,#fcfcfa,#f0efeb)] shadow-[inset_0_1px_0_rgba(255,255,255,0.84)]" style={{ minHeight: 320 }}>
           <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(transparent_31px,rgba(26,26,26,0.03)_32px),linear-gradient(90deg,transparent_31px,rgba(26,26,26,0.03)_32px)] bg-[size:32px_32px]" />
-          <div className="pointer-events-none absolute inset-x-[10%] top-3 h-16 rounded-full bg-[radial-gradient(circle,rgba(255,255,255,0.9),transparent_70%)] blur-2xl" />
+          <div className="pointer-events-none absolute inset-x-[14%] top-4 h-20 rounded-full bg-[radial-gradient(circle,rgba(255,255,255,0.92),transparent_72%)] blur-2xl" />
+          <div className="pointer-events-none absolute inset-x-[12%] bottom-[-22%] h-40 rounded-[50%] bg-[radial-gradient(circle,rgba(26,26,26,0.08),transparent_72%)] blur-2xl" />
+          <div className="globe-grid pointer-events-none absolute right-[-12px] top-[-18px] h-48 w-48 opacity-60" />
 
           <svg
             viewBox={`0 0 ${svgW} ${svgH}`}
@@ -78,6 +80,8 @@ export function MapBlock({ block }: MapBlockProps) {
             aria-label={block.title}
           >
             <rect x={0} y={0} width={svgW} height={svgH} fill="none" stroke="#E8E8E6" strokeWidth={1} />
+            <ellipse cx={svgW / 2} cy={svgH / 2} rx={svgW * 0.28} ry={svgH * 0.42} fill="none" stroke="#E6EBF0" strokeWidth={1} />
+            <ellipse cx={svgW / 2} cy={svgH / 2} rx={svgW * 0.17} ry={svgH * 0.42} fill="none" stroke="#EDF1F5" strokeWidth={1} />
             <line x1={0} y1={svgH / 2} x2={svgW} y2={svgH / 2} stroke="#E8E8E6" strokeWidth={0.5} strokeDasharray="4 4" />
             <line x1={svgW / 2} y1={0} x2={svgW / 2} y2={svgH} stroke="#E8E8E6" strokeWidth={0.5} strokeDasharray="4 4" />
             {[0.25, 0.75].map(frac => (
@@ -117,12 +121,12 @@ export function MapBlock({ block }: MapBlockProps) {
                     <motion.circle
                       cx={x}
                       cy={y}
-                      r={radius * 2.3}
+                      r={radius * 2.1}
                       fill={color}
                       fillOpacity={0.08}
-                      initial={{ scale: 0.7, opacity: 0 }}
-                      animate={{ scale: [0.92, 1.08, 0.92], opacity: [0.1, 0.2, 0.1] }}
-                      transition={{ duration: 3.4, repeat: Infinity, ease: 'easeInOut', delay: index * 0.08 }}
+                      initial={{ scale: 0.82, opacity: 0 }}
+                      animate={{ scale: [1, 1.04, 1], opacity: [0.08, 0.14, 0.08] }}
+                      transition={{ duration: 5.2, repeat: Infinity, ease: 'easeInOut', delay: index * 0.1 }}
                     />
                   )}
                   <motion.circle
@@ -179,7 +183,7 @@ export function MapBlock({ block }: MapBlockProps) {
         </div>
 
         <div className="space-y-3">
-          <div className="rounded-xl border border-border-subtle bg-[linear-gradient(180deg,rgba(255,255,255,0.96),rgba(245,245,243,0.84))] p-3">
+          <div className="rounded-2xl border border-border-subtle bg-[linear-gradient(180deg,rgba(255,255,255,0.97),rgba(246,245,241,0.86))] p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.78)]">
             <div className="text-[10px] uppercase tracking-[0.16em] text-text-faint">Leading regions</div>
             <div className="mt-3 space-y-2">
               {topRegions.map((region, index) => (
@@ -201,7 +205,7 @@ export function MapBlock({ block }: MapBlockProps) {
             </div>
           </div>
 
-          <div className="rounded-xl border border-border-subtle bg-[linear-gradient(180deg,rgba(255,255,255,0.96),rgba(245,245,243,0.84))] p-3 text-xs text-muted">
+          <div className="rounded-2xl border border-border-subtle bg-[linear-gradient(180deg,rgba(255,255,255,0.97),rgba(246,245,241,0.86))] p-3 text-xs text-muted shadow-[inset_0_1px_0_rgba(255,255,255,0.78)]">
             <div className="text-[10px] uppercase tracking-[0.16em] text-text-faint">Legend</div>
             <div className="mt-3 space-y-2">
               <div className="flex items-center gap-2">
@@ -224,7 +228,7 @@ export function MapBlock({ block }: MapBlockProps) {
             target="_blank"
             rel="noopener noreferrer"
             className={cn(
-              'inline-flex items-center gap-1.5 rounded-lg border border-border-subtle bg-white px-3 py-2 text-xs text-accent transition-colors hover:border-border-hover hover:text-accent/80',
+              'inline-flex items-center gap-1.5 rounded-xl border border-border-subtle bg-white/92 px-3 py-2 text-xs text-accent transition-colors hover:border-border-hover hover:text-accent/80',
             )}
           >
             <ExternalLink className="h-3 w-3" />
