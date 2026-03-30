@@ -1,5 +1,5 @@
 import { motion, AnimatePresence } from 'framer-motion'
-import { Clock, ChevronRight } from 'lucide-react'
+import { ChevronRight } from 'lucide-react'
 import { cn } from '../../lib/cn'
 import { SPRING } from '../../lib/theme'
 import type { ExploreResponse } from '../../lib/api'
@@ -17,10 +17,10 @@ interface QueryHistoryProps {
   activeQuery?: string
 }
 
-function provenanceTone(source: ExploreResponse['provenance']['source']): string {
-  if (source === 'curated') return 'border-emerald-500/20 bg-emerald-500/10 text-emerald-300'
-  if (source === 'history') return 'border-amber-500/20 bg-amber-500/10 text-amber-300'
-  return 'border-accent/20 bg-accent/10 text-accent'
+const dotColor: Record<string, string> = {
+  curated: 'bg-success',
+  history: 'bg-warning',
+  generated: 'bg-accent',
 }
 
 function formatHistoryTime(timestamp: number): string {
@@ -40,8 +40,7 @@ export function QueryHistory({ entries, onSelect, activeQuery }: QueryHistoryPro
   return (
     <div className="mb-6">
       <div className="mb-2 flex items-center gap-1.5">
-        <Clock className="w-3 h-3 text-muted/60" />
-        <span className="text-[10px] text-muted uppercase tracking-wider font-medium">
+        <span className="text-xs text-muted">
           This session
         </span>
       </div>
@@ -51,48 +50,44 @@ export function QueryHistory({ entries, onSelect, activeQuery }: QueryHistoryPro
           <div className="flex min-w-full gap-2">
             {entries.map((entry, i) => {
             const isActive = activeQuery === entry.query
+            const source = entry.response.provenance.source
             return (
               <motion.button
                 key={entry.timestamp}
-                initial={{ opacity: 0, scale: 0.9 }}
+                initial={{ opacity: 0, scale: 0.95 }}
                 animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.9 }}
+                exit={{ opacity: 0, scale: 0.95 }}
                 transition={{ ...SPRING, delay: i * 0.03 }}
                 onClick={() => onSelect(entry)}
                 title={`${entry.summary} · ${entry.response.provenance.label}`}
-                whileHover={{ y: -1 }}
+                whileHover={{ y: -2 }}
                 className={cn(
-                  'min-w-[220px] max-w-[260px] shrink-0 rounded-xl border px-3 py-2 text-left transition-all',
-                  'bg-surface/70 backdrop-blur-sm',
+                  'min-w-[220px] max-w-[260px] shrink-0 rounded-lg border px-3 py-2 text-left transition-all',
                   isActive
-                    ? 'border-accent/40 bg-accent/10 text-text-primary shadow-[0_10px_30px_rgba(59,130,246,0.10)]'
-                    : 'border-border-subtle text-muted hover:border-white/10 hover:text-text-primary',
+                    ? 'border-accent bg-white'
+                    : 'border-border-subtle bg-white hover:border-border-hover',
                 )}
               >
                 <div className="mb-2 flex items-center justify-between gap-2">
-                  <span
-                    className={cn(
-                      'inline-flex items-center rounded-full border px-2 py-0.5 text-[9px] font-medium uppercase tracking-[0.18em]',
-                      provenanceTone(entry.response.provenance.source),
-                    )}
-                  >
-                    {entry.response.provenance.source}
+                  <span className="inline-flex items-center gap-1.5 text-xs text-muted">
+                    <span className={cn('w-1.5 h-1.5 rounded-full', dotColor[source] ?? 'bg-accent')} />
+                    {source}
                   </span>
-                  <span className="text-[10px] text-muted/70">
+                  <span className="text-xs text-text-faint">
                     {formatHistoryTime(entry.timestamp)}
                   </span>
                 </div>
 
                 <div className="flex items-start gap-2">
                   <div className="min-w-0 flex-1">
-                    <div className="truncate text-[11px] font-medium text-text-primary">
+                    <div className="truncate text-xs font-medium text-text-primary">
                       {entry.query}
                     </div>
-                    <div className="mt-1 line-clamp-2 text-[10px] text-muted">
+                    <div className="mt-1 line-clamp-2 text-xs text-muted">
                       {entry.summary}
                     </div>
                   </div>
-                  <ChevronRight className="mt-0.5 h-3 w-3 shrink-0 opacity-40" />
+                  <ChevronRight className="mt-0.5 h-3 w-3 shrink-0 text-text-faint" />
                 </div>
               </motion.button>
             )

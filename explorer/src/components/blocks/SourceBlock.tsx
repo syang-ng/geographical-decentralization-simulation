@@ -7,7 +7,7 @@ interface SourceBlockProps {
 
 export function SourceBlock({ block }: SourceBlockProps) {
   return (
-    <div className="bg-surface border border-border-subtle rounded-xl p-4">
+    <div className="bg-white border border-border-subtle rounded-lg p-4">
       <div className="space-y-1.5">
         {block.refs.map((ref, i) => {
           const isExternal = Boolean(ref.url)
@@ -24,7 +24,7 @@ export function SourceBlock({ block }: SourceBlockProps) {
               <Icon className="w-3.5 h-3.5 shrink-0" />
               <span>{ref.label}</span>
               {ref.section && (
-                <span className="text-muted/60">· {ref.section}</span>
+                <span className="text-muted">· {ref.section}</span>
               )}
             </a>
           ) : (
@@ -32,7 +32,7 @@ export function SourceBlock({ block }: SourceBlockProps) {
               <Icon className="w-3.5 h-3.5 shrink-0" />
               <span>{ref.label}</span>
               {ref.section && (
-                <span className="text-muted/60">· {ref.section}</span>
+                <span className="text-text-faint">· {ref.section}</span>
               )}
             </div>
           )

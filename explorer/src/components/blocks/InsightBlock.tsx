@@ -6,9 +6,15 @@ interface InsightBlockProps {
 }
 
 const emphasisStyles = {
-  normal: 'border-accent',
-  'key-finding': 'border-accent-warm',
-  surprising: 'border-danger',
+  normal: 'border-l-accent',
+  'key-finding': 'border-l-accent-warm',
+  surprising: 'border-l-danger',
+} as const
+
+const dotColors = {
+  normal: 'bg-accent',
+  'key-finding': 'bg-accent-warm',
+  surprising: 'bg-danger',
 } as const
 
 export function InsightBlock({ block }: InsightBlockProps) {
@@ -16,15 +22,16 @@ export function InsightBlock({ block }: InsightBlockProps) {
 
   return (
     <div className={cn(
-      'bg-surface border border-border-subtle rounded-xl p-5 border-l-[3px]',
+      'bg-white border border-border-subtle rounded-lg p-5 border-l-[3px]',
       emphasisStyles[emphasis],
     )}>
       {block.title && (
-        <h3 className="text-lg font-semibold text-text-primary mb-2">
+        <h3 className="flex items-center gap-2 text-base font-semibold text-text-primary mb-2">
+          <span className={cn('w-2 h-2 rounded-full shrink-0', dotColors[emphasis])} />
           {block.title}
         </h3>
       )}
-      <p className="text-sm leading-relaxed text-muted font-serif">
+      <p className="text-sm leading-relaxed text-text-body font-serif">
         <InlineMarkdown text={block.text} />
       </p>
     </div>

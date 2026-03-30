@@ -17,11 +17,10 @@ export function TimeSeriesBlock({ block }: TimeSeriesBlockProps) {
   const chartW = svgW - padding.left - padding.right
   const chartH = svgH - padding.top - padding.bottom
 
-  // Compute axis bounds across all series
   const allPoints = block.series.flatMap(s => s.data)
   if (allPoints.length === 0) {
     return (
-      <div className="rounded-2xl border border-border-subtle bg-surface/95 p-5">
+      <div className="bg-white border border-border-subtle rounded-lg p-5">
         <h3 className="text-sm font-medium text-text-primary">{block.title}</h3>
         <p className="mt-3 text-sm text-muted">No time series data to display.</p>
       </div>
@@ -42,21 +41,18 @@ export function TimeSeriesBlock({ block }: TimeSeriesBlockProps) {
     }
   }
 
-  // Y-axis ticks
   const yTicks = Array.from({ length: 5 }, (_, i) => minY + (rangeY * i) / 4)
-
-  // X-axis ticks
   const xTicks = Array.from({ length: 5 }, (_, i) => Math.round(minX + (rangeX * i) / 4))
 
   return (
-    <div className="overflow-hidden rounded-2xl border border-border-subtle bg-surface/95 shadow-[0_20px_60px_rgba(0,0,0,0.24)]">
-      <div className="border-b border-border-subtle bg-white/[0.02] px-5 py-4">
+    <div className="bg-white border border-border-subtle rounded-lg overflow-hidden">
+      <div className="border-b border-border-subtle px-5 py-4">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <h3 className="text-sm font-medium text-text-primary">
               {block.title}
             </h3>
-            <p className="mt-1 text-[11px] text-muted">
+            <p className="mt-1 text-xs text-muted">
               Exact series values, with annotations preserved from the generated block.
             </p>
           </div>
@@ -68,11 +64,11 @@ export function TimeSeriesBlock({ block }: TimeSeriesBlockProps) {
               return (
                 <span
                   key={s.label}
-                  className="inline-flex items-center gap-2 rounded-full border border-white/8 bg-black/15 px-2.5 py-1 text-[10px] text-muted"
+                  className="inline-flex items-center gap-1.5 text-xs text-muted"
                 >
                   <span
-                    className="h-2.5 w-2.5 rounded-full"
-                    style={{ backgroundColor: color, boxShadow: `0 0 12px ${color}66` }}
+                    className="h-2 w-2 rounded-full"
+                    style={{ backgroundColor: color }}
                   />
                   {s.label}
                   {latest && (
@@ -90,7 +86,7 @@ export function TimeSeriesBlock({ block }: TimeSeriesBlockProps) {
       <div className="px-5 py-5">
         <svg
           viewBox={`0 0 ${svgW} ${svgH}`}
-          className="w-full rounded-xl border border-white/6 bg-black/10 p-2"
+          className="w-full"
           preserveAspectRatio="xMidYMid meet"
           onMouseMove={(e) => {
             const rect = e.currentTarget.getBoundingClientRect()
@@ -113,14 +109,14 @@ export function TimeSeriesBlock({ block }: TimeSeriesBlockProps) {
                   y1="0%"
                   y2="100%"
                 >
-                  <stop offset="0%" stopColor={color} stopOpacity="0.28" />
+                  <stop offset="0%" stopColor={color} stopOpacity="0.15" />
                   <stop offset="100%" stopColor={color} stopOpacity="0.02" />
                 </linearGradient>
               )
             })}
           </defs>
 
-          {/* Grid lines */}
+          {/* Thin gray gridlines */}
           {yTicks.map(tick => {
             const { sy } = toSvg(0, tick)
             return (
@@ -130,14 +126,14 @@ export function TimeSeriesBlock({ block }: TimeSeriesBlockProps) {
                   y1={sy}
                   x2={svgW - padding.right}
                   y2={sy}
-                  stroke="#222222"
+                  stroke="#E8E8E6"
                   strokeWidth={0.5}
                 />
                 <text
                   x={padding.left - 6}
                   y={sy + 3}
                   textAnchor="end"
-                  className="fill-muted text-[9px]"
+                  className="fill-[#6B7280] text-[9px]"
                 >
                   {tick.toFixed(2)}
                 </text>
@@ -154,7 +150,7 @@ export function TimeSeriesBlock({ block }: TimeSeriesBlockProps) {
                 x={sx}
                 y={svgH - 5}
                 textAnchor="middle"
-                className="fill-muted text-[9px]"
+                className="fill-[#6B7280] text-[9px]"
               >
                 {tick}
               </text>
@@ -167,7 +163,7 @@ export function TimeSeriesBlock({ block }: TimeSeriesBlockProps) {
               x={12}
               y={padding.top + chartH / 2}
               textAnchor="middle"
-              className="fill-muted text-[9px]"
+              className="fill-[#6B7280] text-[9px]"
               transform={`rotate(-90, 12, ${padding.top + chartH / 2})`}
             >
               {block.yLabel}
@@ -178,7 +174,7 @@ export function TimeSeriesBlock({ block }: TimeSeriesBlockProps) {
               x={padding.left + chartW / 2}
               y={svgH - 2}
               textAnchor="middle"
-              className="fill-muted text-[9px]"
+              className="fill-[#6B7280] text-[9px]"
             >
               {block.xLabel}
             </text>
@@ -212,28 +208,26 @@ export function TimeSeriesBlock({ block }: TimeSeriesBlockProps) {
                   d={pathD}
                   fill="none"
                   stroke={color}
-                  strokeWidth={2.2}
+                  strokeWidth={2}
                   strokeLinecap="round"
                   strokeLinejoin="round"
                   initial={{ pathLength: 0 }}
                   animate={{ pathLength: 1 }}
                   transition={{ duration: 0.8, ease: 'easeOut', delay: i * 0.12 }}
-                  style={{ filter: `drop-shadow(0 0 10px ${color}33)` }}
                 />
                 {coordinates.map((point, index) => (
                   <circle
                     key={`${s.label}-${index}`}
                     cx={point.sx}
                     cy={point.sy}
-                    r={2.5}
+                    r={2}
                     fill={color}
                     opacity={0.85}
                   />
                 ))}
                 {latest && (
                   <>
-                    <circle cx={latest.sx} cy={latest.sy} r={5} fill={color} opacity={0.15} />
-                    <circle cx={latest.sx} cy={latest.sy} r={3} fill={color} />
+                    <circle cx={latest.sx} cy={latest.sy} r={4} fill="white" stroke={color} strokeWidth={1.5} />
                   </>
                 )}
               </g>
@@ -250,7 +244,7 @@ export function TimeSeriesBlock({ block }: TimeSeriesBlockProps) {
                   y1={padding.top}
                   x2={sx}
                   y2={padding.top + chartH}
-                  stroke="#87867f"
+                  stroke="#9CA3AF"
                   strokeWidth={1}
                   strokeDasharray="3 3"
                 />
@@ -258,7 +252,7 @@ export function TimeSeriesBlock({ block }: TimeSeriesBlockProps) {
                   x={sx}
                   y={padding.top - 5}
                   textAnchor="middle"
-                  className="fill-muted text-[8px]"
+                  className="fill-[#6B7280] text-[8px]"
                 >
                   {ann.label}
                 </text>
@@ -273,7 +267,7 @@ export function TimeSeriesBlock({ block }: TimeSeriesBlockProps) {
               y1={padding.top}
               x2={hover.svgX}
               y2={padding.top + chartH}
-              stroke="#87867f"
+              stroke="#9CA3AF"
               strokeWidth={0.5}
               strokeDasharray="2 2"
             />
@@ -285,7 +279,7 @@ export function TimeSeriesBlock({ block }: TimeSeriesBlockProps) {
             {block.annotations.map(annotation => (
               <span
                 key={`${annotation.x}-${annotation.label}`}
-                className="rounded-full border border-white/8 bg-white/[0.03] px-2.5 py-1 text-[10px] text-muted"
+                className="text-xs text-muted"
               >
                 x={annotation.x}: {annotation.label}
               </span>

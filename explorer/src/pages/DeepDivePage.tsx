@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { ChevronDown, BookOpen } from 'lucide-react'
+import { ChevronDown } from 'lucide-react'
 import { BlockCanvas } from '../components/explore/BlockCanvas'
 import { SPRING } from '../lib/theme'
 import { PAPER_SECTIONS, type PaperSection } from '../data/paper-sections'
@@ -42,57 +42,55 @@ export function DeepDivePage() {
 
   return (
     <div>
-      <div className="mb-6 overflow-hidden rounded-2xl border border-border-subtle bg-surface/80 shadow-[0_24px_80px_rgba(0,0,0,0.18)]">
-        <div className="border-b border-border-subtle bg-[radial-gradient(circle_at_top_left,rgba(59,130,246,0.10),transparent_42%),radial-gradient(circle_at_top_right,rgba(217,119,87,0.08),transparent_35%)] px-4 py-4 sm:px-5">
-          <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
-            <div className="max-w-2xl">
-              <div className="flex items-center gap-2">
-                <BookOpen className="h-4 w-4 text-accent" />
-                <span className="text-xs font-medium uppercase tracking-wider text-muted">
-                  Paper deep dive
-                </span>
-              </div>
-              <h1 className="mt-2 text-xl font-medium text-text-primary sm:text-2xl">
-                Walk the paper section by section.
-              </h1>
-              <p className="mt-2 text-sm leading-relaxed text-muted">
-                Each accordion mirrors a section of the study and preserves the same blocks, metrics, and caveats used elsewhere in the explorer.
-              </p>
+      {/* Page header */}
+      <div className="mb-8">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+          <div className="max-w-2xl">
+            <div className="flex items-center gap-2 mb-2">
+              <span className="w-2 h-2 rounded-full bg-accent" />
+              <span className="text-xs text-muted">Paper deep dive</span>
             </div>
+            <h1 className="text-xl font-semibold text-text-primary">
+              Walk the paper section by section.
+            </h1>
+            <p className="mt-2 text-sm text-muted">
+              Each accordion mirrors a section of the study and preserves the same blocks, metrics, and caveats used elsewhere in the explorer.
+            </p>
+          </div>
 
-            <div className="flex items-center gap-2">
-              <button
-                onClick={expandAll}
-                className="rounded-full border border-border-subtle bg-surface/70 px-3 py-1.5 text-[10px] uppercase tracking-[0.18em] text-muted transition-colors hover:border-white/10 hover:text-text-primary"
-              >
-                Expand all
-              </button>
-              <button
-                onClick={collapseAll}
-                className="rounded-full border border-border-subtle bg-surface/70 px-3 py-1.5 text-[10px] uppercase tracking-[0.18em] text-muted transition-colors hover:border-white/10 hover:text-text-primary"
-              >
-                Collapse all
-              </button>
-            </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={expandAll}
+              className="rounded-md border border-border-subtle px-3 py-1.5 text-xs text-muted transition-colors hover:border-border-hover hover:text-text-primary"
+            >
+              Expand all
+            </button>
+            <button
+              onClick={collapseAll}
+              className="rounded-md border border-border-subtle px-3 py-1.5 text-xs text-muted transition-colors hover:border-border-hover hover:text-text-primary"
+            >
+              Collapse all
+            </button>
           </div>
         </div>
 
-        <div className="grid gap-px bg-border-subtle sm:grid-cols-3">
-          <div className="bg-surface px-4 py-3 sm:px-5">
-            <div className="text-[10px] uppercase tracking-[0.18em] text-muted">Sections</div>
-            <div className="mt-1 text-sm text-text-primary">{PAPER_SECTIONS.length} paper checkpoints</div>
+        <div className="grid gap-4 sm:grid-cols-3 border-t border-border-subtle mt-4 pt-4 text-xs text-muted">
+          <div>
+            <div className="mb-1">Sections</div>
+            <div className="text-sm text-text-primary">{PAPER_SECTIONS.length} paper checkpoints</div>
           </div>
-          <div className="bg-surface px-4 py-3 sm:px-5">
-            <div className="text-[10px] uppercase tracking-[0.18em] text-muted">Expanded</div>
-            <div className="mt-1 text-sm text-text-primary">{expandedIds.size} currently open</div>
+          <div>
+            <div className="mb-1">Expanded</div>
+            <div className="text-sm text-text-primary">{expandedIds.size} currently open</div>
           </div>
-          <div className="bg-surface px-4 py-3 sm:px-5">
-            <div className="text-[10px] uppercase tracking-[0.18em] text-muted">Coverage</div>
-            <div className="mt-1 text-sm text-text-primary">Model, experiments, results, and caveats</div>
+          <div>
+            <div className="mb-1">Coverage</div>
+            <div className="text-sm text-text-primary">Model, experiments, results, and caveats</div>
           </div>
         </div>
       </div>
 
+      {/* Accordion sections */}
       <div className="space-y-2">
         {PAPER_SECTIONS.map(section => {
           const isExpanded = expandedIds.has(section.id)
@@ -101,15 +99,15 @@ export function DeepDivePage() {
             <motion.div
               key={section.id}
               layout
-              whileHover={{ y: -2 }}
-              className="overflow-hidden rounded-xl border border-border-subtle bg-surface/70 shadow-[0_14px_40px_rgba(0,0,0,0.12)]"
+              whileHover={{ y: -1 }}
+              className="overflow-hidden rounded-lg border border-border-subtle bg-white"
             >
               <button
                 onClick={() => toggle(section.id)}
-                className="w-full px-4 py-4 text-left transition-colors hover:bg-white/[0.02]"
+                className="w-full px-4 py-4 text-left transition-colors hover:bg-surface-active"
               >
                 <div className="flex items-start gap-3">
-                  <span className="mt-0.5 w-8 shrink-0 text-[10px] font-mono text-accent">
+                  <span className="mt-0.5 w-8 shrink-0 text-xs font-mono text-accent">
                     {section.number}
                   </span>
                   <div className="min-w-0 flex-1">
@@ -118,30 +116,30 @@ export function DeepDivePage() {
                         <h3 className="truncate text-sm font-medium text-text-primary">
                           {section.title}
                         </h3>
-                        <p className="mt-1 text-[11px] text-muted">
+                        <p className="mt-1 text-xs text-muted">
                           {section.description}
                         </p>
                       </div>
 
                       <div className="flex items-center gap-2">
-                        <span className="rounded-full border border-border-subtle bg-black/10 px-2 py-1 text-[10px] uppercase tracking-[0.18em] text-muted">
+                        <span className="text-xs text-muted">
                           {section.blocks.length} blocks
                         </span>
                         <motion.div
                           animate={{ rotate: isExpanded ? 180 : 0 }}
                           transition={SPRING}
                         >
-                          <ChevronDown className="h-4 w-4 shrink-0 text-muted/50" />
+                          <ChevronDown className="h-4 w-4 shrink-0 text-text-faint" />
                         </motion.div>
                       </div>
                     </div>
 
                     {summaryTags.length > 0 && (
-                      <div className="mt-3 flex flex-wrap gap-1.5">
+                      <div className="mt-2 flex flex-wrap gap-2">
                         {summaryTags.map(tag => (
                           <span
                             key={`${section.id}-${tag}`}
-                            className="rounded-full border border-white/8 bg-white/[0.03] px-2 py-0.5 text-[10px] text-muted"
+                            className="text-xs text-muted"
                           >
                             {tag}
                           </span>
@@ -161,8 +159,8 @@ export function DeepDivePage() {
                     transition={SPRING}
                     className="overflow-hidden"
                   >
-                    <div className="border-t border-border-subtle/50 px-4 pb-4 pt-3">
-                      <div className="mb-4 rounded-xl border border-white/6 bg-black/10 px-3 py-3 text-[11px] text-muted">
+                    <div className="border-t border-border-subtle px-4 pb-4 pt-3">
+                      <div className="mb-4 rounded-md border border-border-subtle bg-[#FAFAF8] px-3 py-3 text-xs text-muted">
                         <span className="font-medium text-text-primary">Section focus:</span> {section.description}
                       </div>
                       <BlockCanvas blocks={section.blocks} />

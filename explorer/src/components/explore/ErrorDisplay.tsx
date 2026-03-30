@@ -12,12 +12,12 @@ export function ErrorDisplay({ error, onRetry }: ErrorDisplayProps) {
   const isNetwork = error.status === 0
 
   return (
-    <div className="glass-1 rounded-lg p-6 text-center">
+    <div className="bg-white border border-border-subtle rounded-lg p-6 text-center">
       <div className="flex justify-center mb-3">
         {isAuth ? (
-          <KeyRound className="w-8 h-8 text-accent-warm/60" />
+          <KeyRound className="w-8 h-8 text-muted" />
         ) : (
-          <AlertCircle className="w-8 h-8 text-accent-warm/60" />
+          <AlertCircle className="w-8 h-8 text-muted" />
         )}
       </div>
 
@@ -44,7 +44,7 @@ export function ErrorDisplay({ error, onRetry }: ErrorDisplayProps) {
       {!isAuth && (
         <button
           onClick={onRetry}
-          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-accent/10 text-accent hover:bg-accent/20 transition-colors"
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium border border-border-subtle text-text-primary hover:bg-surface-active transition-colors"
         >
           <RefreshCw className="w-3 h-3" />
           Try again

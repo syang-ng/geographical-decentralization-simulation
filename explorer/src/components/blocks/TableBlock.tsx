@@ -9,7 +9,7 @@ export function TableBlock({ block }: TableBlockProps) {
   const highlightSet = new Set(block.highlight ?? [])
 
   return (
-    <div className="bg-surface border border-border-subtle rounded-xl p-5">
+    <div className="bg-white border border-border-subtle rounded-lg p-5">
       <h3 className="text-sm font-medium text-text-primary mb-4">
         {block.title}
       </h3>
@@ -17,11 +17,11 @@ export function TableBlock({ block }: TableBlockProps) {
       <div className="overflow-x-auto -mx-5 px-5">
         <table className="w-full text-xs">
           <thead>
-            <tr className="bg-[#0a0a0a]">
+            <tr className="bg-[#F9F9F7]">
               {block.headers.map((header, i) => (
                 <th
                   key={i}
-                  className="text-left uppercase tracking-wider text-muted font-medium px-3 py-2 first:rounded-tl-md last:rounded-tr-md"
+                  className="text-left text-muted font-medium px-3 py-2 first:rounded-tl-md last:rounded-tr-md"
                 >
                   {header}
                 </th>
@@ -33,14 +33,14 @@ export function TableBlock({ block }: TableBlockProps) {
               <tr
                 key={rowIdx}
                 className={cn(
-                  'border-t border-border-subtle transition-colors hover:bg-white/[0.02]',
-                  highlightSet.has(rowIdx) && 'bg-accent-warm/5',
+                  'border-t border-border-subtle transition-colors hover:bg-surface-active',
+                  highlightSet.has(rowIdx) && 'border-l-2 border-l-accent-warm',
                 )}
               >
                 {row.map((cell, cellIdx) => (
                   <td
                     key={cellIdx}
-                    className="px-3 py-2 text-text-primary/80 tabular-nums"
+                    className="px-3 py-2 text-text-body tabular-nums"
                   >
                     {cell}
                   </td>

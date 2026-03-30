@@ -6,15 +6,16 @@ interface ComparisonBlockProps {
 
 export function ComparisonBlock({ block }: ComparisonBlockProps) {
   return (
-    <div className="bg-surface border border-border-subtle rounded-xl p-5">
+    <div className="bg-white border border-border-subtle rounded-lg p-5">
       <h3 className="text-sm font-medium text-text-primary mb-4">
         {block.title}
       </h3>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        {/* Left — SSP / accent blue */}
-        <div className="bg-[#0a0a0a] border border-border-subtle rounded-lg p-4 border-t-2 border-t-accent">
-          <div className="text-xs font-medium text-accent uppercase tracking-wider mb-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-0 sm:divide-x sm:divide-border-subtle">
+        {/* Left — SSP / blue dot */}
+        <div className="pb-4 sm:pb-0 sm:pr-4 border-b sm:border-b-0 border-border-subtle">
+          <div className="flex items-center gap-2 text-sm font-medium text-text-primary mb-3">
+            <span className="w-2 h-2 rounded-full bg-accent" />
             {block.left.label}
           </div>
           <div className="space-y-2">
@@ -27,9 +28,10 @@ export function ComparisonBlock({ block }: ComparisonBlockProps) {
           </div>
         </div>
 
-        {/* Right — MSP / warm terracotta */}
-        <div className="bg-[#0a0a0a] border border-border-subtle rounded-lg p-4 border-t-2 border-t-accent-warm">
-          <div className="text-xs font-medium text-accent-warm uppercase tracking-wider mb-3">
+        {/* Right — MSP / warm dot */}
+        <div className="pt-4 sm:pt-0 sm:pl-4">
+          <div className="flex items-center gap-2 text-sm font-medium text-text-primary mb-3">
+            <span className="w-2 h-2 rounded-full bg-accent-warm" />
             {block.right.label}
           </div>
           <div className="space-y-2">
@@ -44,7 +46,7 @@ export function ComparisonBlock({ block }: ComparisonBlockProps) {
       </div>
 
       {block.verdict && (
-        <p className="text-xs text-muted italic mt-3 pt-3 border-t border-border-subtle">
+        <p className="text-xs text-muted italic mt-4 pt-3 border-t border-rule">
           {block.verdict}
         </p>
       )}

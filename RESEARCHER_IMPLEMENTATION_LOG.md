@@ -150,3 +150,41 @@ This log records engineering changes made to improve exact-mode runtime and play
 - Widened the public controls toward the upstream defaults: `1000` validators by default, numeric validator/slot inputs, and explicit distribution options for `homogeneous`, `homogeneous-gcp`, `heterogeneous`, and `random`.
 - Kept backward compatibility for older `uniform` requests by normalizing them to `homogeneous-gcp` server-side rather than breaking existing clients.
 - This change is about restoring fidelity to the original simulation surface, not speeding it up; the goal was to avoid website-specific engineering defaults from silently shifting research behavior.
+
+## 2026-03-29: Simulation Copilot With Strict View Specs
+
+- Added a dedicated simulation copilot path that keeps the exact engine and the UI registry separate.
+- The new server route builds a constrained `render_simulation_view_spec` response rather than letting the model emit arbitrary blocks or UI code.
+- The model can now:
+  - suggest bounded exact configs,
+  - choose supported metrics,
+  - choose supported artifact views,
+  - reorder charts and add narrative or caveat sections.
+- The model cannot:
+  - invent new metrics,
+  - fabricate chart data,
+  - mutate raw simulation semantics,
+  - generate freeform frontend code.
+- Artifact references are resolved server-side into real blocks from the exact manifest and artifact files, so the displayed charts still come from canonical outputs.
+- The Simulation Lab frontend now includes a copilot panel that guides users toward supported questions and bounded runs, while leaving the existing manual artifact inspection flow intact.
+
+## 2026-03-29: Truth Boundary And Derived Exact Views
+
+- Added explicit truth-boundary handling for the simulation copilot so the UI distinguishes:
+  - interpretation over exact outputs,
+  - proposal-only responses,
+  - guidance-only responses.
+- Strengthened the copilot prompt so it must not present guidance, hypotheses, or proposed configurations as established truth.
+- Added derived exact view capabilities that still stay inside the fixed visualization registry:
+  - artifact bundles for core outcomes, timing/attestation, and geography,
+  - summary charts built from exact manifest metrics,
+  - continued server-side resolution of artifact references into real blocks.
+- The intent is to give the website richer chart composition quickly, while keeping the source of truth anchored to exact manifests and artifact files rather than model-generated numbers.
+
+## 2026-03-29: Simulation Copilot Schema Hardening
+
+- Replaced the auto-generated JSON schema for `render_simulation_view_spec` with a strict hand-authored object schema in `explorer/server/catalog.ts`.
+- Root cause: the previous `zod-to-json-schema` conversion for the simulation view spec collapsed to a top-level `$ref`/`OpenAiAnyType`, which Anthropic rejected at request time with `input_schema.type: Field required`.
+- Added a startup assertion so every tool schema in the catalog must have an object root and cannot expose a top-level `$ref`. This turns similar regressions into local startup/build failures instead of live production surprises.
+- Extended `explorer/scripts/smoke-explorer.ts` to run a canonical exact SSP simulation through the website API, check the saved benchmark-aligned summary values, and verify the simulation copilot returns a clean `503` when no Anthropic key is configured locally.
+- Fixed two unrelated frontend compile blockers (`FindingsPage.tsx` string literal quoting and an unused `cn` import in `DeepDivePage.tsx`) so the explorer build reflects the real copilot/runtime state again.

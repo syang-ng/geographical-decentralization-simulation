@@ -44,6 +44,30 @@ function assert(condition: unknown, message: string): asserts condition {
   }
 }
 
+async function waitForSimulation(
+  jobId: string,
+  attempts = 60,
+): Promise<Record<string, unknown>> {
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
+    const response = await fetch(`${BASE_URL}/api/simulations/${jobId}`)
+    assert(response.ok, `Expected simulation job ${jobId} lookup to succeed`)
+    const payload = await response.json() as Record<string, unknown>
+    const status = payload.status
+
+    if (
+      status === 'completed'
+      || status === 'failed'
+      || status === 'cancelled'
+    ) {
+      return payload
+    }
+
+    await new Promise(resolve => setTimeout(resolve, 250))
+  }
+
+  throw new Error(`Timed out waiting for simulation job ${jobId}`)
+}
+
 async function waitForServer(url: string, attempts = 40): Promise<void> {
   for (let attempt = 0; attempt < attempts; attempt += 1) {
     try {
@@ -155,6 +179,8 @@ async function main() {
       assert(healthResponse.ok, 'Expected /api/health to succeed')
       const health = await healthResponse.json() as Record<string, unknown>
       assert(typeof health.tools === 'number' && health.tools >= 7, 'Expected expanded tool catalog in /api/health')
+      const simulations = health.simulations as Record<string, unknown> | undefined
+      assert(typeof simulations?.readyWorkers === 'number' && simulations.readyWorkers >= 1, 'Expected at least one ready simulation worker')
 
       const curatedResponse = await fetch(`${BASE_URL}/api/explore`, {
         method: 'POST',
@@ -182,6 +208,49 @@ async function main() {
       assert(listResponse.ok, 'Expected /api/explorations search to succeed')
       const listPayload = await listResponse.json() as Array<Record<string, unknown>>
       assert(listPayload.some(entry => entry.id === seededExploration.id), 'Expected seeded exploration to appear in search results')
+
+      const simulationResponse = await fetch(`${BASE_URL}/api/simulations`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          paradigm: 'SSP',
+          validators: 48,
+          slots: 4,
+          distribution: 'homogeneous',
+          sourcePlacement: 'homogeneous',
+          migrationCost: 0.0001,
+          attestationThreshold: 2 / 3,
+          slotTime: 12,
+          seed: 123,
+        }),
+      })
+      assert(simulationResponse.ok, 'Expected /api/simulations submission to succeed')
+      const simulationJob = await simulationResponse.json() as Record<string, unknown>
+      assert(typeof simulationJob.id === 'string', 'Expected simulation job to include an ID')
+      const simulationJobId = simulationJob.id
+
+      const finalJob = await waitForSimulation(simulationJobId)
+      assert(finalJob.status === 'completed', 'Expected smoke simulation to complete')
+
+      const manifestResponse = await fetch(`${BASE_URL}/api/simulations/${simulationJobId}/manifest`)
+      assert(manifestResponse.ok, 'Expected completed simulation manifest to be available')
+      const manifest = await manifestResponse.json() as Record<string, unknown>
+      const summary = manifest.summary as Record<string, unknown> | undefined
+      assert(summary?.finalAverageMev === 0.555879, 'Expected canonical SSP smoke avg MEV to match the saved benchmark')
+      assert(summary?.finalSupermajoritySuccess === 100, 'Expected canonical SSP smoke supermajority success to match the saved benchmark')
+      assert(summary?.finalFailedBlockProposals === 0, 'Expected canonical SSP smoke failed block proposals to match the saved benchmark')
+
+      if (health.anthropicEnabled === false) {
+        const copilotResponse = await fetch(`${BASE_URL}/api/simulation-copilot`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            question: 'What should I look at first in this run?',
+            currentJobId: simulationJobId,
+          }),
+        })
+        assert(copilotResponse.status === 503, 'Expected simulation copilot to return 503 when Anthropic is not configured')
+      }
 
       process.stdout.write('Explorer smoke checks passed.\n')
     } finally {

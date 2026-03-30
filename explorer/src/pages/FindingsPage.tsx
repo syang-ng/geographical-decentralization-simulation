@@ -18,16 +18,10 @@ function upsertHistory(previous: HistoryEntry[], next: HistoryEntry): HistoryEnt
   ].slice(0, 8)
 }
 
-function provenanceClasses(source: ExploreProvenance['source'], canonical: boolean): string {
-  if (source === 'curated') {
-    return canonical
-      ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300'
-      : 'border-emerald-500/20 bg-emerald-500/5 text-emerald-300'
-  }
-  if (source === 'history') {
-    return 'border-amber-500/30 bg-amber-500/10 text-amber-300'
-  }
-  return 'border-accent/30 bg-accent/10 text-accent'
+const dotColor: Record<string, string> = {
+  curated: 'bg-success',
+  history: 'bg-warning',
+  generated: 'bg-accent',
 }
 
 function fallbackCuratedProvenance(label: string, detail: string): ExploreProvenance {
@@ -122,40 +116,35 @@ export function FindingsPage({ initialQuery = null }: { initialQuery?: string | 
   const displayProvenance = aiResponse?.provenance
     ?? (showTopic && activeTopic
       ? fallbackCuratedProvenance('Curated topic card', 'Editorial paper finding selected from the curated findings library.')
-      : fallbackCuratedProvenance('Curated overview', 'Editorial overview assembled from the paper’s main findings and caveats.'))
+      : fallbackCuratedProvenance('Curated overview', "Editorial overview assembled from the paper's main findings and caveats."))
 
   return (
     <div>
-      <div className="mb-6 overflow-hidden rounded-2xl border border-border-subtle bg-surface/80 shadow-[0_24px_80px_rgba(0,0,0,0.18)]">
-        <div className="border-b border-border-subtle bg-[radial-gradient(circle_at_top_left,rgba(59,130,246,0.12),transparent_40%),radial-gradient(circle_at_top_right,rgba(45,212,191,0.08),transparent_35%)] px-4 py-4 sm:px-5">
-          <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
-            <div className="max-w-2xl">
-              <span className="text-[10px] font-medium uppercase tracking-[0.22em] text-accent/80">
-                Research Explorer
-              </span>
-              <h1 className="mt-2 text-xl font-medium text-text-primary sm:text-2xl">
-                Explore the paper without losing provenance.
-              </h1>
-              <p className="mt-2 text-sm leading-relaxed text-muted">
-                Start from curated findings, revisit session history instantly, or ask a bounded question and inspect the resulting blocks.
-              </p>
-            </div>
+      {/* Page header */}
+      <div className="mb-8">
+        <h1 className="text-xl font-semibold text-text-primary">
+          Explore the paper without losing provenance.
+        </h1>
+        <p className="mt-2 text-sm text-muted max-w-2xl">
+          Start from curated findings, revisit session history instantly, or ask a bounded question and inspect the resulting blocks.
+        </p>
 
-            <div className="flex flex-wrap gap-2 text-[10px]">
-              <span className="rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2.5 py-1 text-emerald-300">
-                Curated cards first
-              </span>
-              <span className="rounded-full border border-amber-500/20 bg-amber-500/10 px-2.5 py-1 text-amber-300">
-                Session history reuse
-              </span>
-              <span className="rounded-full border border-accent/20 bg-accent/10 px-2.5 py-1 text-accent">
-                Fresh generation last
-              </span>
-            </div>
-          </div>
+        <div className="flex flex-wrap items-center gap-3 mt-3 text-xs text-muted">
+          <span className="inline-flex items-center gap-1.5">
+            <span className="w-1.5 h-1.5 rounded-full bg-success" />
+            Curated cards first
+          </span>
+          <span className="inline-flex items-center gap-1.5">
+            <span className="w-1.5 h-1.5 rounded-full bg-warning" />
+            Session history reuse
+          </span>
+          <span className="inline-flex items-center gap-1.5">
+            <span className="w-1.5 h-1.5 rounded-full bg-accent" />
+            Fresh generation last
+          </span>
         </div>
 
-        <div className="px-4 py-4 sm:px-5">
+        <div className="mt-4">
           <QueryBar onSubmit={handleQuery} loading={loading} />
         </div>
       </div>
@@ -166,9 +155,10 @@ export function FindingsPage({ initialQuery = null }: { initialQuery?: string | 
         activeQuery={activeQuery ?? undefined}
       />
 
+      {/* Topic cards */}
       <div className="mb-8">
         <div className="mb-3 flex items-center justify-between">
-          <span className="text-xs text-muted uppercase tracking-wider font-medium">
+          <span className="text-xs text-muted">
             Explore a finding
           </span>
           {(showTopic || showAi) && (
@@ -182,7 +172,7 @@ export function FindingsPage({ initialQuery = null }: { initialQuery?: string | 
           )}
         </div>
 
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           {TOPIC_CARDS.map(card => {
             const isActive = activeTopic?.id === card.id && !showAi
             const isDimmed = (activeTopic !== null || showAi) && !isActive
@@ -192,29 +182,29 @@ export function FindingsPage({ initialQuery = null }: { initialQuery?: string | 
                 key={card.id}
                 onClick={() => handleTopicClick(card)}
                 layout
-                whileHover={{ y: -3 }}
+                whileHover={{ y: -2 }}
+                whileTap={{ scale: 0.98 }}
                 transition={SPRING}
                 aria-label={card.title}
                 aria-pressed={isActive}
                 className={cn(
-                  'text-left rounded-xl border p-3 transition-all duration-200',
-                  'bg-[radial-gradient(circle_at_top_left,rgba(255,255,255,0.05),transparent_48%),linear-gradient(180deg,rgba(255,255,255,0.03),rgba(255,255,255,0.01))] hover:border-white/10',
+                  'text-left rounded-lg border p-3 transition-all',
                   isActive
-                    ? 'border-accent/40 bg-accent/5 shadow-[0_16px_40px_rgba(59,130,246,0.10)]'
+                    ? 'border-accent bg-white'
                     : isDimmed
-                      ? 'border-border-subtle opacity-40'
-                      : 'border-border-subtle',
+                      ? 'border-border-subtle bg-white opacity-40'
+                      : 'border-border-subtle bg-white hover:border-border-hover',
                 )}
               >
                 <h4 className="text-xs font-medium text-text-primary leading-snug mb-1 line-clamp-2">
                   {card.title}
                 </h4>
-                <p className="text-[10px] text-muted leading-relaxed line-clamp-2 mb-2">
+                <p className="text-xs text-muted leading-relaxed line-clamp-2 mb-2">
                   {card.description}
                 </p>
                 <span className={cn(
-                  'flex items-center gap-1 text-[10px] font-medium',
-                  isActive ? 'text-accent' : 'text-muted/60',
+                  'flex items-center gap-1 text-xs',
+                  isActive ? 'text-accent' : 'text-text-faint',
                 )}>
                   {isActive ? 'Viewing' : 'Explore'}
                   {!isActive && <ArrowRight className="w-2.5 h-2.5" />}
@@ -225,49 +215,38 @@ export function FindingsPage({ initialQuery = null }: { initialQuery?: string | 
         </div>
       </div>
 
-      <div className="border-t border-dashed border-border-subtle mb-6" />
+      <hr className="border-rule mb-6" />
 
-      <div className="mb-4 overflow-hidden rounded-2xl border border-border-subtle bg-surface/70">
-        <div className="flex flex-col gap-3 px-4 py-4 sm:flex-row sm:items-start sm:justify-between sm:px-5">
+      {/* Active lens */}
+      <div className="mb-6">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between mb-4">
           <div>
-            <span className="text-[10px] text-muted uppercase tracking-[0.22em] font-medium">
-              Active lens
-            </span>
-            <div className="mt-2 text-base font-medium text-text-primary sm:text-lg">
+            <div className="text-base font-medium text-text-primary">
               {heading}
             </div>
           </div>
-          <div className="flex flex-col items-start gap-1 sm:items-end">
-            <span
-              className={cn(
-                'inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[10px] font-medium uppercase tracking-wider',
-                provenanceClasses(displayProvenance.source, displayProvenance.canonical),
-              )}
-            >
-              {displayProvenance.label}
-            </span>
-            <span className="max-w-xl text-[11px] text-muted sm:text-right">
-              {displayProvenance.detail}
-            </span>
+          <div className="flex items-center gap-1.5 text-xs text-muted shrink-0">
+            <span className={cn('w-1.5 h-1.5 rounded-full', dotColor[displayProvenance.source] ?? 'bg-accent')} />
+            {displayProvenance.label}
           </div>
         </div>
 
-        <div className="grid gap-px border-t border-border-subtle bg-border-subtle sm:grid-cols-3">
-          <div className="bg-surface px-4 py-3 sm:px-5">
-            <div className="text-[10px] uppercase tracking-[0.18em] text-muted">Mode</div>
-            <div className="mt-1 text-sm text-text-primary">
+        <div className="grid gap-4 sm:grid-cols-3 text-xs text-muted border-t border-border-subtle pt-4">
+          <div>
+            <div className="text-xs text-muted mb-1">Mode</div>
+            <div className="text-sm text-text-primary">
               {showAi ? 'Question-driven exploration' : showTopic ? 'Curated topic card' : 'Editorial overview'}
             </div>
           </div>
-          <div className="bg-surface px-4 py-3 sm:px-5">
-            <div className="text-[10px] uppercase tracking-[0.18em] text-muted">Current query</div>
-            <div className="mt-1 line-clamp-2 text-sm text-text-primary">
+          <div>
+            <div className="text-xs text-muted mb-1">Current query</div>
+            <div className="text-sm text-text-primary line-clamp-2">
               {activeQuery ?? activeTopic?.prompts[0] ?? 'What are the main findings?'}
             </div>
           </div>
-          <div className="bg-surface px-4 py-3 sm:px-5">
-            <div className="text-[10px] uppercase tracking-[0.18em] text-muted">Follow-ups</div>
-            <div className="mt-1 text-sm text-text-primary">
+          <div>
+            <div className="text-xs text-muted mb-1">Follow-ups</div>
+            <div className="text-sm text-text-primary">
               {aiResponse?.followUps.length ?? 0} suggested next questions
             </div>
           </div>
@@ -305,16 +284,16 @@ export function FindingsPage({ initialQuery = null }: { initialQuery?: string | 
           >
             <BlockCanvas blocks={aiResponse.blocks} />
             {aiResponse.followUps.length > 0 && (
-              <div className="mt-6 pt-4 border-t border-dashed border-border-subtle">
-                <span className="text-[10px] text-muted uppercase tracking-wider font-medium mb-2 block">
+              <div className="mt-6 pt-4 border-t border-rule">
+                <span className="text-xs text-muted mb-2 block">
                   Keep exploring
                 </span>
-                <div className="flex flex-wrap gap-1.5">
+                <div className="flex flex-wrap gap-2">
                   {aiResponse.followUps.map((query, index) => (
                     <button
                       key={`${query}-${index}`}
                       onClick={() => handleQuery(query)}
-                      className="px-2.5 py-1 rounded-full text-[10px] text-muted/70 border border-border-subtle hover:border-accent/30 hover:text-accent transition-all"
+                      className="text-xs text-muted hover:text-accent transition-colors"
                     >
                       {query}
                     </button>

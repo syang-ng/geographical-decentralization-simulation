@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { motion } from 'framer-motion'
-import { ArrowUpRight, Eye, EyeOff, FileText, Link2, Quote } from 'lucide-react'
+import { ArrowUpRight, Eye, EyeOff, Link2, Quote } from 'lucide-react'
 import { BlockCanvas } from '../components/explore/BlockCanvas'
 import { cn } from '../lib/cn'
 import { SPRING, SPRING_SOFT } from '../lib/theme'
@@ -57,7 +57,7 @@ const PAPER_NARRATIVE: Record<string, PaperNarrative> = {
       'That result is important for the website because it keeps the narrative honest. Paradigm choice matters, but initial conditions can dominate. The model is not claiming a single mechanism explains all observed concentration on its own.',
     ],
     pullQuote: 'If the system starts centralized, the paradigm mostly changes how the imbalance amplifies, not whether it exists.',
-    figureCaption: 'SE2 reframes the story from “which paradigm centralizes more?” to “how much of the outcome was already baked into the starting distribution?”',
+    figureCaption: 'SE2 reframes the story from "which paradigm centralizes more?" to "how much of the outcome was already baked into the starting distribution?"',
   },
   'se3-joint': {
     lede: 'Joint heterogeneity is where the paper briefly finds something that looks like relief, then carefully refuses to overclaim it.',
@@ -69,13 +69,13 @@ const PAPER_NARRATIVE: Record<string, PaperNarrative> = {
     figureCaption: 'SE3 is best read as a warning against overinterpreting transient trajectories as stable system improvements.',
   },
   'se4a-attestation': {
-    lede: 'SE4a is the paper’s signature result because it shows the same protocol parameter producing opposite geographic effects across paradigms.',
+    lede: 'SE4a is the paper\'s signature result because it shows the same protocol parameter producing opposite geographic effects across paradigms.',
     paragraphs: [
       'Raising the attestation threshold makes SSP centralize more because the relay path becomes more timing-sensitive. The proposer gains more by clustering tightly around the relay geography that minimizes end-to-end delay.',
       'In MSP, a higher threshold forces a harder compromise between being close to attesters and being close to information sources. Those geographic objectives do not perfectly coincide, so stronger timing pressure can actually disperse the equilibrium rather than compress it.',
     ],
     pullQuote: 'The most surprising result in the paper is also the most revealing: timing rules are not paradigm-neutral.',
-    figureCaption: 'Attestation threshold is where the paper most clearly shows that “faster consensus” and “more centralization” do not move identically in SSP and MSP.',
+    figureCaption: 'Attestation threshold is where the paper most clearly shows that "faster consensus" and "more centralization" do not move identically in SSP and MSP.',
   },
   'se4b-slots': {
     lede: 'Shorter slots do less to change where validators end up than to change how unevenly rewards are distributed on the way there.',
@@ -99,10 +99,10 @@ const PAPER_NARRATIVE: Record<string, PaperNarrative> = {
     lede: 'The limitations section is one of the most important parts of the paper because it defines where confidence should stop.',
     paragraphs: [
       'Every simplification in the model trades realism for tractability: cloud-only latency, deterministic MEV, full information, fixed migration cost, and no strategic coalition behavior. Those assumptions make the simulations readable and comparable, but they also bound what can be claimed.',
-      'For the website, this section should remain close to the end of the reading flow rather than hidden behind a footnote. It keeps the project aligned with the researchers’ intent: truth first, then interpretation.',
+      'For the website, this section should remain close to the end of the reading flow rather than hidden behind a footnote. It keeps the project aligned with the researchers\' intent: truth first, then interpretation.',
     ],
     pullQuote: 'A good research interface should make the caveats feel structural, not optional.',
-    figureCaption: 'The limitations list is part of the paper’s core meaning, not an appendix to ignore.',
+    figureCaption: 'The limitations list is part of the paper\'s core meaning, not an appendix to ignore.',
   },
 }
 
@@ -189,104 +189,101 @@ export function PaperReaderPage() {
         setCopiedSectionId(current => (current === sectionId ? null : current))
       }, 1600)
     } catch {
-      // Ignore clipboard failures; the button remains a convenience enhancement.
+      // Ignore clipboard failures
     }
   }
 
   return (
-    <div className="space-y-10">
+    <div className="space-y-12">
+      {/* Paper title hero */}
       <motion.section
         initial={{ opacity: 0, y: 18 }}
         animate={{ opacity: 1, y: 0 }}
         transition={SPRING_SOFT}
-        className="overflow-hidden rounded-[2rem] border border-border-subtle bg-surface/80 shadow-[0_28px_100px_rgba(0,0,0,0.20)]"
       >
-        <div className="border-b border-border-subtle bg-[radial-gradient(circle_at_top_left,rgba(59,130,246,0.14),transparent_36%),radial-gradient(circle_at_top_right,rgba(217,119,87,0.12),transparent_28%),linear-gradient(180deg,rgba(255,255,255,0.03),transparent)] px-5 py-8 sm:px-8">
-          <div className="grid gap-8 xl:grid-cols-[minmax(0,1fr)_320px]">
-            <div className="max-w-4xl">
-              <div className="flex items-center gap-2 text-[10px] uppercase tracking-[0.24em] text-accent/80">
-                <FileText className="h-3.5 w-3.5" />
-                Paper reader
-              </div>
-              <h1 className="mt-4 max-w-4xl text-4xl font-medium leading-[1.05] text-text-primary sm:text-5xl xl:text-6xl">
-                {PAPER_METADATA.title}
-              </h1>
-              <p className="mt-4 max-w-3xl text-base leading-relaxed text-muted sm:text-lg">
-                {PAPER_METADATA.abstract}
-              </p>
+        <div className="grid gap-8 xl:grid-cols-[minmax(0,1fr)_300px]">
+          <div className="max-w-4xl">
+            <h1 className="text-3xl font-medium leading-tight text-text-primary font-serif sm:text-4xl">
+              {PAPER_METADATA.title}
+            </h1>
+            <p className="mt-4 max-w-3xl text-base leading-relaxed text-muted font-serif">
+              {PAPER_METADATA.abstract}
+            </p>
 
-              <div className="mt-6 flex flex-wrap gap-2">
-                {PAPER_METADATA.keyClaims.map(claim => (
-                  <span
-                    key={claim}
-                    className="rounded-full border border-white/8 bg-black/10 px-3 py-1.5 text-[11px] text-text-primary"
-                  >
-                    {claim}
-                  </span>
-                ))}
+            <div className="mt-6 flex flex-wrap gap-2">
+              {PAPER_METADATA.keyClaims.map(claim => (
+                <span
+                  key={claim}
+                  className="rounded-md border border-border-subtle px-3 py-1.5 text-xs text-text-primary"
+                >
+                  {claim}
+                </span>
+              ))}
+            </div>
+          </div>
+
+          <div className="border border-border-subtle rounded-lg p-5">
+            <div className="flex items-center justify-between gap-3">
+              <span className="text-xs text-muted">Paper context</span>
+              <button
+                onClick={() => setReaderMode(current => (current === 'editorial' ? 'focus' : 'editorial'))}
+                className="inline-flex items-center gap-1.5 text-xs text-muted transition-colors hover:text-text-primary"
+              >
+                {focusMode ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
+                {focusMode ? 'Editorial mode' : 'Focus mode'}
+              </button>
+            </div>
+            <div className="mt-3 text-sm text-text-primary">{PAPER_METADATA.citation}</div>
+
+            <div className="mt-5 space-y-3 border-t border-border-subtle pt-4">
+              <div>
+                <div className="text-xs text-muted">Sections</div>
+                <div className="mt-1 text-lg font-medium text-text-primary">{PAPER_SECTIONS.length}</div>
+              </div>
+              <div>
+                <div className="text-xs text-muted">Paradigms</div>
+                <div className="mt-1 text-lg font-medium text-text-primary">SSP + MSP</div>
+              </div>
+              <div>
+                <div className="text-xs text-muted">Reader mode</div>
+                <div className="mt-1 text-lg font-medium text-text-primary">
+                  {focusMode ? 'Focused reading' : 'Editorial, not generative'}
+                </div>
               </div>
             </div>
 
-            <div className="rounded-2xl border border-white/6 bg-black/15 p-5">
-              <div className="flex items-center justify-between gap-3">
-                <div className="text-[10px] uppercase tracking-[0.18em] text-muted">Paper context</div>
-                <button
-                  onClick={() => setReaderMode(current => (current === 'editorial' ? 'focus' : 'editorial'))}
-                  className="inline-flex items-center gap-1.5 rounded-full border border-white/8 px-2.5 py-1 text-[10px] uppercase tracking-[0.16em] text-muted transition-colors hover:border-white/16 hover:text-text-primary"
+            <div className="mt-5 space-y-2 border-t border-border-subtle pt-4">
+              {PAPER_METADATA.references.map(reference => (
+                <a
+                  key={reference.label}
+                  href={reference.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center justify-between rounded-md border border-border-subtle px-3 py-2 text-sm text-text-primary transition-colors hover:border-border-hover"
                 >
-                  {focusMode ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
-                  {focusMode ? 'Editorial mode' : 'Focus mode'}
-                </button>
-              </div>
-              <div className="mt-3 text-sm text-text-primary">{PAPER_METADATA.citation}</div>
-
-              <div className="mt-5 grid gap-px overflow-hidden rounded-xl border border-white/6 bg-white/6">
-                <div className="bg-surface px-4 py-3">
-                  <div className="text-[10px] uppercase tracking-[0.18em] text-muted">Sections</div>
-                  <div className="mt-1 text-lg font-medium text-text-primary">{PAPER_SECTIONS.length}</div>
-                </div>
-                <div className="bg-surface px-4 py-3">
-                  <div className="text-[10px] uppercase tracking-[0.18em] text-muted">Paradigms</div>
-                  <div className="mt-1 text-lg font-medium text-text-primary">SSP + MSP</div>
-                </div>
-                <div className="bg-surface px-4 py-3">
-                  <div className="text-[10px] uppercase tracking-[0.18em] text-muted">Reader mode</div>
-                  <div className="mt-1 text-lg font-medium text-text-primary">
-                    {focusMode ? 'Focused reading' : 'Editorial, not generative'}
-                  </div>
-                </div>
-              </div>
-
-              <div className="mt-5 space-y-2">
-                {PAPER_METADATA.references.map(reference => (
-                  <a
-                    key={reference.label}
-                    href={reference.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center justify-between rounded-xl border border-white/6 bg-surface/70 px-3 py-2 text-sm text-text-primary transition-colors hover:border-white/12"
-                  >
-                    <span>{reference.label}</span>
-                    <ArrowUpRight className="h-3.5 w-3.5 text-muted" />
-                  </a>
-                ))}
-              </div>
+                  <span>{reference.label}</span>
+                  <ArrowUpRight className="h-3.5 w-3.5 text-muted" />
+                </a>
+              ))}
             </div>
           </div>
         </div>
       </motion.section>
 
+      <hr className="border-rule" />
+
       <div className={cn('grid gap-8', focusMode ? 'xl:grid-cols-[minmax(0,1fr)]' : 'xl:grid-cols-[220px_minmax(0,1fr)]')}>
+        {/* TOC sidebar */}
         {!focusMode && (
           <aside className="xl:sticky xl:top-28 xl:self-start">
-          <div className="rounded-2xl border border-border-subtle bg-surface/70 p-4">
-            <div className="text-[10px] uppercase tracking-[0.22em] text-muted">Contents</div>
-            <div className="mt-4 rounded-xl border border-white/6 bg-black/10 p-3">
-              <div className="flex items-center justify-between gap-3 text-[10px] uppercase tracking-[0.18em] text-muted">
+          <div className="border border-border-subtle rounded-lg p-4">
+            <span className="text-xs text-muted">Contents</span>
+            <div className="mt-4 border border-border-subtle rounded-md p-3">
+              <div className="flex items-center justify-between gap-3 text-xs text-muted">
                 <span>Reading progress</span>
                 <span>{activeSectionIndex + 1} / {PAPER_SECTIONS.length}</span>
               </div>
-              <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-white/8">
+              <div className="mt-2 h-1 overflow-hidden rounded-full bg-[#E8E8E6]">
                 <motion.div
                   className="h-full rounded-full bg-accent"
                   animate={{ width: `${progressPercent}%` }}
@@ -294,28 +291,26 @@ export function PaperReaderPage() {
                 />
               </div>
             </div>
-            <nav className="mt-4 space-y-1.5">
+            <nav className="mt-4 space-y-1">
               {PAPER_SECTIONS.map(section => (
                 <a
                   key={section.id}
                   href={`#${section.id}`}
                   onClick={() => setActiveSectionId(section.id)}
                   className={cn(
-                    'block rounded-xl px-3 py-2 text-sm transition-colors',
+                    'block rounded-md px-3 py-2 text-sm transition-colors',
                     activeSectionId === section.id
-                      ? 'bg-accent/10 text-text-primary'
-                      : 'text-muted hover:bg-white/[0.03] hover:text-text-primary',
+                      ? 'bg-surface-active text-text-primary'
+                      : 'text-muted hover:bg-surface-active hover:text-text-primary',
                   )}
                 >
-                  <div
-                    className={cn(
-                      'text-[10px] uppercase tracking-[0.18em]',
-                      activeSectionId === section.id ? 'text-accent' : 'text-accent/80',
-                    )}
-                  >
+                  <div className={cn(
+                    'text-xs',
+                    activeSectionId === section.id ? 'text-accent' : 'text-muted',
+                  )}>
                     {section.number}
                   </div>
-                  <div className="mt-1 leading-snug">{section.title}</div>
+                  <div className="mt-0.5 leading-snug">{section.title}</div>
                 </a>
               ))}
             </nav>
@@ -324,17 +319,18 @@ export function PaperReaderPage() {
         )}
 
         <div className="space-y-12">
+          {/* Focus mode sticky bar */}
           {focusMode && (
-            <div className="sticky top-28 z-10 rounded-2xl border border-border-subtle bg-canvas/85 px-4 py-3 backdrop-blur-sm">
+            <div className="sticky top-28 z-10 rounded-lg border border-border-subtle bg-white px-4 py-3">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
-                  <div className="text-[10px] uppercase tracking-[0.18em] text-muted">Now reading</div>
+                  <div className="text-xs text-muted">Now reading</div>
                   <div className="mt-1 text-sm text-text-primary">
                     {activeSection.number} {activeSection.title}
                   </div>
                 </div>
                 <div className="flex items-center gap-3">
-                  <div className="h-1.5 w-32 overflow-hidden rounded-full bg-white/8">
+                  <div className="h-1 w-32 overflow-hidden rounded-full bg-[#E8E8E6]">
                     <motion.div
                       className="h-full rounded-full bg-accent"
                       animate={{ width: `${progressPercent}%` }}
@@ -343,7 +339,7 @@ export function PaperReaderPage() {
                   </div>
                   <button
                     onClick={() => handleCopySectionLink(activeSection.id)}
-                    className="inline-flex items-center gap-1.5 rounded-full border border-white/8 px-2.5 py-1 text-[10px] uppercase tracking-[0.16em] text-muted transition-colors hover:border-white/16 hover:text-text-primary"
+                    className="inline-flex items-center gap-1.5 text-xs text-muted transition-colors hover:text-text-primary"
                   >
                     <Link2 className="h-3 w-3" />
                     {copiedSectionId === activeSection.id ? 'Copied' : 'Copy link'}
@@ -353,6 +349,7 @@ export function PaperReaderPage() {
             </div>
           )}
 
+          {/* Paper sections */}
           {PAPER_SECTIONS.map((section, index) => {
             const narrative = PAPER_NARRATIVE[section.id]
             const figuresFirst = index % 2 === 1
@@ -368,16 +365,17 @@ export function PaperReaderPage() {
                 viewport={{ once: true, amount: 0.2 }}
                 transition={SPRING}
                 className={cn(
-                  'scroll-mt-28 rounded-[1.75rem] border border-border-subtle bg-surface/75 p-5 shadow-[0_20px_60px_rgba(0,0,0,0.14)] sm:p-6',
+                  'scroll-mt-28 border border-border-subtle rounded-lg bg-white p-5 sm:p-6',
                   focusMode && 'mx-auto max-w-5xl',
                 )}
               >
+                {/* Section header */}
                 <div className="mb-6 flex flex-wrap items-end justify-between gap-4 border-b border-border-subtle pb-5">
                   <div className={cn('max-w-2xl', focusMode && 'max-w-3xl')}>
-                    <div className="text-[10px] uppercase tracking-[0.24em] text-accent/80">
+                    <div className="text-xs text-accent">
                       {section.number}
                     </div>
-                    <h2 className="mt-2 text-2xl font-medium text-text-primary sm:text-3xl">
+                    <h2 className="mt-2 text-2xl font-medium text-text-primary font-serif sm:text-3xl">
                       {section.title}
                     </h2>
                     <p className="mt-3 text-base leading-relaxed text-muted">
@@ -385,14 +383,14 @@ export function PaperReaderPage() {
                     </p>
                   </div>
 
-                  <div className="rounded-2xl border border-white/6 bg-black/10 px-4 py-3 text-sm text-muted">
-                    <div className="text-[10px] uppercase tracking-[0.18em] text-muted/80">Reading note</div>
+                  <div className="border border-border-subtle rounded-md px-4 py-3 text-sm text-muted">
+                    <div className="text-xs text-muted">Reading note</div>
                     <div className="mt-1 max-w-xs text-text-primary">
                       {narrative.figureCaption}
                     </div>
                     <button
                       onClick={() => handleCopySectionLink(section.id)}
-                      className="mt-3 inline-flex items-center gap-1.5 rounded-full border border-white/8 px-2.5 py-1 text-[10px] uppercase tracking-[0.16em] text-muted transition-colors hover:border-white/16 hover:text-text-primary"
+                      className="mt-3 inline-flex items-center gap-1.5 text-xs text-muted transition-colors hover:text-text-primary"
                     >
                       <Link2 className="h-3 w-3" />
                       {copiedSectionId === section.id ? 'Copied' : 'Copy section link'}
@@ -400,13 +398,14 @@ export function PaperReaderPage() {
                   </div>
                 </div>
 
+                {/* Content grid */}
                 <div className={cn('grid gap-6', focusMode ? 'xl:grid-cols-[minmax(0,1fr)]' : 'xl:grid-cols-12')}>
                   <div className={cn(focusMode ? 'space-y-5' : 'xl:col-span-7 space-y-5', figuresFirst && 'xl:order-2')}>
-                    <p className={cn('text-xl leading-relaxed text-text-primary', focusMode ? 'max-w-3xl text-[1.65rem]' : 'max-w-2xl')}>
+                    <p className={cn('text-xl leading-relaxed text-text-primary font-serif', focusMode ? 'max-w-3xl text-[1.65rem]' : 'max-w-2xl')}>
                       {narrative.lede}
                     </p>
 
-                    <div className={cn('space-y-4 text-[15px] text-muted', focusMode ? 'max-w-3xl text-[16px] leading-9' : 'leading-8')}>
+                    <div className={cn('space-y-4 text-[15px] text-text-body font-serif', focusMode ? 'max-w-3xl text-base leading-9' : 'leading-8')}>
                       {narrative.paragraphs.map(paragraph => (
                         <p key={paragraph} className={cn(focusMode ? 'max-w-3xl' : 'max-w-2xl')}>
                           {paragraph}
@@ -414,60 +413,63 @@ export function PaperReaderPage() {
                       ))}
                     </div>
 
-                    <div className="rounded-[1.5rem] border border-accent/20 bg-accent/[0.07] p-5">
-                      <div className="flex items-center gap-2 text-[10px] uppercase tracking-[0.22em] text-accent/80">
-                        <Quote className="h-3.5 w-3.5" />
+                    {/* Pull quote */}
+                    <div className="border-l-[3px] border-l-accent pl-5 py-2">
+                      <div className="flex items-center gap-1.5 text-xs text-muted mb-2">
+                        <Quote className="h-3 w-3" />
                         Pull quote
                       </div>
-                      <p className={cn('mt-3 leading-relaxed text-text-primary', focusMode ? 'max-w-3xl text-2xl' : 'max-w-2xl text-xl')}>
+                      <p className={cn('leading-relaxed text-text-primary font-serif italic', focusMode ? 'max-w-3xl text-xl' : 'max-w-2xl text-lg')}>
                         {narrative.pullQuote}
                       </p>
                     </div>
                   </div>
 
                   <div className={cn(focusMode ? 'space-y-4' : 'xl:col-span-5 space-y-4', figuresFirst && 'xl:order-1')}>
-                    <div className="rounded-[1.5rem] border border-white/6 bg-black/10 p-4">
+                    <div className="border border-border-subtle rounded-md p-4 bg-[#FAFAF8]">
                       <BlockCanvas blocks={section.blocks} showExport={false} />
                     </div>
-                    <p className="px-1 text-[12px] leading-6 text-muted">
+                    <p className="px-1 text-xs leading-6 text-muted">
                       {narrative.figureCaption}
                     </p>
                   </div>
                 </div>
 
+                {/* Section navigation */}
                 <div className="mt-8 flex flex-wrap items-center justify-between gap-3 border-t border-border-subtle pt-5">
                   {previousSection ? (
                     <a
                       href={`#${previousSection.id}`}
                       onClick={() => setActiveSectionId(previousSection.id)}
-                      className="rounded-full border border-border-subtle bg-surface/70 px-3 py-1.5 text-[11px] text-muted transition-colors hover:border-white/10 hover:text-text-primary"
+                      className="text-xs text-muted transition-colors hover:text-text-primary"
                     >
                       {'<-'} {previousSection.number} {previousSection.title}
                     </a>
                   ) : (
-                    <span className="text-[11px] text-muted/60">Beginning of paper</span>
+                    <span className="text-xs text-text-faint">Beginning of paper</span>
                   )}
 
                   {nextSection ? (
                     <a
                       href={`#${nextSection.id}`}
                       onClick={() => setActiveSectionId(nextSection.id)}
-                      className="rounded-full border border-accent/20 bg-accent/10 px-3 py-1.5 text-[11px] text-accent transition-colors hover:border-accent/35 hover:text-text-primary"
+                      className="text-xs text-accent transition-colors hover:text-text-primary"
                     >
                       Continue to {nextSection.number} {'->'}
                     </a>
                   ) : (
-                    <span className="text-[11px] text-muted/60">End of paper</span>
+                    <span className="text-xs text-text-faint">End of paper</span>
                   )}
                 </div>
               </motion.section>
             )
           })}
 
-          <section className="rounded-[1.75rem] border border-border-subtle bg-surface/75 p-5 shadow-[0_20px_60px_rgba(0,0,0,0.14)] sm:p-6">
-            <div className="text-[10px] uppercase tracking-[0.22em] text-muted">References and intent</div>
+          {/* References footer */}
+          <section className="border border-border-subtle rounded-lg bg-white p-5 sm:p-6">
+            <span className="text-xs text-muted">References and intent</span>
             <div className="mt-4 grid gap-6 lg:grid-cols-[minmax(0,1fr)_280px]">
-              <div className="space-y-4 text-[15px] leading-8 text-muted">
+              <div className="space-y-4 text-[15px] leading-8 text-text-body font-serif">
                 <p>
                   This reader view is meant to make the paper easier to absorb, not to replace the canonical study. The underlying findings, blocks, and simulation-backed claims remain the same as the rest of the explorer.
                 </p>
@@ -483,7 +485,7 @@ export function PaperReaderPage() {
                     href={reference.url}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="flex items-center justify-between rounded-xl border border-white/6 bg-surface/70 px-3 py-2 text-sm text-text-primary transition-colors hover:border-white/12"
+                    className="flex items-center justify-between rounded-md border border-border-subtle px-3 py-2 text-sm text-text-primary transition-colors hover:border-border-hover"
                   >
                     <span>{reference.label}</span>
                     <ArrowUpRight className="h-3.5 w-3.5 text-muted" />

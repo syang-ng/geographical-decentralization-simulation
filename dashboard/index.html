@@ -4,32 +4,58 @@
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width,initial-scale=1"/>
   <title>Geo Validator Lab</title>
-  <meta name="description" content="A minimal landing page for launching the static visualization with custom settings."/>
+  <meta
+    name="description"
+    content="A lightweight launcher for the geographical decentralization simulation research demo."
+  />
   <style>
     :root {
-      --bg1: #0f1226;
-      --bg2: #171a36;
-      --bg3: #0b0f22;
-      --fg:  #e8eaf6;
-      --muted:#aab0d6;
-      --brand:#7aa2ff;
-      --brand-2:#6ae3ff;
-      --glass-bg: rgba(255,255,255,0.06);
-      --glass-border: rgba(255,255,255,0.16);
-      --shadow: 0 10px 30px rgba(0,0,0,0.35);
-      --radius: 18px;
+      --bg1: #0f1f1b;
+      --bg2: #112926;
+      --bg3: #0a1715;
+      --fg: #f3f3ef;
+      --muted: #c6cbbf;
+      --brand: #f4b267;
+      --brand-2: #5fd0c3;
+      --paper: rgba(255,255,255,0.08);
+      --paper-strong: rgba(255,255,255,0.16);
+      --shadow: 0 18px 40px rgba(0,0,0,0.35);
+      --radius: 20px;
     }
     html, body {
       height: 100%;
       margin: 0;
       color: var(--fg);
-      background: radial-gradient(1200px 800px at 20% 10%, #20265b 0%, transparent 60%),
-                  radial-gradient(1000px 700px at 80% 20%, #103b5f 0%, transparent 60%),
-                  radial-gradient(1200px 900px at 50% 100%, #1b3266 0%, transparent 60%),
-                  linear-gradient(160deg, var(--bg1), var(--bg2) 40%, var(--bg3) 100%);
-      font-family: system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+      background: radial-gradient(900px 600px at 15% 15%, rgba(95,208,195,0.22) 0%, transparent 60%),
+                  radial-gradient(1000px 700px at 85% 10%, rgba(244,178,103,0.18) 0%, transparent 60%),
+                  radial-gradient(1100px 900px at 50% 100%, rgba(63,134,123,0.18) 0%, transparent 60%),
+                  linear-gradient(160deg, var(--bg1), var(--bg2) 45%, var(--bg3) 100%);
+      font-family: "Plus Jakarta Sans", "Avenir Next", "Segoe UI", sans-serif;
+    }
+    body::before,
+    body::after {
+      content: "";
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 0;
+      opacity: 0.6;
+    }
+    body::before {
+      background:
+        linear-gradient(115deg, transparent 0%, rgba(255,255,255,0.05) 45%, transparent 70%),
+        repeating-linear-gradient(0deg, rgba(255,255,255,0.04) 0 1px, transparent 1px 5px);
+      mix-blend-mode: screen;
+    }
+    body::after {
+      background:
+        radial-gradient(450px 300px at 8% 85%, rgba(244,178,103,0.25) 0%, transparent 60%),
+        radial-gradient(520px 340px at 92% 70%, rgba(95,208,195,0.2) 0%, transparent 60%);
+      filter: blur(1px);
     }
     .wrap {
+      position: relative;
+      z-index: 1;
       min-height: 100%;
       display: grid;
       grid-template-rows: 1fr auto;
@@ -41,30 +67,39 @@
     }
     .card {
       width: min(980px, 92vw);
-      background: var(--glass-bg);
-      border: 1px solid var(--glass-border);
+      background: var(--paper);
+      border: 1px solid var(--paper-strong);
       border-radius: var(--radius);
       box-shadow: var(--shadow);
       backdrop-filter: blur(10px);
       -webkit-backdrop-filter: blur(10px);
-      padding: 28px;
+      padding: 30px;
       position: relative;
       overflow: hidden;
-      min-height: 61.8vh;
+      min-height: 51.8vh;
+      animation: rise 0.7s ease both;
     }
     .glow {
       position: absolute;
       inset: -60%;
-      background: radial-gradient(600px 400px at 20% 20%, rgba(122,162,255,0.12), transparent 60%),
-                  radial-gradient(600px 400px at 80% 30%, rgba(106,227,255,0.12), transparent 60%);
+      background: radial-gradient(650px 420px at 25% 20%, rgba(244,178,103,0.12), transparent 60%),
+                  radial-gradient(620px 420px at 80% 35%, rgba(95,208,195,0.14), transparent 60%);
       filter: blur(10px);
       pointer-events: none;
       z-index: 0;
       animation: float 14s ease-in-out infinite alternate;
     }
     @keyframes float {
-      0%   { transform: translate3d(0, 0, 0) scale(1); }
+      0% { transform: translate3d(0, 0, 0) scale(1); }
       100% { transform: translate3d(0, -12px, 0) scale(1.02); }
+    }
+    @keyframes rise {
+      from { opacity: 0; transform: translateY(18px) scale(0.98); }
+      to { opacity: 1; transform: translateY(0) scale(1); }
+    }
+    @keyframes cardIn {
+      from { opacity: 0; transform: translateY(12px); }
+      to { opacity: 1; transform: translateY(0); }
     }
     .content {
       position: relative;
@@ -74,85 +109,156 @@
       display: flex;
       align-items: center;
       gap: 12px;
-      margin-bottom: 8px;
+      margin-bottom: 10px;
     }
     .brand .logo {
       width: 50px;
       height: 50px;
       border-radius: 12px;
       object-fit: contain;
-      background: rgba(255,255,255,0.12);
-      border: 1px solid rgba(255,255,255,0.18);
+      background: rgba(255,255,255,0.14);
+      border: 1px solid rgba(255,255,255,0.22);
+    }
+    .eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 12px;
+      border-radius: 999px;
+      font-size: 12px;
+      letter-spacing: 0.6px;
+      text-transform: uppercase;
+      color: #101412;
+      background: linear-gradient(120deg, rgba(244,178,103,0.9), rgba(95,208,195,0.9));
+      box-shadow: 0 6px 18px rgba(0,0,0,0.2);
+      margin-bottom: 12px;
     }
     h1 {
       margin: 0;
-      font-size: clamp(28px, 4vw, 40px);
-      letter-spacing: 0.2px;
+      font-size: clamp(30px, 4vw, 44px);
+      letter-spacing: 0.3px;
+      font-family: "Fraunces", "Iowan Old Style", "Palatino Linotype", "Book Antiqua", serif;
     }
     .lead {
-      margin: 6px 0 22px 0;
+      margin: 10px 0 24px 0;
       color: var(--muted);
-      font-size: clamp(14px, 1.8vw, 16px);
+      font-size: clamp(14px, 1.9vw, 16px);
       line-height: 1.6;
+      max-width: 900px;
     }
     .grid {
       display: grid;
       grid-template-columns: repeat(12, 1fr);
       gap: 14px;
-      margin-top: 10px;
+      margin-top: 12px;
       margin-bottom: 8px;
     }
     .item {
       grid-column: span 12;
-      background: rgba(255,255,255,0.04);
-      border: 1px solid rgba(255,255,255,0.12);
-      border-radius: 14px;
-      padding: 14px;
+      background: rgba(255,255,255,0.06);
+      border: 1px solid rgba(255,255,255,0.14);
+      border-radius: 16px;
+      padding: 15px;
+      box-shadow: inset 0 1px 0 rgba(255,255,255,0.08);
+      animation: cardIn 0.6s ease both;
     }
+    .item:nth-child(1) { animation-delay: 0.05s; }
+    .item:nth-child(2) { animation-delay: 0.1s; }
     @media (min-width: 720px) {
       .item.sm-6 { grid-column: span 6; }
-      .item.sm-4 { grid-column: span 4; }
-      .item.sm-3 { grid-column: span 3; }
     }
-    .label { display: block; font-weight: 600; margin-bottom: 6px; }
+    .label {
+      display: block;
+      font-weight: 600;
+      margin-bottom: 6px;
+      color: #f7f4ea;
+    }
     select, input[type="number"], input[type="text"] {
-      width: 100%; box-sizing: border-box;
-      padding: 10px 12px;
-      border-radius: 10px;
+      width: 100%;
+      box-sizing: border-box;
+      padding: 11px 12px;
+      border-radius: 12px;
       border: 1px solid rgba(255,255,255,0.22);
-      background: rgba(0,0,0,0.25);
+      background: rgba(8,14,13,0.45);
       color: var(--fg);
       outline: none;
+      transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
     }
     select:focus, input:focus {
-      border-color: var(--brand);
-      box-shadow: 0 0 0 3px rgba(122,162,255,0.25);
+      border-color: var(--brand-2);
+      box-shadow: 0 0 0 3px rgba(95,208,195,0.25);
+      transform: translateY(-1px);
     }
-    .row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
-    .hint { color: var(--muted); font-size: 12px; margin-top: 6px; }
+    .row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+    .hint {
+      color: var(--muted);
+      font-size: 12px;
+      margin-top: 6px;
+    }
     .cta {
-      display: flex; justify-content: space-between; align-items: center;
-      gap: 12px; margin-top: 14px; flex-wrap: wrap;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      margin-top: 14px;
+      flex-wrap: wrap;
     }
     .btn {
-      border: 0; border-radius: 12px; padding: 12px 18px;
-      font-weight: 700; letter-spacing: 0.3px;
+      border: 0;
+      border-radius: 14px;
+      padding: 12px 20px;
+      font-weight: 700;
+      letter-spacing: 0.3px;
       color: #0b1220;
       background: linear-gradient(135deg, var(--brand), var(--brand-2));
-      box-shadow: 0 8px 20px rgba(122,162,255,0.35);
+      box-shadow: 0 10px 22px rgba(10,20,16,0.4);
       cursor: pointer;
-      transition: transform .08s ease, filter .2s ease;
+      transition: transform 0.08s ease, filter 0.2s ease;
     }
     .dataset-row {
       display: grid;
       grid-template-columns: 1.2fr 1.2fr 1fr;
       gap: 12px;
     }
+    .options-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 12px;
+    }
+    .option-block {
+      display: grid;
+      gap: 6px;
+    }
+    .option-block .row {
+      gap: 10px;
+    }
+    @media (max-width: 720px) {
+      .options-grid {
+        grid-template-columns: 1fr;
+      }
+    }
     .btn:hover { filter: brightness(1.05); }
     .btn:active { transform: translateY(1px); }
-    .link { color: var(--muted); text-decoration: none; }
-    .link:hover { color: var(--fg); }
-    footer { color: var(--muted); text-align: center; padding: 18px; font-size: 12px; }
+    .link {
+      color: var(--muted);
+      text-decoration: none;
+      border-bottom: 1px solid transparent;
+    }
+    .link:hover {
+      color: var(--fg);
+      border-bottom-color: rgba(255,255,255,0.35);
+    }
+    footer {
+      color: var(--muted);
+      text-align: center;
+      padding: 18px;
+      font-size: 12px;
+    }
   </style>
 </head>
 <body>
@@ -161,17 +267,15 @@
     <section class="card">
       <div class="glow" aria-hidden="true"></div>
       <div class="content">
-        <!-- Brand with icon -->
+        <div class="eyebrow">Research demo</div>
         <div class="brand">
           <img class="logo" src="assets/logo.jpg" alt="Logo"/>
           <h1>Geographical Decentralization Simulation</h1>
         </div>
-        <p class="lead">
-This project provides a lightweight interface for the simulations of the geographical decentralization of Ethereum validators that we developed as part of our research.
-Our motivation is to better understand the dynamics of validator placement, latency, and performance in decentralized networks. Running such simulations allows us to test different assumptions, compare strategies, and identify where centralization pressures may arise.  
+        <p class="lead" id="intro-blurb">This project provides a lightweight interface for the simulations of the geographical decentralization of Ethereum validators that we developed as part of our research.
+Our motivation is to better understand the dynamics of validator placement, latency, and performance in decentralized networks. Running such simulations allows us to test different assumptions, compare strategies, and identify where centralization pressures may arise.
 
-To make these results accessible without requiring users to re-run large experiments, we have  preprocessed several simulation datasets and included them here as interactive demos. By selecting  among these results and adjusting a few viewer options, you can quickly visualize the spatial  distribution of validators, observe the impact of parameters such as density and distance, and  gain an intuition for how validator ecosystems evolve under different conditions.  
-        </p>
+To make these results accessible without requiring users to re-run large experiments, we have preprocessed several simulation datasets and included them here as interactive demos. By selecting among these results and adjusting a few viewer options, you can quickly visualize the spatial distribution of validators, observe the impact of parameters such as density and distance, and gain an intuition for how validator ecosystems evolve under different conditions.</p>
 
         <div class="grid">
           <div class="item sm-6">
@@ -190,50 +294,40 @@ To make these results accessible without requiring users to re-run large experim
               </select>
             </div>
 
-            <!-- This will hold the final relative path you need -->
             <input id="dataset" type="hidden" value="" />
             <div class="hint">Relative path to your preprocessed data file.</div>
           </div>
-          <div class="item sm-3">
-            <label class="label" for="theme">Theme</label>
-            <select id="theme">
-              <option value="auto">Auto</option>
-              <option value="light">Light</option>
-              <option value="dark">Dark</option>
-            </select>
-          </div>
-          <div class="item sm-3">
-            <label class="label" for="step">Step size</label>
-            <select id="step">
-              <option value="1">1</option>
-              <option value="10">10</option>
-              <option value="50">50</option>
-            </select>
-          </div>
           <div class="item sm-6">
-            <div class="label">Autoplay</div>
-            <div class="row">
-              <label><input type="radio" name="autoplay" value="on" checked> On</label>
-              <label><input type="radio" name="autoplay" value="off"> Off</label>
+            <div class="options-grid">
+              <div class="option-block">
+                <label class="label" for="theme">Theme</label>
+                <select id="theme">
+                  <option value="auto">Auto</option>
+                  <option value="light">Light</option>
+                  <option value="dark">Dark</option>
+                </select>
+              </div>
+              <div class="option-block">
+                <label class="label" for="step">Step size</label>
+                <select id="step">
+                  <option value="1">1</option>
+                  <option value="10">10</option>
+                  <option value="50">50</option>
+                </select>
+              </div>
+              <div class="option-block">
+                <div class="label">Autoplay</div>
+                <div class="row">
+                  <label><input type="radio" name="autoplay" value="on" checked> On</label>
+                  <label><input type="radio" name="autoplay" value="off"> Off</label>
+                </div>
+              </div>
             </div>
-          </div>
-          <div class="item sm-3">
-            <label class="label" for="decim">Border decimation</label>
-            <select id="decim">
-              <option value="5" selected>5</option>
-              <option value="1">1</option>
-              <option value="8">8</option>
-              <option value="12">12</option>
-            </select>
-          </div>
-          <div class="item sm-3">
-            <label class="label" for="radius">Density radius</label>
-            <input id="radius" type="number" step="0.01" min="0.01" max="3" value="0.20"/>
           </div>
         </div>
 
         <div class="cta">
-          <a class="link" href="#" onclick="prefillDemo()">Fill demo values</a>
+          <a class="link" href="#" onclick="prefillDemo(); return false;">Fill demo values</a>
           <button class="btn" id="launch">Launch Viewer</button>
         </div>
       </div>
@@ -244,41 +338,34 @@ To make these results accessible without requiring users to re-run large experim
   </footer>
 </div>
 
+<script src="assets/research-catalog.js"></script>
 <script>
-    const DATASETS = {
-      test: {
-        SSP: ["data"]
-      },
-      baseline: {
-        MSP: ["cost_0.0", "cost_0.001", "cost_0.002", "cost_0.003"],
-        SSP: ["cost_0.0", "cost_0.001", "cost_0.002", "cost_0.003"]
-      },
-      heterogeneous_info: {
-        MSP: ["cost_0.002_latency_latency-aligned", "cost_0.002_latency_latency-misaligned"],
-        SSP: ["cost_0.002_latency_latency-aligned", "cost_0.002_latency_latency-misaligned"]
-      },
-      heterogeneous_validators: {
-        MSP: ["cost_0.0_validators_heterogeneous", "cost_0.002_validators_heterogeneous"],
-        SSP: ["cost_0.0_validators_heterogeneous", "cost_0.002_validators_heterogeneous"]
-      },
-      heterogeneous_both: {
-        MSP: ["cost_0.002_latency_latency-aligned", "cost_0.002_latency_latency-misaligned"],
-        SSP: ["cost_0.002_latency_latency-aligned", "cost_0.002_latency_latency-misaligned"]
-      },
-      different_gammas: {
-        MSP: ["cost_0.002_gamma_0.3333", "cost_0.002_gamma_0.5", "cost_0.002_gamma_0.6667", "cost_0.002_gamma_0.8"],
-        SSP: ["cost_0.002_gamma_0.3333", "cost_0.002_gamma_0.5", "cost_0.002_gamma_0.6667", "cost_0.002_gamma_0.8"]
-      },
-      eip7782: {
-        MSP: ["cost_0.002_delta_6000_cutoff_3000"],
-        SSP: ["cost_0.002_delta_6000_cutoff_3000"]
-      }
-    };
+  const RESEARCH_CATALOG = window.RESEARCH_CATALOG || { introBlurb: "", datasets: [], defaultSelection: null };
+
+  function buildDatasetIndex(entries) {
+    const index = {};
+    for (const entry of entries) {
+      if (!index[entry.evaluation]) index[entry.evaluation] = {};
+      if (!index[entry.evaluation][entry.paradigm]) index[entry.evaluation][entry.paradigm] = [];
+      index[entry.evaluation][entry.paradigm].push({
+        label: entry.result,
+        value: entry.path
+      });
+    }
+    return index;
+  }
+
+  const DATASETS = buildDatasetIndex(RESEARCH_CATALOG.datasets || []);
 
   const folderSel = document.getElementById("ds-folder");
   const subSel = document.getElementById("ds-sub");
   const nameSel = document.getElementById("ds-name");
   const hiddenPath = document.getElementById("dataset");
+  const introBlurbEl = document.getElementById("intro-blurb");
+
+  if (introBlurbEl && RESEARCH_CATALOG.introBlurb) {
+    introBlurbEl.innerText = RESEARCH_CATALOG.introBlurb;
+  }
 
   function setOptions(selectEl, items, placeholderText) {
     selectEl.innerHTML = "";
@@ -289,71 +376,103 @@ To make these results accessible without requiring users to re-run large experim
     ph.textContent = placeholderText;
     selectEl.appendChild(ph);
 
-    for (const it of items) {
+    for (const item of items) {
       const opt = document.createElement("option");
-      opt.value = it;
-      opt.textContent = it;
+      opt.value = item.value;
+      opt.textContent = item.label;
       selectEl.appendChild(opt);
     }
   }
 
-  // init folder options
-  setOptions(folderSel, Object.keys(DATASETS), "Select an evaluation");
+  function keyOptions(keys) {
+    return keys.map(key => ({ label: key, value: key }));
+  }
+
+  function populateSubOptions(folder, selectedValue = "") {
+    const subs = Object.keys(DATASETS[folder] || {});
+    setOptions(subSel, keyOptions(subs), "Select a paradigm");
+    subSel.disabled = subs.length === 0;
+    nameSel.disabled = true;
+    hiddenPath.value = "";
+    if (selectedValue && subs.includes(selectedValue)) {
+      subSel.value = selectedValue;
+    }
+  }
+
+  function populateNameOptions(folder, sub, selectedLabel = "") {
+    const names = DATASETS[folder] && DATASETS[folder][sub] ? DATASETS[folder][sub] : [];
+    setOptions(nameSel, names, "Select a simulation result");
+    nameSel.disabled = names.length === 0;
+    hiddenPath.value = "";
+    if (selectedLabel) {
+      const match = names.find(item => item.label === selectedLabel);
+      if (match) {
+        nameSel.value = match.value;
+        hiddenPath.value = match.value;
+      }
+    }
+  }
+
+  setOptions(folderSel, keyOptions(Object.keys(DATASETS)), "Select an evaluation");
   subSel.disabled = true;
   nameSel.disabled = true;
 
   folderSel.addEventListener("change", () => {
-    const folder = folderSel.value;
-    const subs = Object.keys(DATASETS[folder] || {});
-    setOptions(subSel, subs, "Select a paradigm");
-    subSel.disabled = subs.length === 0;
-    nameSel.disabled = true;
-    hiddenPath.value = "";
+    populateSubOptions(folderSel.value);
   });
 
   subSel.addEventListener("change", () => {
-    const folder = folderSel.value;
-    const sub = subSel.value;
-    const names = (DATASETS[folder] && DATASETS[folder][sub]) ? DATASETS[folder][sub] : [];
-    setOptions(nameSel, names, "Select a simulation result");
-    nameSel.disabled = names.length === 0;
-    hiddenPath.value = "";
+    populateNameOptions(folderSel.value, subSel.value);
   });
 
   nameSel.addEventListener("change", () => {
-    const folder = folderSel.value;
-    const sub = subSel.value;
-    const name = nameSel.value;
-
-    hiddenPath.value = `simulations/${folder}/${sub}/${name}/data.json`;
+    hiddenPath.value = nameSel.value;
   });
 
-  const TARGET_PAGE = 'viewer.html';
   function prefillDemo() {
-    document.getElementById('dataset').value = 'simulations/test/SSP/data/data.json';
-    document.getElementById('theme').value = 'dark';
-    document.getElementById('step').value = '10';
-    document.querySelector('input[name="autoplay"][value="on"]').checked = true;
-    document.getElementById('decim').value = '5';
-    document.getElementById('radius').value = '0.20';
-  }
-  function saveSettings() {
-    const settings = {
-      dataset: document.getElementById('dataset').value,
-      theme:   document.getElementById('theme').value,
-      step:    parseInt(document.getElementById('step').value || '1', 10),
-      autoplay: document.querySelector('input[name="autoplay"]:checked').value === 'on',
-      decimation: parseInt(document.getElementById('decim').value || '5', 10),
-      density_radius: parseFloat(document.getElementById('radius').value || '0.20')
+    const defaultSelection = RESEARCH_CATALOG.defaultSelection || {
+      evaluation: "Baseline",
+      paradigm: "Local",
+      result: "cost_0.001"
     };
-    try { localStorage.setItem('app_settings', JSON.stringify(settings)); } catch (_) {}
+    folderSel.value = defaultSelection.evaluation;
+    populateSubOptions(defaultSelection.evaluation, defaultSelection.paradigm);
+    populateNameOptions(defaultSelection.evaluation, defaultSelection.paradigm, defaultSelection.result);
+    document.getElementById("theme").value = "auto";
+    document.getElementById("step").value = "1";
+    document.querySelector('input[name="autoplay"][value="on"]').checked = true;
+  }
+
+  const TARGET_PAGE = "viewer.html";
+
+  function saveSettings() {
+    const dataset = hiddenPath.value;
+    if (!dataset) {
+      folderSel.focus();
+      return;
+    }
+
+    const settings = {
+      dataset,
+      theme: document.getElementById("theme").value,
+      step: parseInt(document.getElementById("step").value || "1", 10),
+      autoplay: document.querySelector('input[name="autoplay"]:checked').value === "on",
+      decimation: 5,
+      density_radius: 0.2
+    };
+
+    try {
+      localStorage.setItem("app_settings", JSON.stringify(settings));
+    } catch (_) {}
+
     const params = new URLSearchParams({
       ...settings,
-      radius: String(settings.density_radius),
+      radius: String(settings.density_radius)
     });
     window.location.href = `${TARGET_PAGE}?${params.toString()}`;
   }
-  document.getElementById('launch').addEventListener('click', saveSettings);
+
+  document.getElementById("launch").addEventListener("click", saveSettings);
 </script>
 </body>
 </html>

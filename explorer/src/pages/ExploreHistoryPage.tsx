@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Search, ArrowUpDown, ThumbsUp, ThumbsDown, Clock, Tag, ChevronDown, ChevronUp, BadgeCheck } from 'lucide-react'
+import { Search, ArrowUpDown, ThumbsUp, ThumbsDown, Tag, ChevronDown, ChevronUp } from 'lucide-react'
 import { listExplorations, voteExploration, type Exploration } from '../lib/api'
 import { BlockCanvas } from '../components/explore/BlockCanvas'
 import { cn } from '../lib/cn'
@@ -115,7 +115,7 @@ function HistoryHeader({
           placeholder="Search explorations..."
           className={cn(
             'w-full pl-10 pr-4 py-2.5 rounded-lg text-sm',
-            'bg-surface border border-border-subtle',
+            'bg-white border border-border-subtle',
             'text-text-primary placeholder:text-muted',
             'focus:outline-none focus:ring-1 focus:ring-accent',
           )}
@@ -125,7 +125,7 @@ function HistoryHeader({
         onClick={onToggleSort}
         className={cn(
           'flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm',
-          'bg-surface border border-border-subtle',
+          'bg-white border border-border-subtle',
           'text-text-primary hover:bg-surface-hover transition-colors',
         )}
       >
@@ -158,8 +158,8 @@ function ExplorationCard({
         visible: { opacity: 1, y: 0, transition: SPRING },
       }}
       className={cn(
-        'glass-1 rounded-xl border border-border-subtle overflow-hidden',
-        'transition-colors hover:border-accent/30',
+        'bg-white rounded-lg border border-border-subtle overflow-hidden',
+        'transition-colors hover:border-border-hover',
       )}
     >
       {/* Card header — always visible */}
@@ -177,39 +177,39 @@ function ExplorationCard({
             {exploration.summary}
           </p>
 
-          <div className="flex flex-wrap items-center gap-2 mt-3">
-            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium bg-accent/10 text-accent">
-              <BadgeCheck className="w-3 h-3" />
-              Fresh Claude
+          <div className="flex flex-wrap items-center gap-3 mt-3">
+            <span className="inline-flex items-center gap-1.5 text-xs text-muted">
+              <span className="w-1.5 h-1.5 rounded-full bg-accent" />
+              Generated
             </span>
 
             {exploration.verified && (
-              <span className="flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium bg-emerald-500/10 text-emerald-400">
-                <BadgeCheck className="w-3 h-3" />
+              <span className="inline-flex items-center gap-1.5 text-xs text-muted">
+                <span className="w-1.5 h-1.5 rounded-full bg-success" />
                 Verified
               </span>
             )}
             {allTags.map(tag => (
               <span
                 key={tag}
-                className={cn(
-                  'inline-block px-2 py-0.5 rounded text-[10px] font-medium uppercase tracking-wider',
-                  tag === 'SSP' && 'bg-accent/10 text-accent',
-                  tag === 'MSP' && 'bg-orange-500/10 text-orange-400',
-                  tag.startsWith('SE') && 'bg-teal-500/10 text-teal-400',
-                )}
+                className="inline-flex items-center gap-1.5 text-xs text-muted"
               >
+                <span className={cn(
+                  'w-1.5 h-1.5 rounded-full',
+                  tag === 'SSP' && 'bg-accent',
+                  tag === 'MSP' && 'bg-accent-warm',
+                  tag.startsWith('SE') && 'bg-success',
+                )} />
                 {tag}
               </span>
             ))}
 
-            <span className="flex items-center gap-1 text-[10px] text-muted ml-auto">
-              <Clock className="w-3 h-3" />
+            <span className="text-xs text-text-faint ml-auto">
               {timeAgo}
             </span>
           </div>
 
-          <div className="flex flex-wrap gap-2 mt-2 text-[10px] text-muted">
+          <div className="flex flex-wrap gap-2 mt-2 text-xs text-text-faint">
             {exploration.model && <span>{exploration.model}</span>}
             <span>{exploration.cached ? 'prompt cache hit' : 'new generation'}</span>
           </div>
@@ -286,14 +286,14 @@ function VoteControls({
 function FollowUpList({ followUps }: { readonly followUps: readonly string[] }) {
   return (
     <div className="mt-4 pt-3 border-t border-border-subtle">
-      <p className="text-[10px] font-medium uppercase tracking-wider text-muted mb-2">
+      <span className="text-xs text-muted mb-2 block">
         Follow-up questions
-      </p>
+      </span>
       <div className="flex flex-wrap gap-2">
         {followUps.map(q => (
           <span
             key={q}
-            className="inline-block px-3 py-1.5 rounded-lg text-xs text-text-primary bg-surface border border-border-subtle"
+            className="text-xs text-muted hover:text-text-primary transition-colors"
           >
             {q}
           </span>
@@ -306,7 +306,7 @@ function FollowUpList({ followUps }: { readonly followUps: readonly string[] }) 
 function EmptyState({ onGoToFindings }: { readonly onGoToFindings?: () => void }) {
   return (
     <div className="flex flex-col items-center justify-center py-24 text-center">
-      <Tag className="w-8 h-8 text-muted/40 mb-4" />
+      <Tag className="w-8 h-8 text-text-faint mb-4" />
       <h2 className="text-lg font-medium text-text-primary mb-2">No explorations yet</h2>
       <p className="text-sm text-muted max-w-md mb-5">
         Ask a question on the Findings tab to get started. Every Claude response is
@@ -315,7 +315,7 @@ function EmptyState({ onGoToFindings }: { readonly onGoToFindings?: () => void }
       {onGoToFindings && (
         <button
           onClick={onGoToFindings}
-          className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-accent text-white hover:bg-accent/80 transition-colors"
+          className="flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium bg-accent text-white hover:bg-accent/90 transition-colors"
         >
           <Search className="w-4 h-4" />
           Start exploring
@@ -328,7 +328,7 @@ function EmptyState({ onGoToFindings }: { readonly onGoToFindings?: () => void }
 function NoResults({ search }: { readonly search: string }) {
   return (
     <div className="flex flex-col items-center justify-center py-16 text-center">
-      <Search className="w-6 h-6 text-muted/40 mb-3" />
+      <Search className="w-6 h-6 text-text-faint mb-3" />
       <p className="text-sm text-muted">
         No results for &ldquo;{search}&rdquo;
       </p>
@@ -340,9 +340,9 @@ function LoadingSkeleton() {
   return (
     <div className="space-y-4 pt-6">
       {Array.from({ length: 3 }).map((_, i) => (
-        <div key={i} className="glass-1 rounded-xl border border-border-subtle p-4 animate-pulse">
-          <div className="h-4 bg-surface rounded w-3/4 mb-3" />
-          <div className="h-3 bg-surface rounded w-1/2" />
+        <div key={i} className="bg-white rounded-lg border border-border-subtle p-4 animate-pulse">
+          <div className="h-4 bg-[#F0F0EE] rounded w-3/4 mb-3" />
+          <div className="h-3 bg-[#F0F0EE] rounded w-1/2" />
         </div>
       ))}
     </div>

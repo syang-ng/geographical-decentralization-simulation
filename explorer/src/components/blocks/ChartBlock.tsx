@@ -20,14 +20,14 @@ export function ChartBlock({ block }: ChartBlockProps) {
   }
 
   return (
-    <div className="overflow-hidden rounded-2xl border border-border-subtle bg-surface/95 shadow-[0_20px_60px_rgba(0,0,0,0.24)]">
-      <div className="border-b border-border-subtle bg-white/[0.02] px-5 py-4">
+    <div className="bg-white border border-border-subtle rounded-lg overflow-hidden">
+      <div className="border-b border-border-subtle px-5 py-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h3 className="text-sm font-medium text-text-primary">
               {block.title}
             </h3>
-            <p className="mt-1 text-[11px] text-muted">
+            <p className="mt-1 text-xs text-muted">
               {block.chartType === 'line'
                 ? 'Trend view across the selected values.'
                 : 'Exact values rendered as proportional bars.'}
@@ -35,11 +35,11 @@ export function ChartBlock({ block }: ChartBlockProps) {
           </div>
 
           {categoryColors.size > 0 && (
-            <div className="flex flex-wrap items-center gap-1.5">
+            <div className="flex flex-wrap items-center gap-2">
               {[...categoryColors.entries()].map(([category, color]) => (
                 <span
                   key={category}
-                  className="inline-flex items-center gap-1.5 rounded-full border border-white/8 bg-black/15 px-2 py-1 text-[10px] text-muted"
+                  className="inline-flex items-center gap-1.5 text-xs text-muted"
                 >
                   <span className="h-2 w-2 rounded-full" style={{ backgroundColor: color }} />
                   {category}
@@ -58,37 +58,33 @@ export function ChartBlock({ block }: ChartBlockProps) {
             {block.data.map((d, i) => {
               const barColor = d.category
                 ? (categoryColors.get(d.category) ?? BLOCK_COLORS[i % BLOCK_COLORS.length])
-                : (d.value >= 0 ? 'rgba(59,130,246,0.75)' : 'rgba(244,63,94,0.75)')
+                : (d.value >= 0 ? '#3B82F6' : '#EF4444')
 
               return (
-                <div key={`${d.label}-${i}`} className="rounded-xl border border-white/6 bg-black/10 px-3 py-2.5">
+                <div key={`${d.label}-${i}`} className="rounded-lg border border-border-subtle p-3">
                   <div className="mb-2 flex items-center justify-between gap-3">
                     <div className="min-w-0">
                       <div className="truncate text-xs font-medium text-text-primary">
                         {d.label}
                       </div>
                       {d.category && (
-                        <div className="mt-0.5 text-[10px] uppercase tracking-[0.18em] text-muted/80">
+                        <div className="mt-0.5 text-xs text-muted">
                           {d.category}
                         </div>
                       )}
                     </div>
-                    <span className="shrink-0 text-xs text-text-primary tabular-nums">
+                    <span className="shrink-0 text-xs text-text-primary tabular-nums font-medium">
                       {d.value}{block.unit ?? ''}
                     </span>
                   </div>
 
-                  <div className="relative h-8 overflow-hidden rounded-lg border border-white/5 bg-white/[0.03]">
-                    <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(255,255,255,0.04)_0,rgba(255,255,255,0.04)_1px,transparent_1px,transparent_20%)] opacity-60" />
+                  <div className="relative h-6 overflow-hidden rounded bg-[#F5F5F3]">
                     <motion.div
-                      initial={{ width: 0, opacity: 0.65 }}
+                      initial={{ width: 0, opacity: 0.7 }}
                       animate={{ width: `${(Math.abs(d.value) / maxValue) * 100}%`, opacity: 1 }}
                       transition={{ ...SPRING, delay: i * 0.06 }}
-                      className="absolute inset-y-0 left-0 rounded-r-lg"
-                      style={{
-                        background: `linear-gradient(90deg, ${barColor}, rgba(255,255,255,0.12))`,
-                        boxShadow: `0 0 28px ${barColor}33`,
-                      }}
+                      className="absolute inset-y-0 left-0 rounded"
+                      style={{ backgroundColor: barColor }}
                     />
                   </div>
                 </div>
@@ -98,7 +94,7 @@ export function ChartBlock({ block }: ChartBlockProps) {
         )}
 
         {block.unit && block.chartType !== 'line' && (
-          <div className="mt-3 text-right text-[10px] text-muted/60">
+          <div className="mt-3 text-right text-xs text-muted">
             unit: {block.unit}
           </div>
         )}
@@ -135,15 +131,16 @@ function LineChart({ data, unit }: { data: ChartBlockType['data']; unit?: string
     : ''
 
   return (
-    <div className="rounded-xl border border-white/6 bg-black/10 p-3">
+    <div>
       <svg viewBox={`0 0 ${width} ${height}`} className="w-full" preserveAspectRatio="xMidYMid meet">
         <defs>
           <linearGradient id={gradientId} x1="0%" x2="0%" y1="0%" y2="100%">
-            <stop offset="0%" stopColor="#3B82F6" stopOpacity="0.35" />
+            <stop offset="0%" stopColor="#3B82F6" stopOpacity="0.18" />
             <stop offset="100%" stopColor="#3B82F6" stopOpacity="0.02" />
           </linearGradient>
         </defs>
 
+        {/* Thin gray gridlines */}
         {[0, 0.25, 0.5, 0.75, 1].map(frac => {
           const y = padding.top + chartH * (1 - frac)
           return (
@@ -153,7 +150,7 @@ function LineChart({ data, unit }: { data: ChartBlockType['data']; unit?: string
               y1={y}
               x2={width - padding.right}
               y2={y}
-              stroke="#222222"
+              stroke="#E8E8E6"
               strokeWidth={0.5}
             />
           )
@@ -164,7 +161,7 @@ function LineChart({ data, unit }: { data: ChartBlockType['data']; unit?: string
           y1={baselineY}
           x2={width - padding.right}
           y2={baselineY}
-          stroke="#ffffff22"
+          stroke="#D4D4D2"
           strokeWidth={0.75}
         />
 
@@ -182,20 +179,18 @@ function LineChart({ data, unit }: { data: ChartBlockType['data']; unit?: string
           d={pathD}
           fill="none"
           stroke="#3B82F6"
-          strokeWidth={2.5}
+          strokeWidth={2}
           strokeLinecap="round"
           strokeLinejoin="round"
           initial={{ pathLength: 0 }}
           animate={{ pathLength: 1 }}
           transition={{ duration: 0.8, ease: 'easeOut' }}
-          style={{ filter: 'drop-shadow(0 0 10px rgba(59,130,246,0.32))' }}
         />
 
         {points.map((p, i) => (
           <g key={`${p.label}-${i}`}>
-            <circle cx={p.x} cy={p.y} r={5} fill="#0b1020" />
-            <circle cx={p.x} cy={p.y} r={3} fill="#3B82F6" />
-            <text x={p.x} y={height - 5} textAnchor="middle" className="fill-muted text-[9px]">
+            <circle cx={p.x} cy={p.y} r={3.5} fill="white" stroke="#3B82F6" strokeWidth={1.5} />
+            <text x={p.x} y={height - 5} textAnchor="middle" className="fill-[#6B7280] text-[9px]">
               {p.label}
             </text>
           </g>
@@ -207,8 +202,8 @@ function LineChart({ data, unit }: { data: ChartBlockType['data']; unit?: string
           <div
             key={`${point.label}-label-${index}`}
             className={cn(
-              'rounded-lg border border-white/6 bg-white/[0.02] px-2.5 py-2 text-[11px]',
-              index === points.length - 1 && 'border-accent/20 bg-accent/[0.06]',
+              'rounded-lg border border-border-subtle px-2.5 py-2 text-xs',
+              index === points.length - 1 && 'border-accent bg-[#F8FAFF]',
             )}
           >
             <div className="text-muted">{point.label}</div>

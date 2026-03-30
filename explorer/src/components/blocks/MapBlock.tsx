@@ -19,21 +19,20 @@ function latLonToMercator(lat: number, lon: number, width: number, height: numbe
 
 function getDotRadius(value: number, maxValue: number): number {
   const normalized = Math.max(value / Math.max(maxValue, 1), 0.1)
-  return 3 + normalized * 9 // 3px min, 12px max
+  return 3 + normalized * 9
 }
 
 function getDotColor(value: number, maxValue: number, colorScale?: string): string {
-  if (colorScale === 'binary') return value > 0 ? '#2dd4bf' : '#222222'
+  if (colorScale === 'binary') return value > 0 ? '#22C55E' : '#D4D4D2'
   if (colorScale === 'change') {
-    if (value > 0) return '#2dd4bf'
-    if (value < 0) return '#f43f5e'
-    return '#87867f'
+    if (value > 0) return '#22C55E'
+    if (value < 0) return '#EF4444'
+    return '#9CA3AF'
   }
-  // density: green → yellow → red
   const t = Math.min(value / Math.max(maxValue, 1), 1)
-  if (t < 0.33) return '#2dd4bf'
-  if (t < 0.66) return '#fbbf24'
-  return '#f43f5e'
+  if (t < 0.33) return '#22C55E'
+  if (t < 0.66) return '#F59E0B'
+  return '#EF4444'
 }
 
 export function MapBlock({ block }: MapBlockProps) {
@@ -47,14 +46,14 @@ export function MapBlock({ block }: MapBlockProps) {
   const svgH = 420
 
   return (
-    <div className="overflow-hidden rounded-2xl border border-border-subtle bg-surface/95 shadow-[0_20px_60px_rgba(0,0,0,0.24)]">
-      <div className="border-b border-border-subtle bg-white/[0.02] px-5 py-4">
+    <div className="bg-white border border-border-subtle rounded-lg overflow-hidden">
+      <div className="border-b border-border-subtle px-5 py-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h3 className="text-sm font-medium text-text-primary">
               {block.title}
             </h3>
-            <p className="mt-1 text-[11px] text-muted">
+            <p className="mt-1 text-xs text-muted">
               Geographic distribution rendered directly from the block&apos;s region values.
             </p>
           </div>
@@ -63,10 +62,10 @@ export function MapBlock({ block }: MapBlockProps) {
             {topRegions.map(region => (
               <span
                 key={region.name}
-                className="rounded-full border border-white/8 bg-black/15 px-2.5 py-1 text-[10px] text-muted"
+                className="text-xs text-muted"
               >
                 {region.label ?? region.name}
-                <span className="ml-1.5 font-medium tabular-nums text-text-primary">
+                <span className="ml-1 font-medium tabular-nums text-text-primary">
                   {region.value}
                 </span>
               </span>
@@ -76,9 +75,7 @@ export function MapBlock({ block }: MapBlockProps) {
       </div>
 
       <div className="px-5 py-5">
-        <div className="relative overflow-hidden rounded-xl border border-white/6 bg-[#0a0a0a]" style={{ minHeight: 280 }}>
-          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(59,130,246,0.12),transparent_42%),radial-gradient(circle_at_bottom_right,rgba(45,212,191,0.08),transparent_35%)]" />
-          <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.02),transparent_25%,transparent_75%,rgba(255,255,255,0.03))]" />
+        <div className="relative overflow-hidden rounded-lg bg-[#FAFAF8]" style={{ minHeight: 280 }}>
         <svg
           viewBox={`0 0 ${svgW} ${svgH}`}
           className="w-full"
@@ -86,10 +83,10 @@ export function MapBlock({ block }: MapBlockProps) {
           role="img"
           aria-label={block.title}
         >
-          {/* Simplified world outline — just a bounding frame + equator */}
-          <rect x={0} y={0} width={svgW} height={svgH} fill="none" stroke="#1a1a1a" strokeWidth={1} />
-          <line x1={0} y1={svgH / 2} x2={svgW} y2={svgH / 2} stroke="#1a1a1a" strokeWidth={0.5} strokeDasharray="4 4" />
-          <line x1={svgW / 2} y1={0} x2={svgW / 2} y2={svgH} stroke="#1a1a1a" strokeWidth={0.5} strokeDasharray="4 4" />
+          {/* Light grid */}
+          <rect x={0} y={0} width={svgW} height={svgH} fill="none" stroke="#E8E8E6" strokeWidth={1} />
+          <line x1={0} y1={svgH / 2} x2={svgW} y2={svgH / 2} stroke="#E8E8E6" strokeWidth={0.5} strokeDasharray="4 4" />
+          <line x1={svgW / 2} y1={0} x2={svgW / 2} y2={svgH} stroke="#E8E8E6" strokeWidth={0.5} strokeDasharray="4 4" />
           {[0.25, 0.75].map(frac => (
             <line
               key={`lat-${frac}`}
@@ -97,7 +94,7 @@ export function MapBlock({ block }: MapBlockProps) {
               y1={svgH * frac}
               x2={svgW}
               y2={svgH * frac}
-              stroke="#151515"
+              stroke="#E8E8E6"
               strokeWidth={0.5}
               strokeDasharray="3 6"
             />
@@ -109,7 +106,7 @@ export function MapBlock({ block }: MapBlockProps) {
               y1={0}
               x2={svgW * frac}
               y2={svgH}
-              stroke="#151515"
+              stroke="#E8E8E6"
               strokeWidth={0.5}
               strokeDasharray="3 6"
             />
@@ -126,9 +123,9 @@ export function MapBlock({ block }: MapBlockProps) {
                 <motion.circle
                   cx={x}
                   cy={y}
-                  r={r * 1.9}
+                  r={r * 1.6}
                   fill={color}
-                  fillOpacity={0.08}
+                  fillOpacity={0.12}
                   initial={{ scale: 0, opacity: 0 }}
                   animate={{ scale: 1, opacity: 1 }}
                   transition={{ ...SPRING, delay: i * 0.02 }}
@@ -138,10 +135,9 @@ export function MapBlock({ block }: MapBlockProps) {
                   cy={y}
                   r={r}
                   fill={color}
-                  fillOpacity={0.78}
-                  stroke={color}
-                  strokeWidth={1}
-                  strokeOpacity={0.35}
+                  fillOpacity={0.85}
+                  stroke="white"
+                  strokeWidth={1.5}
                   initial={{ scale: 0, opacity: 0 }}
                   animate={{ scale: 1, opacity: 1 }}
                   transition={{ ...SPRING, delay: i * 0.02 }}
@@ -164,7 +160,7 @@ export function MapBlock({ block }: MapBlockProps) {
         {tooltip && (
           <div
             role="tooltip"
-            className="absolute pointer-events-none z-10 glass-2 rounded-md px-2.5 py-1.5 text-xs"
+            className="absolute pointer-events-none z-10 bg-white border border-border-subtle rounded-md px-2.5 py-1.5 text-xs shadow-sm"
             style={{
               left: `${(tooltip.x / svgW) * 100}%`,
               top: `${(tooltip.y / svgH) * 100}%`,
@@ -179,15 +175,15 @@ export function MapBlock({ block }: MapBlockProps) {
       </div>
 
       {/* Legend + 3D viewer link */}
-      <div className="flex flex-wrap items-center gap-4 border-t border-border-subtle px-5 py-3 text-[10px] text-muted">
+      <div className="flex flex-wrap items-center gap-4 border-t border-border-subtle px-5 py-3 text-xs text-muted">
         <span className="flex items-center gap-1">
           <span className="h-2 w-2 rounded-full bg-success" /> {'<10'}
         </span>
         <span className="flex items-center gap-1">
-          <span className="h-3 w-3 rounded-full bg-warning" /> 10–50
+          <span className="h-2.5 w-2.5 rounded-full bg-warning" /> 10–50
         </span>
         <span className="flex items-center gap-1">
-          <span className="h-4 w-4 rounded-full bg-danger" /> 50+
+          <span className="h-3 w-3 rounded-full bg-danger" /> 50+
         </span>
         <span className="ml-auto flex items-center gap-3">
           {block.regions.length} GCP regions
@@ -196,8 +192,7 @@ export function MapBlock({ block }: MapBlockProps) {
             target="_blank"
             rel="noopener noreferrer"
             className={cn(
-              'flex items-center gap-1 rounded border border-accent/20 px-2 py-0.5',
-              'text-accent transition-colors hover:border-accent/40 hover:text-accent/80',
+              'flex items-center gap-1 text-accent transition-colors hover:text-accent/80',
             )}
           >
             <ExternalLink className="h-3 w-3" />

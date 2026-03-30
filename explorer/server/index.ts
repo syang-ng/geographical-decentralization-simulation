@@ -21,11 +21,13 @@ import { OVERVIEW_CARD, TOPIC_CARDS, type TopicCard } from '../src/data/default-
 import { parseSimulationArtifactToBlocks, type SimulationRenderableArtifact } from '../src/lib/simulation-artifact-blocks.ts'
 import type { Block } from '../src/types/blocks.ts'
 import {
+  type SimulationArtifactBundle,
+  type SimulationChartMetricKey,
   simulationViewSpecSchema,
-  type SimulationMetricKey,
   type SimulationViewSection,
   type SimulationViewSpec,
 } from '../src/types/simulation-view.ts'
+import { buildSimulationArtifactBundle, buildSimulationSummaryChart } from '../src/lib/simulation-artifact-blocks.ts'
 
 const STOP_WORDS = new Set([
   'a',
@@ -144,6 +146,10 @@ interface SimulationCopilotResponse {
   summary: string
   mode: SimulationViewSpec['mode']
   guidance?: string
+  truthBoundary: {
+    label: string
+    detail: string
+  }
   suggestedPrompts: string[]
   proposedConfig?: SimulationRequest
   viewSpec: SimulationViewSpec
@@ -475,14 +481,131 @@ function defaultSimulationPrompts(manifest: { config: SimulationRequest } | null
       'Set up the baseline SSP run from the paper.',
       'Suggest a paper-aligned MSP comparison to run next.',
       'What exact simulation can test shorter slot times safely?',
+      'What can I ask that stays inside the supported simulation model?',
     ]
   }
 
   return [
-    'Show the MEV and supermajority charts from this exact run.',
+    'Build a core outcomes overview from this exact run.',
     'Explain which regions dominate in this run and why.',
     'What parameter change would be the nearest paper-aligned follow-up?',
   ]
+}
+
+function buildTruthBoundary(
+  mode: SimulationViewSpec['mode'],
+  hasManifest: boolean,
+): { label: string; detail: string } {
+  if (mode === 'proposed-run') {
+    return {
+      label: 'Proposal, not a result',
+      detail: 'This response suggests a bounded exact run configuration. It is not simulation evidence until the exact engine executes it.',
+    }
+  }
+
+  if (mode === 'guidance' || !hasManifest) {
+    return {
+      label: 'Guidance, not evidence',
+      detail: 'This response is guidance about the supported model surface. It should not be read as an exact simulation result.',
+    }
+  }
+
+  return {
+    label: 'Interpretation over exact outputs',
+    detail: 'The numbers and charts come from the exact manifest and artifacts for the loaded run. The ordering, emphasis, and narrative are model-generated interpretation.',
+  }
+}
+
+function metricNumericValue(
+  metric: SimulationChartMetricKey,
+  manifest: { summary: Record<string, number>; config: SimulationRequest } | null,
+  fallbackConfig: SimulationRequest,
+): number | null {
+  const config = manifest?.config ?? fallbackConfig
+  switch (metric) {
+    case 'finalAverageMev':
+      return manifest ? manifest.summary.finalAverageMev : null
+    case 'finalSupermajoritySuccess':
+      return manifest ? manifest.summary.finalSupermajoritySuccess : null
+    case 'finalFailedBlockProposals':
+      return manifest ? manifest.summary.finalFailedBlockProposals : null
+    case 'finalUtilityIncrease':
+      return manifest ? manifest.summary.finalUtilityIncrease : null
+    case 'validators':
+      return config.validators
+    case 'slots':
+      return config.slots
+    case 'migrationCost':
+      return config.migrationCost
+    case 'attestationThreshold':
+      return config.attestationThreshold
+    case 'slotTime':
+      return config.slotTime
+    case 'attestationCutoffMs':
+      return manifest ? manifest.summary.attestationCutoffMs : attestationCutoffMs(config.slotTime)
+    default:
+      return null
+  }
+}
+
+function metricDisplayLabel(metric: SimulationChartMetricKey): string {
+  switch (metric) {
+    case 'finalAverageMev':
+      return 'Final Avg MEV'
+    case 'finalSupermajoritySuccess':
+      return 'Supermajority Success'
+    case 'finalFailedBlockProposals':
+      return 'Failed Proposals'
+    case 'finalUtilityIncrease':
+      return 'Utility Increase'
+    case 'validators':
+      return 'Validators'
+    case 'slots':
+      return 'Slots'
+    case 'migrationCost':
+      return 'Migration Cost'
+    case 'attestationThreshold':
+      return 'Gamma'
+    case 'slotTime':
+      return 'Slot Time'
+    case 'attestationCutoffMs':
+      return 'Cutoff (ms)'
+    default:
+      return metric
+  }
+}
+
+async function loadArtifactTexts(
+  manifest: {
+    outputDir: string
+    artifacts: ReadonlyArray<{ name: string; renderable: boolean }>
+  },
+  names: readonly string[],
+): Promise<Partial<Record<string, string>>> {
+  const loaded: Partial<Record<string, string>> = {}
+  for (const name of names) {
+    const artifact = manifest.artifacts.find(candidate => candidate.name === name)
+    if (!artifact || !artifact.renderable) continue
+    try {
+      loaded[name] = await fs.readFile(path.join(manifest.outputDir, name), 'utf8')
+    } catch {
+      // Ignore unreadable artifacts and let the caller decide how to degrade.
+    }
+  }
+  return loaded
+}
+
+function bundleArtifactNames(bundle: SimulationArtifactBundle): readonly string[] {
+  switch (bundle) {
+    case 'core-outcomes':
+      return ['avg_mev.json', 'supermajority_success.json', 'failed_block_proposals.json']
+    case 'timing-and-attestation':
+      return ['proposal_time_avg.json', 'attestation_sum.json']
+    case 'geography-overview':
+      return ['top_regions_final.json']
+    default:
+      return []
+  }
 }
 
 function metricBlockForSection(
@@ -654,11 +777,59 @@ async function resolveSimulationViewSpec(
   fallbackConfig: SimulationRequest,
 ): Promise<readonly Block[]> {
   const blocks: Block[] = []
+  const artifactTextCache = new Map<string, string>()
+
+  const loadArtifactText = async (artifactName: string): Promise<string | null> => {
+    if (!manifest) return null
+    if (artifactTextCache.has(artifactName)) {
+      return artifactTextCache.get(artifactName) ?? null
+    }
+    try {
+      const rawText = await fs.readFile(path.join(manifest.outputDir, artifactName), 'utf8')
+      artifactTextCache.set(artifactName, rawText)
+      return rawText
+    } catch {
+      return null
+    }
+  }
 
   for (const section of viewSpec.sections) {
     if (section.kind === 'metric') {
       const block = metricBlockForSection(section, manifest, fallbackConfig)
       if (block) blocks.push(block)
+      continue
+    }
+
+    if (section.kind === 'summary-chart') {
+      const entries = section.metrics
+        .map(metric => {
+          const value = metricNumericValue(metric, manifest, fallbackConfig)
+          return value == null
+            ? null
+            : {
+                metric,
+                label: metricDisplayLabel(metric),
+                value,
+              }
+        })
+        .filter((entry): entry is NonNullable<typeof entry> => entry !== null)
+
+      if (section.note) {
+        blocks.push({
+          type: 'insight',
+          title: 'Interpretation note',
+          text: section.note,
+        })
+      }
+
+      if (entries.length >= 2) {
+        blocks.push(buildSimulationSummaryChart(section.title, entries, section.unit))
+      } else {
+        blocks.push({
+          type: 'caveat',
+          text: `${section.title} needs at least two supported numeric metrics to render.`,
+        })
+      }
       continue
     }
 
@@ -688,6 +859,40 @@ async function resolveSimulationViewSpec(
       continue
     }
 
+    if (section.kind === 'artifact-bundle') {
+      if (!manifest) {
+        blocks.push({
+          type: 'caveat',
+          text: 'This bundle references exact simulation artifacts, but there is no completed run loaded yet.',
+        })
+        continue
+      }
+
+      const artifactTexts = await loadArtifactTexts(manifest, bundleArtifactNames(section.bundle))
+      const bundleBlocks = buildSimulationArtifactBundle(
+        section.bundle,
+        artifactTexts as Partial<Record<SimulationRenderableArtifact['name'], string>>,
+      )
+
+      if (section.note) {
+        blocks.push({
+          type: 'insight',
+          title: section.title ? 'Why this bundle' : undefined,
+          text: section.note,
+        })
+      }
+
+      if (bundleBlocks.length > 0) {
+        blocks.push(...bundleBlocks)
+      } else {
+        blocks.push({
+          type: 'caveat',
+          text: `The ${section.bundle} bundle could not be assembled from the available exact artifacts.`,
+        })
+      }
+      continue
+    }
+
     if (!manifest) {
       blocks.push({
         type: 'caveat',
@@ -706,7 +911,10 @@ async function resolveSimulationViewSpec(
     }
 
     try {
-      const rawText = await fs.readFile(path.join(manifest.outputDir, artifact.name), 'utf8')
+      const rawText = await loadArtifactText(artifact.name)
+      if (!rawText) {
+        throw new Error('Artifact missing')
+      }
       const artifactBlocks = parseSimulationArtifactToBlocks(
         artifact as SimulationRenderableArtifact,
         rawText,
@@ -791,6 +999,10 @@ async function buildSimulationCopilotContext(
     ...manifest.artifacts
       .filter(artifact => artifact.renderable)
       .map(artifact => `- ${artifact.name}: ${artifact.label}`),
+    '## Reusable Exact Chart Bundles',
+    '- core-outcomes: avg_mev + supermajority_success + failed_block_proposals',
+    '- timing-and-attestation: proposal_time_avg + attestation_sum',
+    '- geography-overview: top_regions_final map + table',
   )
 
   const digest = await summarizeRenderableArtifacts(manifest)
@@ -1135,6 +1347,7 @@ app.post('/api/simulation-copilot', async (req, res) => {
       summary: sanitizedViewSpec.summary,
       mode: sanitizedViewSpec.mode,
       guidance: sanitizedViewSpec.guidance,
+      truthBoundary: buildTruthBoundary(sanitizedViewSpec.mode, Boolean(currentJob?.manifest)),
       suggestedPrompts: sanitizedViewSpec.suggestedPrompts?.length
         ? sanitizedViewSpec.suggestedPrompts
         : defaultSimulationPrompts(currentJob?.manifest ?? null),

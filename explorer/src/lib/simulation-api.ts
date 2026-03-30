@@ -1,9 +1,9 @@
+import type { Block } from '../types/blocks'
+import type { SimulationViewSpec } from '../types/simulation-view'
+
 const API_BASE = import.meta.env.VITE_API_BASE_URL
   ? `${import.meta.env.VITE_API_BASE_URL}/api`
   : '/api'
-
-import type { Block } from '../types/blocks'
-import type { SimulationViewSpec } from '../types/simulation-view'
 
 export interface SimulationConfig {
   readonly paradigm: 'SSP' | 'MSP'
@@ -72,6 +72,10 @@ export interface SimulationCopilotResponse {
   readonly summary: string
   readonly mode: SimulationViewSpec['mode']
   readonly guidance?: string
+  readonly truthBoundary: {
+    readonly label: string
+    readonly detail: string
+  }
   readonly suggestedPrompts: readonly string[]
   readonly proposedConfig?: SimulationConfig
   readonly viewSpec: SimulationViewSpec

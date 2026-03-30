@@ -18,7 +18,17 @@ import {
   mapBlockSchema,
   timeSeriesBlockSchema,
 } from '../src/types/blocks.ts'
-import { simulationViewSpecSchema } from '../src/types/simulation-view.ts'
+import {
+  simulationArtifactBundles,
+  simulationChartMetricKeys,
+  simulationDistributionValues,
+  simulationInsightEmphases,
+  simulationMetricKeys,
+  simulationMetricSentiments,
+  simulationRenderableArtifactNames,
+  simulationSourcePlacementValues,
+  simulationViewModes,
+} from '../src/types/simulation-view.ts'
 
 /** Convert a Zod schema to a clean JSON Schema object (no $schema, no $ref) */
 function toToolSchema(schema: z.ZodType): Record<string, unknown> {
@@ -27,6 +37,204 @@ function toToolSchema(schema: z.ZodType): Record<string, unknown> {
   const { $schema: _s, default: _d, ...clean } = full as Record<string, unknown>
   return clean
 }
+
+function stringEnumSchema(values: readonly string[]) {
+  return {
+    type: 'string' as const,
+    enum: [...values],
+  }
+}
+
+function integerEnumSchema(values: readonly number[]) {
+  return {
+    type: 'integer' as const,
+    enum: [...values],
+  }
+}
+
+function assertObjectRootSchema(
+  toolName: string,
+  inputSchema: Record<string, unknown>,
+): asserts inputSchema is Record<string, unknown> & { type: 'object' } {
+  if (inputSchema.type !== 'object') {
+    throw new Error(`Tool ${toolName} must expose an object JSON schema root.`)
+  }
+
+  if ('$ref' in inputSchema) {
+    throw new Error(`Tool ${toolName} input schema cannot use a top-level $ref.`)
+  }
+}
+
+const simulationConfigToolSchema = {
+  type: 'object' as const,
+  properties: {
+    paradigm: stringEnumSchema(['SSP', 'MSP']),
+    validators: {
+      type: 'integer' as const,
+    },
+    slots: {
+      type: 'integer' as const,
+    },
+    distribution: stringEnumSchema(simulationDistributionValues),
+    sourcePlacement: stringEnumSchema(simulationSourcePlacementValues),
+    migrationCost: {
+      type: 'number' as const,
+    },
+    attestationThreshold: {
+      type: 'number' as const,
+    },
+    slotTime: integerEnumSchema([6, 8, 12]),
+    seed: {
+      type: 'integer' as const,
+    },
+  },
+  required: [
+    'paradigm',
+    'validators',
+    'slots',
+    'distribution',
+    'sourcePlacement',
+    'migrationCost',
+    'attestationThreshold',
+    'slotTime',
+    'seed',
+  ],
+  additionalProperties: false,
+}
+
+const simulationViewSectionToolSchema = {
+  oneOf: [
+    {
+      type: 'object' as const,
+      properties: {
+        kind: {
+          const: 'metric',
+        },
+        metric: stringEnumSchema(simulationMetricKeys),
+        label: { type: 'string' as const },
+        sublabel: { type: 'string' as const },
+        sentiment: stringEnumSchema(simulationMetricSentiments),
+      },
+      required: ['kind', 'metric'],
+      additionalProperties: false,
+    },
+    {
+      type: 'object' as const,
+      properties: {
+        kind: {
+          const: 'artifact',
+        },
+        artifactName: stringEnumSchema(simulationRenderableArtifactNames),
+        title: { type: 'string' as const },
+        note: { type: 'string' as const },
+      },
+      required: ['kind', 'artifactName'],
+      additionalProperties: false,
+    },
+    {
+      type: 'object' as const,
+      properties: {
+        kind: {
+          const: 'artifact-bundle',
+        },
+        bundle: stringEnumSchema(simulationArtifactBundles),
+        title: { type: 'string' as const },
+        note: { type: 'string' as const },
+      },
+      required: ['kind', 'bundle'],
+      additionalProperties: false,
+    },
+    {
+      type: 'object' as const,
+      properties: {
+        kind: {
+          const: 'summary-chart',
+        },
+        title: { type: 'string' as const },
+        metrics: {
+          type: 'array' as const,
+          items: stringEnumSchema(simulationChartMetricKeys),
+          minItems: 2,
+          maxItems: 6,
+        },
+        unit: { type: 'string' as const },
+        note: { type: 'string' as const },
+      },
+      required: ['kind', 'title', 'metrics'],
+      additionalProperties: false,
+    },
+    {
+      type: 'object' as const,
+      properties: {
+        kind: {
+          const: 'insight',
+        },
+        title: { type: 'string' as const },
+        text: { type: 'string' as const },
+        emphasis: stringEnumSchema(simulationInsightEmphases),
+      },
+      required: ['kind', 'text'],
+      additionalProperties: false,
+    },
+    {
+      type: 'object' as const,
+      properties: {
+        kind: {
+          const: 'caveat',
+        },
+        text: { type: 'string' as const },
+      },
+      required: ['kind', 'text'],
+      additionalProperties: false,
+    },
+    {
+      type: 'object' as const,
+      properties: {
+        kind: {
+          const: 'source',
+        },
+        refs: {
+          type: 'array' as const,
+          items: {
+            type: 'object' as const,
+            properties: {
+              label: { type: 'string' as const },
+              section: { type: 'string' as const },
+              url: { type: 'string' as const },
+            },
+            required: ['label'],
+            additionalProperties: false,
+          },
+        },
+      },
+      required: ['kind', 'refs'],
+      additionalProperties: false,
+    },
+  ],
+} as const
+
+const simulationViewToolSchema = {
+  type: 'object' as const,
+  properties: {
+    mode: stringEnumSchema(simulationViewModes),
+    summary: { type: 'string' as const },
+    guidance: { type: 'string' as const },
+    truthBoundary: { type: 'string' as const },
+    suggestedPrompts: {
+      type: 'array' as const,
+      items: { type: 'string' as const },
+      maxItems: 4,
+    },
+    proposedConfig: simulationConfigToolSchema,
+    sections: {
+      type: 'array' as const,
+      items: simulationViewSectionToolSchema,
+      maxItems: 10,
+    },
+  },
+  required: ['mode', 'summary', 'sections'],
+  additionalProperties: false,
+} as const
 
 /** All tool definitions for Claude tool_use */
 export function buildTools(): Anthropic.Messages.Tool[] {
@@ -41,9 +249,7 @@ export function buildTools(): Anthropic.Messages.Tool[] {
     mapBlockSchema,
     timeSeriesBlockSchema,
   ].map(s => toToolSchema(s))
-  const simulationViewSchema = toToolSchema(simulationViewSpecSchema)
-
-  return [
+  const tools: Anthropic.Messages.Tool[] = [
     {
       name: 'search_topic_cards',
       description:
@@ -183,11 +389,11 @@ export function buildTools(): Anthropic.Messages.Tool[] {
           },
           validators: {
             type: 'integer',
-            description: 'Validator count between 25 and 1000.',
+            description: 'Validator count between 1 and 1000.',
           },
           slots: {
             type: 'integer',
-            description: 'Number of slots between 50 and 10000.',
+            description: 'Number of slots between 1 and 10000.',
           },
           distribution: {
             type: 'string',
@@ -225,9 +431,9 @@ export function buildTools(): Anthropic.Messages.Tool[] {
       description:
         'Compose a simulation-specific view specification without inventing UI code or raw chart data. ' +
         'Use this as the FINAL step for Simulation Lab questions. ' +
-        'Reference only supported metrics and known artifact names from the exact simulation manifest. ' +
+        'Reference only supported metrics, summary charts, artifact bundles, and known artifact names from the exact simulation manifest. ' +
         'If the question is outside bounds, return guidance and suggested prompts instead of fabricating a run.',
-      input_schema: simulationViewSchema,
+      input_schema: simulationViewToolSchema,
     },
     {
       name: 'render_blocks',
@@ -281,4 +487,10 @@ export function buildTools(): Anthropic.Messages.Tool[] {
       },
     },
   ]
+
+  for (const tool of tools) {
+    assertObjectRootSchema(tool.name, tool.input_schema as Record<string, unknown>)
+  }
+
+  return tools
 }

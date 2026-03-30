@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, startTransition } from 'react'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query'
 import { motion } from 'framer-motion'
-import { Activity, Ban, Check, Clock3, Copy, Database, FlaskConical, Play, RotateCcw, Rows3, Sparkles } from 'lucide-react'
+import { Ban, Check, Copy, Play, RotateCcw, Sparkles } from 'lucide-react'
 import { BlockCanvas } from '../components/explore/BlockCanvas'
 import { cn } from '../lib/cn'
 import {
@@ -16,8 +16,10 @@ import {
   type SimulationConfig,
   type SimulationJob,
 } from '../lib/simulation-api'
+import { buildSimulationArtifactBundle } from '../lib/simulation-artifact-blocks'
 import { SPRING } from '../lib/theme'
 import type { Block } from '../types/blocks'
+import type { SimulationArtifactBundle } from '../types/simulation-view'
 
 interface WorkerSuccess {
   readonly id: number
@@ -88,6 +90,43 @@ const SLOT_OPTIONS = [
   { label: '8s', value: 8 },
   { label: '12s', value: 12 },
 ]
+
+const OVERVIEW_BUNDLES: ReadonlyArray<{
+  bundle: SimulationArtifactBundle
+  label: string
+  description: string
+}> = [
+  {
+    bundle: 'core-outcomes',
+    label: 'Core outcomes',
+    description: 'MEV, supermajority success, and failed proposal trends.',
+  },
+  {
+    bundle: 'timing-and-attestation',
+    label: 'Timing and attestations',
+    description: 'Proposal latency and aggregate attestation behavior.',
+  },
+  {
+    bundle: 'geography-overview',
+    label: 'Geography',
+    description: 'Final regional concentration and top-region table.',
+  },
+]
+
+const BUNDLE_ARTIFACT_NAMES: Record<SimulationArtifactBundle, readonly string[]> = {
+  'core-outcomes': [
+    'avg_mev.json',
+    'supermajority_success.json',
+    'failed_block_proposals.json',
+  ],
+  'timing-and-attestation': [
+    'proposal_time_avg.json',
+    'attestation_sum.json',
+  ],
+  'geography-overview': [
+    'top_regions_final.json',
+  ],
+}
 
 const COPY_RESET_DELAY_MS = 1600
 
@@ -174,7 +213,9 @@ export function SimulationLabPage() {
   const [clientId] = useState(readOrCreateClientId)
   const [currentJobId, setCurrentJobId] = useState<string | null>(null)
   const [selectedArtifactName, setSelectedArtifactName] = useState<string | null>(null)
+  const [selectedBundle, setSelectedBundle] = useState<SimulationArtifactBundle>('core-outcomes')
   const [parsedBlocks, setParsedBlocks] = useState<readonly Block[]>([])
+  const [parsedArtifactCache, setParsedArtifactCache] = useState<Record<string, readonly Block[]>>({})
   const [parseError, setParseError] = useState<string | null>(null)
   const [isParsing, setIsParsing] = useState(false)
   const [copyState, setCopyState] = useState<'config' | 'run' | null>(null)
@@ -213,6 +254,10 @@ export function SimulationLabPage() {
     }
   }, [currentJobId, queryClient])
 
+  useEffect(() => {
+    setCopilotResponse(null)
+  }, [currentJobId])
+
   const updateConfig = <K extends keyof SimulationConfig>(key: K, value: SimulationConfig[K]) => {
     setConfig(previous => ({ ...previous, [key]: value }))
   }
@@ -233,8 +278,10 @@ export function SimulationLabPage() {
         queryClient.setQueryData(['simulation-manifest', job.id], job.manifest)
       }
       setCurrentJobId(job.id)
+      setSelectedBundle('core-outcomes')
       setSelectedArtifactName(null)
       setParsedBlocks([])
+      setParsedArtifactCache({})
       setParseError(null)
     },
   })
@@ -270,6 +317,44 @@ export function SimulationLabPage() {
   })
 
   const manifest = jobQuery.data?.manifest ?? manifestQuery.data ?? null
+  const eagerArtifacts = useMemo(
+    () => manifest?.artifacts.filter(artifact => artifact.renderable && !artifact.lazy) ?? [],
+    [manifest],
+  )
+
+  const eagerArtifactQueries = useQueries({
+    queries: eagerArtifacts.map(artifact => ({
+      queryKey: ['simulation-artifact', currentJobId, artifact.name],
+      queryFn: () => getSimulationArtifact(currentJobId!, artifact.name),
+      enabled: Boolean(currentJobId),
+      staleTime: Infinity,
+    })),
+  })
+
+  const eagerArtifactTexts = useMemo(() => {
+    const entries = eagerArtifacts.flatMap((artifact, index) => {
+      const rawText = eagerArtifactQueries[index]?.data
+      return typeof rawText === 'string'
+        ? [[artifact.name, rawText] as const]
+        : []
+    })
+
+    return Object.fromEntries(entries) as Partial<Record<SimulationArtifact['name'], string>>
+  }, [eagerArtifactQueries, eagerArtifacts])
+
+  const overviewBlocks = useMemo(
+    () => buildSimulationArtifactBundle(selectedBundle, eagerArtifactTexts),
+    [eagerArtifactTexts, selectedBundle],
+  )
+
+  const isOverviewLoading = useMemo(() => {
+    const relevantArtifacts = BUNDLE_ARTIFACT_NAMES[selectedBundle]
+    return relevantArtifacts.some(artifactName => {
+      const artifactIndex = eagerArtifacts.findIndex(artifact => artifact.name === artifactName)
+      if (artifactIndex < 0) return false
+      return eagerArtifactQueries[artifactIndex]?.isFetching ?? false
+    })
+  }, [eagerArtifactQueries, eagerArtifacts, selectedBundle])
 
   useEffect(() => {
     if (!manifest) return
@@ -290,9 +375,20 @@ export function SimulationLabPage() {
     queryFn: () => getSimulationArtifact(currentJobId!, selectedArtifactName!),
     enabled: Boolean(currentJobId && selectedArtifactName && selectedArtifact?.renderable),
   })
+  const selectedArtifactRawText = selectedArtifactName
+    ? eagerArtifactTexts[selectedArtifactName] ?? artifactQuery.data ?? null
+    : null
 
   useEffect(() => {
-    if (!artifactQuery.data || !selectedArtifact || !workerRef.current) {
+    if (!selectedArtifact || !selectedArtifactRawText || !workerRef.current) {
+      return
+    }
+
+    const cachedBlocks = parsedArtifactCache[selectedArtifact.name]
+    if (cachedBlocks) {
+      setParsedBlocks(cachedBlocks)
+      setParseError(null)
+      setIsParsing(false)
       return
     }
 
@@ -305,7 +401,12 @@ export function SimulationLabPage() {
       if (event.data.id !== requestId) return
       worker.removeEventListener('message', handleMessage as EventListener)
       if (event.data.ok) {
-        setParsedBlocks(event.data.blocks)
+        const nextBlocks = event.data.blocks
+        setParsedBlocks(nextBlocks)
+        setParsedArtifactCache(previous => ({
+          ...previous,
+          [selectedArtifact.name]: nextBlocks,
+        }))
         setParseError(null)
       } else {
         setParsedBlocks([])
@@ -322,13 +423,13 @@ export function SimulationLabPage() {
         label: selectedArtifact.label,
         kind: selectedArtifact.kind,
       },
-      rawText: artifactQuery.data,
+      rawText: selectedArtifactRawText,
     })
 
     return () => {
       worker.removeEventListener('message', handleMessage as EventListener)
     }
-  }, [artifactQuery.data, selectedArtifact])
+  }, [parsedArtifactCache, selectedArtifact, selectedArtifactRawText])
 
   const status = submitMutation.isPending
     ? 'submitting'
@@ -376,15 +477,21 @@ export function SimulationLabPage() {
 
   return (
     <div>
-      <div className="flex items-center gap-2 mb-6">
-        <FlaskConical className="w-4 h-4 text-accent" />
-        <span className="text-xs text-muted uppercase tracking-wider font-medium">
-          Simulation Lab — exact mode with async caching
-        </span>
+      <div className="mb-8">
+        <div className="flex items-center gap-2 mb-2">
+          <span className="w-2 h-2 rounded-full bg-accent" />
+          <span className="text-xs text-muted">Simulation lab</span>
+        </div>
+        <h1 className="text-xl font-semibold text-text-primary">
+          Run exact-mode simulations with async caching.
+        </h1>
+        <p className="mt-2 text-sm text-muted max-w-2xl">
+          Configure parameters, pick a preset, and run exact replications of paper scenarios. Results are cached and shareable.
+        </p>
       </div>
 
       <div className="mb-6">
-        <span className="text-[10px] text-muted uppercase tracking-wider font-medium mb-2 block">
+        <span className="text-xs text-muted mb-2 block">
           Quick presets
         </span>
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
@@ -392,19 +499,19 @@ export function SimulationLabPage() {
             <button
               key={preset.label}
               onClick={() => applyPreset(preset.config)}
-              className="text-left glass-1 rounded-lg p-2.5 hover:border-accent/30 transition-all"
+              className="text-left bg-white border border-border-subtle rounded-lg p-2.5 hover:border-border-hover transition-all"
             >
               <div className="text-xs font-medium text-text-primary">{preset.label}</div>
-              <div className="text-[10px] text-muted">{preset.description}</div>
+              <div className="text-xs text-muted">{preset.description}</div>
             </button>
           ))}
         </div>
       </div>
 
-      <div className="glass-1 rounded-lg p-5 mb-6">
+      <div className="bg-white border border-border-subtle rounded-lg p-5 mb-6">
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
-            <label className="text-[10px] text-muted uppercase tracking-wider font-medium mb-1.5 block">
+            <label className="text-xs text-muted mb-1.5 block">
               Paradigm
             </label>
             <div className="flex gap-1">
@@ -416,9 +523,9 @@ export function SimulationLabPage() {
                     'flex-1 py-1.5 rounded-lg text-xs font-medium transition-all',
                     config.paradigm === paradigm
                       ? paradigm === 'SSP'
-                        ? 'bg-accent/20 text-accent border border-accent/30'
-                        : 'bg-accent-warm/20 text-accent-warm border border-accent-warm/30'
-                      : 'bg-surface/50 text-muted border border-border-subtle hover:border-white/10',
+                        ? 'bg-white text-accent border border-accent'
+                        : 'bg-white text-accent-warm border border-accent-warm'
+                      : 'bg-white text-muted border border-border-subtle hover:border-border-hover',
                   )}
                 >
                   {paradigm}
@@ -428,13 +535,13 @@ export function SimulationLabPage() {
           </div>
 
           <div>
-            <label className="text-[10px] text-muted uppercase tracking-wider font-medium mb-1.5 block">
+            <label className="text-xs text-muted mb-1.5 block">
               Validator Distribution
             </label>
             <select
               value={config.distribution}
               onChange={event => updateConfig('distribution', event.target.value as SimulationConfig['distribution'])}
-              className="w-full bg-surface/50 border border-border-subtle rounded-lg px-3 py-1.5 text-xs text-text-primary outline-none focus:border-accent/30"
+              className="w-full bg-white border border-border-subtle rounded-lg px-3 py-1.5 text-xs text-text-primary outline-none focus:ring-1 focus:ring-accent"
             >
               <option value="homogeneous">Homogeneous (upstream baseline default)</option>
               <option value="homogeneous-gcp">Homogeneous per GCP region</option>
@@ -444,13 +551,13 @@ export function SimulationLabPage() {
           </div>
 
           <div>
-            <label className="text-[10px] text-muted uppercase tracking-wider font-medium mb-1.5 block">
+            <label className="text-xs text-muted mb-1.5 block">
               Information Source Placement
             </label>
             <select
               value={config.sourcePlacement}
               onChange={event => updateConfig('sourcePlacement', event.target.value as SimulationConfig['sourcePlacement'])}
-              className="w-full bg-surface/50 border border-border-subtle rounded-lg px-3 py-1.5 text-xs text-text-primary outline-none focus:border-accent/30"
+              className="w-full bg-white border border-border-subtle rounded-lg px-3 py-1.5 text-xs text-text-primary outline-none focus:ring-1 focus:ring-accent"
             >
               <option value="homogeneous">Homogeneous</option>
               <option value="latency-aligned">Latency-aligned</option>
@@ -459,7 +566,7 @@ export function SimulationLabPage() {
           </div>
 
           <div>
-            <label className="text-[10px] text-muted uppercase tracking-wider font-medium mb-1.5 block">
+            <label className="text-xs text-muted mb-1.5 block">
               Seed
             </label>
             <input
@@ -468,12 +575,12 @@ export function SimulationLabPage() {
               min={0}
               max={2147483647}
               onChange={event => updateConfig('seed', Number(event.target.value))}
-              className="w-full bg-surface/50 border border-border-subtle rounded-lg px-3 py-1.5 text-xs text-text-primary outline-none focus:border-accent/30"
+              className="w-full bg-white border border-border-subtle rounded-lg px-3 py-1.5 text-xs text-text-primary outline-none focus:ring-1 focus:ring-accent"
             />
           </div>
 
           <div>
-            <label className="text-[10px] text-muted uppercase tracking-wider font-medium mb-1.5 block">
+            <label className="text-xs text-muted mb-1.5 block">
               Validators
             </label>
             <input
@@ -483,13 +590,13 @@ export function SimulationLabPage() {
               step={1}
               value={config.validators}
               onChange={event => updateConfig('validators', Number(event.target.value))}
-              className="w-full bg-surface/50 border border-border-subtle rounded-lg px-3 py-1.5 text-xs text-text-primary outline-none focus:border-accent/30"
+              className="w-full bg-white border border-border-subtle rounded-lg px-3 py-1.5 text-xs text-text-primary outline-none focus:ring-1 focus:ring-accent"
             />
-            <div className="mt-1 text-[10px] text-muted">Upstream defaults and paper baselines use 1,000 validators.</div>
+            <div className="mt-1 text-xs text-muted">Upstream defaults and paper baselines use 1,000 validators.</div>
           </div>
 
           <div>
-            <label className="text-[10px] text-muted uppercase tracking-wider font-medium mb-1.5 block">
+            <label className="text-xs text-muted mb-1.5 block">
               Slots
             </label>
             <input
@@ -499,13 +606,13 @@ export function SimulationLabPage() {
               step={1}
               value={config.slots}
               onChange={event => updateConfig('slots', Number(event.target.value))}
-              className="w-full bg-surface/50 border border-border-subtle rounded-lg px-3 py-1.5 text-xs text-text-primary outline-none focus:border-accent/30"
+              className="w-full bg-white border border-border-subtle rounded-lg px-3 py-1.5 text-xs text-text-primary outline-none focus:ring-1 focus:ring-accent"
             />
-            <div className="mt-1 text-[10px] text-muted">The upstream presets run up to 10,000 slots; shorter runs remain exact but are noisier.</div>
+            <div className="mt-1 text-xs text-muted">The upstream presets run up to 10,000 slots; shorter runs remain exact but are noisier.</div>
           </div>
 
           <div>
-            <label className="text-[10px] text-muted uppercase tracking-wider font-medium mb-1.5 block">
+            <label className="text-xs text-muted mb-1.5 block">
               Migration Cost: {config.migrationCost.toFixed(4)} ETH
             </label>
             <input
@@ -517,14 +624,14 @@ export function SimulationLabPage() {
               onChange={event => updateConfig('migrationCost', Number(event.target.value))}
               className="w-full accent-accent"
             />
-            <div className="flex justify-between text-[9px] text-muted/40">
+            <div className="flex justify-between text-xs text-text-faint">
               <span>0</span>
               <span>0.005</span>
             </div>
           </div>
 
           <div>
-            <label className="text-[10px] text-muted uppercase tracking-wider font-medium mb-1.5 block">
+            <label className="text-xs text-muted mb-1.5 block">
               Attestation Threshold (γ)
             </label>
             <div className="flex gap-1">
@@ -535,8 +642,8 @@ export function SimulationLabPage() {
                   className={cn(
                     'flex-1 py-1.5 rounded-lg text-xs font-medium transition-all',
                     Math.abs(config.attestationThreshold - option.value) < 0.01
-                      ? 'bg-accent/20 text-accent border border-accent/30'
-                      : 'bg-surface/50 text-muted border border-border-subtle hover:border-white/10',
+                      ? 'bg-white text-accent border border-accent'
+                      : 'bg-white text-muted border border-border-subtle hover:border-border-hover',
                   )}
                 >
                   {option.label}
@@ -546,7 +653,7 @@ export function SimulationLabPage() {
           </div>
 
           <div>
-            <label className="text-[10px] text-muted uppercase tracking-wider font-medium mb-1.5 block">
+            <label className="text-xs text-muted mb-1.5 block">
               Slot Time (Δ)
             </label>
             <div className="flex gap-1">
@@ -557,8 +664,8 @@ export function SimulationLabPage() {
                   className={cn(
                     'flex-1 py-1.5 rounded-lg text-xs font-medium transition-all',
                     config.slotTime === option.value
-                      ? 'bg-accent/20 text-accent border border-accent/30'
-                      : 'bg-surface/50 text-muted border border-border-subtle hover:border-white/10',
+                      ? 'bg-white text-accent border border-accent'
+                      : 'bg-white text-muted border border-border-subtle hover:border-border-hover',
                   )}
                 >
                   {option.label}
@@ -604,7 +711,7 @@ export function SimulationLabPage() {
 
           <div className="flex-1" />
 
-          <div className="text-[10px] text-muted/70 text-right">
+          <div className="text-xs text-text-faint text-right">
             <div className="flex items-center gap-1 justify-end">
               <Sparkles className="w-3 h-3" />
               Exact mode only
@@ -620,11 +727,11 @@ export function SimulationLabPage() {
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
           transition={SPRING}
-          className="glass-1 rounded-lg p-5 mb-6"
+          className="bg-white border border-border-subtle rounded-lg p-5 mb-6"
         >
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
             <div>
-              <div className="text-[10px] text-muted uppercase tracking-wider font-medium mb-1">
+              <div className="text-xs text-muted mb-1">
                 Job status
               </div>
               <div className="text-sm font-medium text-text-primary">
@@ -641,11 +748,11 @@ export function SimulationLabPage() {
             {jobQuery.data && (
               <div className="grid grid-cols-2 gap-3 text-xs text-muted min-w-[220px]">
                 <div>
-                  <span className="block text-[10px] uppercase tracking-wider text-muted/70">Queue</span>
+                  <span className="block text-xs text-text-faint">Queue</span>
                   {jobQuery.data.queuePosition ?? 'live'}
                 </div>
                 <div>
-                  <span className="block text-[10px] uppercase tracking-wider text-muted/70">Cache</span>
+                  <span className="block text-xs text-text-faint">Cache</span>
                   {jobQuery.data.cacheHit ? 'hit' : 'fresh'}
                 </div>
               </div>
@@ -662,10 +769,10 @@ export function SimulationLabPage() {
         </motion.div>
       )}
 
-      <div className="glass-1 rounded-lg p-5 mb-6">
+      <div className="bg-white border border-border-subtle rounded-lg p-5 mb-6">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
           <div>
-            <div className="text-[10px] text-muted uppercase tracking-wider font-medium mb-1">
+            <div className="text-xs text-muted mb-1">
               Simulation copilot
             </div>
             <div className="text-sm text-text-primary">
@@ -688,7 +795,7 @@ export function SimulationLabPage() {
             placeholder={manifest
               ? 'Example: Show avg_mev, then supermajority_success, then explain the top regions.'
               : 'Example: What exact run should I use to compare SSP and MSP under shorter slot times?'}
-            className="min-h-[92px] flex-1 resize-y bg-surface/50 border border-border-subtle rounded-lg px-3 py-2 text-sm text-text-primary outline-none focus:border-accent/30"
+            className="min-h-[92px] flex-1 resize-y bg-white border border-border-subtle rounded-lg px-3 py-2 text-sm text-text-primary outline-none focus:ring-1 focus:ring-accent"
           />
 
           <div className="flex flex-col gap-2 lg:w-48">
@@ -707,7 +814,7 @@ export function SimulationLabPage() {
             {copilotResponse?.proposedConfig && (
               <button
                 onClick={() => setConfig({ ...copilotResponse.proposedConfig! })}
-                className="rounded-lg border border-border-subtle bg-surface/60 px-3 py-2 text-xs text-text-primary hover:border-accent/30 transition-colors"
+                className="rounded-lg border border-border-subtle bg-white px-3 py-2 text-xs text-text-primary hover:border-border-hover transition-colors"
               >
                 Apply proposed config
               </button>
@@ -723,7 +830,7 @@ export function SimulationLabPage() {
                 setCopilotQuestion(prompt)
                 copilotMutation.mutate(prompt)
               }}
-              className="rounded-full border border-border-subtle bg-surface/60 px-3 py-1.5 text-[11px] text-muted hover:border-accent/30 hover:text-text-primary transition-colors"
+              className="text-xs text-muted hover:text-text-primary transition-colors"
             >
               {prompt}
             </button>
@@ -738,15 +845,25 @@ export function SimulationLabPage() {
 
         {copilotResponse && (
           <div className="mt-5 space-y-4">
-            <div className="rounded-xl border border-border-subtle bg-surface/40 px-4 py-3">
-              <div className="text-[10px] text-muted uppercase tracking-wider font-medium mb-1">
+            <div className="border-l-2 border-warning pl-4 py-2">
+              <div className="flex items-center gap-1.5 text-xs font-medium text-text-primary mb-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-warning" />
+                {copilotResponse.truthBoundary.label}
+              </div>
+              <div className="text-xs text-muted">
+                {copilotResponse.truthBoundary.detail}
+              </div>
+            </div>
+
+            <div className="rounded-lg border border-border-subtle bg-white px-4 py-3">
+              <div className="text-xs text-muted mb-1">
                 Copilot summary
               </div>
               <div className="text-sm text-text-primary">{copilotResponse.summary}</div>
               {copilotResponse.guidance && (
                 <div className="mt-2 text-xs text-muted">{copilotResponse.guidance}</div>
               )}
-              <div className="mt-2 text-[10px] text-muted">
+              <div className="mt-2 text-xs text-muted">
                 {copilotResponse.mode === 'proposed-run'
                   ? 'Proposed bounded run'
                   : copilotResponse.mode === 'guidance'
@@ -759,19 +876,19 @@ export function SimulationLabPage() {
             {copilotResponse.proposedConfig && (
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs text-muted">
                 <div>
-                  <span className="block text-[10px] uppercase tracking-wider text-muted/70">Paradigm</span>
+                  <span className="block text-xs text-text-faint">Paradigm</span>
                   {copilotResponse.proposedConfig.paradigm}
                 </div>
                 <div>
-                  <span className="block text-[10px] uppercase tracking-wider text-muted/70">Distribution</span>
+                  <span className="block text-xs text-text-faint">Distribution</span>
                   {copilotResponse.proposedConfig.distribution}
                 </div>
                 <div>
-                  <span className="block text-[10px] uppercase tracking-wider text-muted/70">Validators</span>
+                  <span className="block text-xs text-text-faint">Validators</span>
                   {copilotResponse.proposedConfig.validators.toLocaleString()}
                 </div>
                 <div>
-                  <span className="block text-[10px] uppercase tracking-wider text-muted/70">Slots</span>
+                  <span className="block text-xs text-text-faint">Slots</span>
                   {copilotResponse.proposedConfig.slots.toLocaleString()}
                 </div>
               </div>
@@ -784,52 +901,41 @@ export function SimulationLabPage() {
 
       {manifest && (
         <>
-          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3 mb-6">
-            <div className="bg-surface border border-border-subtle rounded-xl p-4">
-              <div className="flex items-center gap-2 text-[10px] uppercase tracking-wider text-muted mb-2">
-                <Activity className="w-3 h-3" />
-                Avg MEV
+          <div className="grid grid-cols-2 xl:grid-cols-4 gap-3 mb-6">
+            <div className="bg-white border border-border-subtle rounded-lg p-4">
+              <div className="text-xs text-muted mb-2">Avg MEV</div>
+              <div className="text-2xl font-semibold text-text-primary">
+                {formatNumber(manifest.summary.finalAverageMev, 4)}
               </div>
-              <div className="text-2xl font-semibold text-accent">
-                {formatNumber(manifest.summary.finalAverageMev, 4)} ETH
-              </div>
+              <div className="text-xs text-muted mt-1">ETH</div>
             </div>
 
-            <div className="bg-surface border border-border-subtle rounded-xl p-4">
-              <div className="flex items-center gap-2 text-[10px] uppercase tracking-wider text-muted mb-2">
-                <Rows3 className="w-3 h-3" />
-                Supermajority
-              </div>
+            <div className="bg-white border border-border-subtle rounded-lg p-4">
+              <div className="text-xs text-muted mb-2">Supermajority</div>
               <div className="text-2xl font-semibold text-text-primary">
                 {formatNumber(manifest.summary.finalSupermajoritySuccess, 2)}%
               </div>
             </div>
 
-            <div className="bg-surface border border-border-subtle rounded-xl p-4">
-              <div className="flex items-center gap-2 text-[10px] uppercase tracking-wider text-muted mb-2">
-                <Clock3 className="w-3 h-3" />
-                Runtime
-              </div>
+            <div className="bg-white border border-border-subtle rounded-lg p-4">
+              <div className="text-xs text-muted mb-2">Runtime</div>
               <div className="text-2xl font-semibold text-text-primary">
                 {formatNumber(manifest.runtimeSeconds, 2)}s
               </div>
             </div>
 
-            <div className="bg-surface border border-border-subtle rounded-xl p-4">
-              <div className="flex items-center gap-2 text-[10px] uppercase tracking-wider text-muted mb-2">
-                <Database className="w-3 h-3" />
-                Slots
-              </div>
+            <div className="bg-white border border-border-subtle rounded-lg p-4">
+              <div className="text-xs text-muted mb-2">Slots</div>
               <div className="text-2xl font-semibold text-text-primary">
                 {manifest.summary.slotsRecorded.toLocaleString()}
               </div>
             </div>
           </div>
 
-          <div className="glass-1 rounded-lg p-5 mb-6">
+          <div className="bg-white border border-border-subtle rounded-lg p-5 mb-6">
             <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
               <div>
-                <div className="text-[10px] text-muted uppercase tracking-wider font-medium mb-1">
+                <div className="text-xs text-muted mb-1">
                   Run provenance
                 </div>
                 <div className="text-sm text-text-primary">
@@ -844,8 +950,9 @@ export function SimulationLabPage() {
                   {paperScenarioLabels(manifest.config).map(label => (
                     <span
                       key={label}
-                      className="inline-flex items-center gap-1 rounded-full border border-accent/20 bg-accent/10 px-2.5 py-1 text-[10px] font-medium uppercase tracking-wider text-accent"
+                      className="inline-flex items-center gap-1.5 text-xs text-muted"
                     >
+                      <span className="w-1.5 h-1.5 rounded-full bg-accent" />
                       {label}
                     </span>
                   ))}
@@ -855,14 +962,14 @@ export function SimulationLabPage() {
               <div className="flex flex-wrap gap-2">
                 <button
                   onClick={() => copyToClipboard(JSON.stringify(manifest.config, null, 2), 'config')}
-                  className="inline-flex items-center gap-1.5 rounded-lg border border-border-subtle bg-surface/60 px-3 py-2 text-xs text-text-primary hover:border-accent/30 transition-colors"
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-border-subtle bg-white px-3 py-2 text-xs text-text-primary hover:border-border-hover transition-colors"
                 >
                   {copyState === 'config' ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
                   {copyState === 'config' ? 'Copied config' : 'Copy config JSON'}
                 </button>
                 <button
                   onClick={() => copyToClipboard(buildRunSummary(manifest), 'run')}
-                  className="inline-flex items-center gap-1.5 rounded-lg border border-border-subtle bg-surface/60 px-3 py-2 text-xs text-text-primary hover:border-accent/30 transition-colors"
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-border-subtle bg-white px-3 py-2 text-xs text-text-primary hover:border-border-hover transition-colors"
                 >
                   {copyState === 'run' ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
                   {copyState === 'run' ? 'Copied summary' : 'Copy run summary'}
@@ -872,35 +979,85 @@ export function SimulationLabPage() {
 
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-4 text-xs text-muted">
               <div>
-                <span className="block text-[10px] uppercase tracking-wider text-muted/70">Seed</span>
+                <span className="block text-xs text-text-faint">Seed</span>
                 {manifest.config.seed}
               </div>
               <div>
-                <span className="block text-[10px] uppercase tracking-wider text-muted/70">Validators</span>
+                <span className="block text-xs text-text-faint">Validators</span>
                 {manifest.config.validators.toLocaleString()}
               </div>
               <div>
-                <span className="block text-[10px] uppercase tracking-wider text-muted/70">Slots</span>
+                <span className="block text-xs text-text-faint">Slots</span>
                 {manifest.config.slots.toLocaleString()}
               </div>
               <div>
-                <span className="block text-[10px] uppercase tracking-wider text-muted/70">Cache key</span>
+                <span className="block text-xs text-text-faint">Cache key</span>
                 {manifest.cacheKey.slice(0, 12)}
               </div>
             </div>
           </div>
 
-          <div className="glass-1 rounded-lg p-5 mb-6">
+          <div className="bg-white border border-border-subtle rounded-lg p-5 mb-6">
             <div className="flex items-center justify-between gap-3 mb-4">
               <div>
-                <div className="text-[10px] text-muted uppercase tracking-wider font-medium mb-1">
+                <div className="text-xs text-muted mb-1">
+                  Exact overview
+                </div>
+                <div className="text-sm text-text-primary">
+                  Multi-chart bundles built from manifest-ready exact artifacts.
+                </div>
+              </div>
+              <div className="text-xs text-muted">
+                Prefetched in parallel from the current exact run
+              </div>
+            </div>
+
+            <div className="flex flex-wrap gap-2 mb-4">
+              {OVERVIEW_BUNDLES.map(option => (
+                <button
+                  key={option.bundle}
+                  onClick={() => startTransition(() => setSelectedBundle(option.bundle))}
+                  className={cn(
+                    'rounded-lg border px-3 py-2 text-left transition-colors',
+                    selectedBundle === option.bundle
+                      ? 'border-accent bg-white'
+                      : 'border-border-subtle bg-white hover:border-border-hover',
+                  )}
+                >
+                  <div className="text-xs font-medium text-text-primary">{option.label}</div>
+                  <div className="text-xs text-muted">{option.description}</div>
+                </button>
+              ))}
+            </div>
+
+            {isOverviewLoading && overviewBlocks.length === 0 && (
+              <div className="py-12 text-sm text-muted text-center">
+                Preparing exact overview charts…
+              </div>
+            )}
+
+            {!isOverviewLoading && overviewBlocks.length > 0 && (
+              <BlockCanvas blocks={overviewBlocks} />
+            )}
+
+            {!isOverviewLoading && overviewBlocks.length === 0 && (
+              <div className="py-12 text-sm text-muted text-center">
+                This overview bundle is still waiting on exact artifacts from the current run.
+              </div>
+            )}
+          </div>
+
+          <div className="bg-white border border-border-subtle rounded-lg p-5 mb-6">
+            <div className="flex items-center justify-between gap-3 mb-4">
+              <div>
+                <div className="text-xs text-muted mb-1">
                   Artifact manifest
                 </div>
                 <div className="text-sm text-text-primary">
                   Summary data is already loaded. Pick a compact derived artifact or a raw export.
                 </div>
               </div>
-              <div className="text-[10px] text-muted text-right">
+              <div className="text-xs text-muted text-right">
                 {manifest.cacheHit ? 'Served from exact cache' : 'Fresh exact run'}
               </div>
             </div>
@@ -912,10 +1069,10 @@ export function SimulationLabPage() {
                   onClick={() => onSelectArtifact(artifact.name)}
                   disabled={!artifact.renderable}
                   className={cn(
-                    'text-left rounded-xl border px-4 py-3 transition-all',
+                    'text-left rounded-lg border px-4 py-3 transition-all',
                     selectedArtifactName === artifact.name
-                      ? 'border-accent/40 bg-accent/10'
-                      : 'border-border-subtle bg-surface/60 hover:border-white/10',
+                      ? 'border-accent bg-white'
+                      : 'border-border-subtle bg-white hover:border-border-hover',
                     !artifact.renderable && 'opacity-60 cursor-not-allowed',
                   )}
                 >
@@ -924,12 +1081,12 @@ export function SimulationLabPage() {
                       <div className="text-sm font-medium text-text-primary">{artifact.label}</div>
                       <div className="text-xs text-muted mt-1">{artifact.description}</div>
                     </div>
-                    <div className="text-[10px] text-muted whitespace-nowrap">
+                    <div className="text-xs text-muted whitespace-nowrap">
                       {artifact.lazy ? 'lazy' : 'ready'}
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-3 mt-3 text-[10px] text-muted">
+                  <div className="flex items-center gap-3 mt-3 text-xs text-muted">
                     <span>{formatBytes(artifact.bytes)}</span>
                     {artifact.gzipBytes != null && <span>gzip {formatBytes(artifact.gzipBytes)}</span>}
                     <span>{artifact.kind}</span>
@@ -939,10 +1096,10 @@ export function SimulationLabPage() {
             </div>
           </div>
 
-          <div className="glass-1 rounded-lg p-5">
+          <div className="bg-white border border-border-subtle rounded-lg p-5">
             <div className="flex items-center justify-between gap-3 mb-4">
               <div>
-                <div className="text-[10px] text-muted uppercase tracking-wider font-medium mb-1">
+                <div className="text-xs text-muted mb-1">
                   Rendered artifact
                 </div>
                 <div className="text-sm text-text-primary">
@@ -950,13 +1107,13 @@ export function SimulationLabPage() {
                 </div>
               </div>
               {selectedArtifact && (
-                <div className="text-[10px] text-muted">
+                <div className="text-xs text-muted">
                   {selectedArtifact.kind} · {selectedArtifact.lazy ? 'lazy-loaded' : 'manifest-ready'}
                 </div>
               )}
             </div>
 
-            {(artifactQuery.isFetching || isParsing) && (
+            {((artifactQuery.isFetching && !selectedArtifactRawText) || isParsing) && (
               <div className="py-12 text-sm text-muted text-center">
                 Parsing artifact in a browser worker…
               </div>

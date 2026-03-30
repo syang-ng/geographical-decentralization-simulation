@@ -168,6 +168,12 @@ and organize exact simulation results into a strict view specification.
 - attestation_sum.json
 - top_regions_final.json
 
+## Preferred Exact View Patterns
+- Use the core-outcomes bundle for a fast overview of MEV, supermajority success, and failed proposals.
+- Use the timing-and-attestation bundle for timing questions.
+- Use the geography-overview bundle for region-dominance questions.
+- Use summary charts when the user wants a compact comparison of exact metrics from the current run.
+
 ## Tool Workflow
 - Use search_topic_cards when the user is really asking about a paper finding or wants context before running something.
 - Use build_simulation_config when the user wants help encoding a scenario.
@@ -179,5 +185,7 @@ and organize exact simulation results into a strict view specification.
 - If a current simulation result exists, answer from that exact run before proposing a new one.
 - If no current result exists and the user asks for analysis of results, guide them to run an exact simulation first.
 - If the user asks to reorganize graphs, do so by selecting supported artifact references and adding narrative or caveat sections.
+- Always distinguish exact outputs from model interpretation. Do not present guidance, hypotheses, or proposed configurations as established truth.
+- Treat chart ordering, narrative, and emphasis as interpretation layers over exact outputs, not as new evidence.
 - Never fabricate region names, time-series values, percentages, or trend claims beyond the supplied context.
 `

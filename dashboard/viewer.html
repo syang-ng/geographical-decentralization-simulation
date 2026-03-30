@@ -5,53 +5,110 @@
   <meta name="viewport" content="width=device-width,initial-scale=1"/>
   <title>Simulation Viewer</title>
 
-  <!-- Optional: your unified CSS (keep if you have it) -->
-  <!-- <link rel="stylesheet" href="assets/viewer.css"/> -->
-
-  <!-- Plotly.js CDN -->
   <script src="https://cdn.plot.ly/plotly-3.1.0.min.js"></script>
-
   <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+  <script src="assets/research-catalog.js"></script>
 
   <style>
-    /* ===== Minimal built-in styles so it looks good even without external CSS ===== */
     :root {
-      --bg1: #0f1226; --bg2: #171a36; --bg3: #0b0f22;
+      --bg1: #f6efe4;
+      --bg2: #eadbc6;
+      --bg3: #fbf7f1;
+      --fg: #1a1f1c;
+      --muted: #4f5a55;
+      --brand: #d38b45;
+      --brand-2: #caa06c;
+      --paper: rgba(255,255,255,0.78);
+      --paper-strong: rgba(26,31,28,0.08);
+      --shadow: 0 16px 36px rgba(20,24,22,0.16);
       --grid-gap: 14px;
     }
+    html.dark {
+      --bg1: #0f1f1b;
+      --bg2: #112926;
+      --bg3: #0a1715;
+      --fg: #f3f3ef;
+      --muted: #c6cbbf;
+      --brand: #f4b267;
+      --brand-2: #5fd0c3;
+      --paper: rgba(255,255,255,0.08);
+      --paper-strong: rgba(255,255,255,0.16);
+      --shadow: 0 18px 40px rgba(0,0,0,0.35);
+    }
     html, body {
-      margin: 0; padding: 0; height: 100%;
-      font-family: system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
-      color: #0b1220;
+      margin: 0;
+      padding: 0;
+      height: 100%;
+      font-family: "Plus Jakarta Sans", "Avenir Next", "Segoe UI", sans-serif;
+      color: var(--fg);
       background:
-        radial-gradient(1200px 800px at 20% 10%, #20265b 0%, transparent 60%),
-        radial-gradient(1000px 700px at 80% 20%, #103b5f 0%, transparent 60%),
-        radial-gradient(1200px 900px at 50% 100%, #1b3266 0%, transparent 60%),
-        linear-gradient(160deg, var(--bg1), var(--bg2) 40%, var(--bg3) 100%);
+        radial-gradient(900px 600px at 15% 15%, rgba(203,162,112,0.18) 0%, transparent 60%),
+        radial-gradient(1000px 700px at 85% 10%, rgba(211,139,69,0.16) 0%, transparent 60%),
+        radial-gradient(1100px 900px at 50% 100%, rgba(155,120,86,0.14) 0%, transparent 60%),
+        linear-gradient(160deg, var(--bg1), var(--bg2) 45%, var(--bg3) 100%);
       transition: color .3s ease, background .3s ease;
     }
-    html.dark, html.dark body { color: #e8eaf6; }
-
-    .wrap { min-height: 100%; padding: 16px; max-width: 1500px; margin: 0 auto; }
-    .toolbar { display: flex; align-items: center; gap: 12px; margin-bottom: 8px; }
-    input[type="range"] { flex: 1; }
-
+    body::before,
+    body::after {
+      content: "";
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 0;
+      opacity: 0.6;
+    }
+    body::before {
+      background:
+        linear-gradient(115deg, transparent 0%, rgba(255,255,255,0.22) 45%, transparent 70%),
+        repeating-linear-gradient(0deg, rgba(255,255,255,0.18) 0 1px, transparent 1px 7px);
+      mix-blend-mode: screen;
+    }
+    html.dark body::before {
+      background:
+        linear-gradient(115deg, transparent 0%, rgba(255,255,255,0.05) 45%, transparent 70%),
+        repeating-linear-gradient(0deg, rgba(255,255,255,0.04) 0 1px, transparent 1px 5px);
+    }
+    body::after {
+      background:
+        radial-gradient(450px 300px at 8% 85%, rgba(211,139,69,0.24) 0%, transparent 60%),
+        radial-gradient(520px 340px at 92% 70%, rgba(203,162,112,0.22) 0%, transparent 60%);
+      filter: blur(1px);
+    }
+    html.dark body::after {
+      background:
+        radial-gradient(450px 300px at 8% 85%, rgba(244,178,103,0.25) 0%, transparent 60%),
+        radial-gradient(520px 340px at 92% 70%, rgba(95,208,195,0.2) 0%, transparent 60%);
+    }
+    .wrap {
+      min-height: 100%;
+      padding: 18px;
+      max-width: 1500px;
+      margin: 0 auto;
+      position: relative;
+      z-index: 1;
+    }
+    .toolbar {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 10px;
+      flex-wrap: wrap;
+    }
+    input[type="range"] {
+      flex: 1;
+      min-width: 180px;
+    }
     .card {
-      background: rgba(255,255,255,0.08);
-      border: 1px solid rgba(255,255,255,0.18);
-      border-radius: 12px;
-      padding: 12px;
-      box-shadow: 0 10px 30px rgba(0,0,0,0.20);
+      background: var(--paper);
+      border: 1px solid var(--paper-strong);
+      border-radius: 16px;
+      padding: 14px;
+      box-shadow: var(--shadow);
       backdrop-filter: blur(10px);
       -webkit-backdrop-filter: blur(10px);
       color: inherit;
     }
-    html.dark .card {
-      background: rgba(255,255,255,0.06);
-      border-color: rgba(255,255,255,0.16);
-    }
-
     .grid {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(420px, 1fr));
@@ -59,29 +116,117 @@
       margin-top: 12px;
     }
     .card.plot { height: 360px; padding: 8px 8px 4px 8px; }
+    .card.plot.wide { grid-column: 1 / -1; }
     #globe { height: 620px; }
-
     button {
-      border: 0; border-radius: 12px; padding: 10px 16px;
-      font-weight: 700; letter-spacing: .3px; cursor: pointer;
-      color: #0b1220;
-      background: linear-gradient(135deg, #7aa2ff, #6ae3ff);
-      box-shadow: 0 8px 20px rgba(122,162,255,0.35);
-      transition: transform .08s ease, filter .2s ease;
+      border: 0;
+      border-radius: 14px;
+      padding: 10px 16px;
+      font-weight: 700;
+      letter-spacing: .3px;
+      cursor: pointer;
+      color: #121916;
+      background: linear-gradient(135deg, var(--brand), var(--brand-2));
+      box-shadow: 0 10px 22px rgba(10,20,16,0.2);
+      transition: transform .08s ease, filter .2s ease, box-shadow .2s ease;
     }
     button:hover { filter: brightness(1.05); }
     button:active { transform: translateY(1px); }
-
-    .brand { display: flex; align-items: center; gap: 12px; margin-bottom: 8px; }
-    .brand .logo { width: 50px; height: 50px; border-radius: 12px; object-fit: contain;
-      background: rgba(255,255,255,0.12); border: 1px solid rgba(255,255,255,0.18); }
-    h1 { margin: 0; font-size: clamp(22px, 3vw, 32px); letter-spacing: .2px; }
-    .lead { margin: 6px 0 14px 0; opacity: .9; line-height: 1.6; }
+    html:not(.dark) button {
+      color: #1a1f1c;
+      background: linear-gradient(135deg, #e4bc8a, #cf9b63);
+      box-shadow: 0 10px 18px rgba(140,98,58,0.22);
+    }
+    html:not(.dark) button:hover {
+      filter: brightness(1.03);
+      box-shadow: 0 12px 22px rgba(140,98,58,0.26);
+    }
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 8px;
+    }
+    .brand .logo {
+      width: 50px;
+      height: 50px;
+      border-radius: 12px;
+      object-fit: contain;
+      background: rgba(255,255,255,0.14);
+      border: 1px solid rgba(255,255,255,0.22);
+    }
+    h1 {
+      margin: 0;
+      font-size: clamp(22px, 3vw, 34px);
+      letter-spacing: .3px;
+      font-family: "Fraunces", "Iowan Old Style", "Palatino Linotype", "Book Antiqua", serif;
+    }
+    .lead {
+      margin: 6px 0 14px 0;
+      color: var(--muted);
+      line-height: 1.6;
+    }
+    label {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      font-weight: 600;
+      color: var(--fg);
+    }
+    select {
+      border-radius: 12px;
+      border: 1px solid rgba(26,31,28,0.18);
+      padding: 8px 10px;
+      background: rgba(255,255,255,0.65);
+      color: inherit;
+    }
+    html.dark select {
+      border-color: rgba(255,255,255,0.22);
+      background: rgba(8,14,13,0.45);
+    }
+    select:focus {
+      outline: none;
+      border-color: var(--brand-2);
+      box-shadow: 0 0 0 3px rgba(95,208,195,0.2);
+    }
+    input[type="range"] {
+      appearance: none;
+      height: 6px;
+      border-radius: 999px;
+      background: rgba(26,31,28,0.15);
+      accent-color: var(--brand-2);
+    }
+    html.dark input[type="range"] {
+      background: rgba(255,255,255,0.2);
+    }
+    input[type="range"]::-webkit-slider-thumb {
+      appearance: none;
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      background: var(--brand-2);
+      border: 2px solid rgba(255,255,255,0.8);
+      box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+      cursor: pointer;
+    }
+    input[type="range"]::-moz-range-thumb {
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      background: var(--brand-2);
+      border: 2px solid rgba(255,255,255,0.8);
+      box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+      cursor: pointer;
+    }
+    @media (max-width: 900px) {
+      .toolbar { gap: 10px; }
+      .toolbar .brand { width: 100%; }
+      #globe { height: 460px; }
+    }
   </style>
 </head>
 <body>
 <div class="wrap">
-  <!-- Top controls -->
   <div class="toolbar card">
     <div class="brand">
       <img class="logo" src="assets/logo.jpg" alt="Logo">
@@ -101,62 +246,45 @@
     <button id="export" style="margin-right: 4px;">⬇ Export</button>
     <button id="theme">🌓 Theme</button>
   </div>
-
-  <!-- Info -->
+  <div id="desc" class="card lead" style="display:none"></div>
   <div id="info" class="card lead"></div>
-
-  <!-- Globe -->
   <div id="globe" class="card"></div>
-
-  <!-- Time series -->
   <div class="grid">
-    <div id="Gini"       class="card plot"></div>
-    <div id="HHI"      class="card plot"></div>
-    <div id="liveness"  class="card plot"></div>
-    <div id="CV"        class="card plot"></div>
-    <div id="clusters"   class="card plot"></div>
-    <div id="totaldist"  class="card plot"></div>
-    <div id="avgnnd"     class="card plot"></div>
-    <div id="nni"        class="card plot"></div>
-    <div id="mev"        class="card plot"></div>
-    <div id="attest"     class="card plot"></div>
-    <div id="failed"     class="card plot"></div>
-    <div id="proposal"   class="card plot"></div>
-    <div id="relaydist"  class="card plot"></div>
+    <div id="Gini" class="card plot"></div>
+    <div id="HHI" class="card plot"></div>
+    <div id="liveness" class="card plot"></div>
+    <div id="CV" class="card plot"></div>
+    <div id="clusters" class="card plot"></div>
+    <div id="totaldist" class="card plot"></div>
+    <div id="avgnnd" class="card plot"></div>
+    <div id="nni" class="card plot"></div>
+    <div id="mev" class="card plot"></div>
+    <div id="attest" class="card plot"></div>
+    <div id="failed" class="card plot"></div>
+    <div id="proposal" class="card plot"></div>
+    <div id="relaydist" class="card plot wide"></div>
   </div>
 </div>
 
 <script>
-/* ============================
-   URL + localStorage settings
-   ============================ */
-// Read settings from URL or localStorage (optional)
+const RESEARCH_CATALOG = window.RESEARCH_CATALOG || { datasets: [], defaultSelection: null };
+
 function readSettings() {
   const qs = new URLSearchParams(location.search);
   let ls = null;
   try { ls = JSON.parse(localStorage.getItem('app_settings') || 'null'); } catch (_) {}
 
-  function parseFiniteNumber(value) {
-    if (value == null || value === '') return undefined;
-    const parsed = Number(value);
-    return Number.isFinite(parsed) ? parsed : undefined;
-  }
-
   const base = {
-    dataset: 'simulations/test/SSP/data/data.json',
-    theme: 'auto',    // 'auto'|'light'|'dark'
+    dataset: RESEARCH_CATALOG.defaultSelection?.path || 'simulations/test/SSP/data/data.json',
+    theme: 'auto',
     step: 1,
-    autoplay: false,
-    decimation: 5,    // border decimation
-    density_radius: 0.2
+    autoplay: false
   };
   const fromQS = {
     dataset: qs.get('dataset') || undefined,
     theme: qs.get('theme') || undefined,
-    step: parseFiniteNumber(qs.get('step')),
-    autoplay: qs.get('autoplay') ? (qs.get('autoplay') === 'true') : undefined,
-    decimation: parseFiniteNumber(qs.get('decimation')),
-    density_radius: parseFiniteNumber(qs.get('density_radius') ?? qs.get('radius'))
+    step: qs.get('step') ? Number(qs.get('step')) : undefined,
+    autoplay: qs.get('autoplay') ? (qs.get('autoplay') === 'true') : undefined
   };
   return Object.assign(base, ls || {}, fromQS);
 }
@@ -165,11 +293,62 @@ const SETTINGS = readSettings();
 let dark = (SETTINGS.theme === 'dark')
         || (SETTINGS.theme === 'auto' && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
 
-/* ============================
-   App State
-   ============================ */
+function findParam(key, data) {
+  const containers = [data, data && data.meta, data && data.config, data && data.params, data && data.parameters];
+  for (const obj of containers) {
+    if (!obj || typeof obj !== 'object') continue;
+    if (key in obj) return obj[key];
+    const lowerKey = String(key).toLowerCase();
+    for (const currentKey of Object.keys(obj)) {
+      if (String(currentKey).toLowerCase() === lowerKey) return obj[currentKey];
+    }
+  }
+  return null;
+}
+
+function formatParam(value) {
+  if (value == null || Number.isNaN(value)) return '—';
+  if (typeof value === 'number') return Number.isInteger(value) ? String(value) : String(value);
+  return String(value);
+}
+
+function updateSummaryPanel(data) {
+  const descEl = document.getElementById('desc');
+  if (!descEl) return;
+
+  const validatorCount = findParam('|V|', data) ?? findParam('V', data) ?? findParam('v', data) ?? findParam('validators', data) ?? findParam('num_validators', data);
+  const nValue = findParam('N', data) ?? findParam('n', data) ?? findParam('num_nodes', data) ?? findParam('n_slots', data);
+  const delta = findParam('delta', data);
+  const cutoff = findParam('cutoff', data);
+  const cost = findParam('cost', data);
+  const gamma = findParam('gamma', data);
+  const summary = (data && (data.description || (data.meta && data.meta.description))) || '';
+
+  const values = [validatorCount, nValue, delta, cutoff, cost, gamma];
+  const hasConfig = values.some(value => value != null);
+  const hasSummary = Boolean(summary);
+  if (!hasConfig && !hasSummary) {
+    descEl.style.display = 'none';
+    descEl.innerHTML = '';
+    return;
+  }
+
+  const configHTML = hasConfig ? `
+    <div style="display:flex;flex-wrap:wrap;gap:10px">
+      <span><b>Configuration</b></span>
+      <span><b>|V|:</b> ${formatParam(validatorCount)}</span>
+      <span><b>N:</b> ${formatParam(nValue)}</span>
+      <span><b>cost:</b> ${formatParam(cost)}</span>
+      <span><b>Δ:</b> ${formatParam(delta)} ms</span>
+      <span><b>cutoff:</b> ${formatParam(cutoff)} ms</span>
+      <span><b>γ:</b> ${formatParam(gamma)}</span>
+    </div>` : '';
+  const summaryHTML = hasSummary ? `<div style="margin-top:8px"><b>Summary:</b> ${summary}</div>` : '';
+  descEl.innerHTML = `${configHTML}${summaryHTML}`;
+  descEl.style.display = 'block';
+}
+
 let DATA = null;
-let WORLD_BORDER_TRACES = null;
 let playing = !!SETTINGS.autoplay;
 let slot = 0;
 let stepSize = SETTINGS.step || 1;
@@ -177,179 +356,98 @@ let stepSize = SETTINGS.step || 1;
 let nSlots = 1;
 let FULL_X = [0];
 
-let SPHERE = null;
-
-let RELAY_X = [], RELAY_Y = [], RELAY_Z = [];
+let RELAY_LAT = [];
+let RELAY_LON = [];
 let RELAY_NAMES = [];
 
 let plotsReady = false;
 let globeReady = false;
 
-let RAW_GEOJSON = null;
 let RAW_GCP_CSV = null;
 let RAW_DATA_JSON = null;
-let GLOBE_CACHE = new Map();
 
-/* ============================
-   Theme helpers for Plotly
-   ============================ */
-// Unified Plotly-internal color/typography per theme
 function plotlyTheme(isDark, title = '', yTitle = '') {
   if (isDark) {
     return {
       title,
-      paper_bgcolor: '#1e1e1e',
-      plot_bgcolor:  '#1e1e1e',
-      font: { color: '#f0f0f0', size: 12 },
-      colorway: ['#60a5fa','#fbbf24','#34d399','#a78bfa','#f472b6'],
-      xaxis: { title: { text: 'Slot' }, gridcolor: '#444444', tickfont: { size: 11 } },
-      yaxis: { title: { text: yTitle }, gridcolor: '#444444', tickfont: { size: 11 } }
-    };
-  } else {
-    return {
-      title,
-      paper_bgcolor: 'rgba(255,255,255,0.7)',
-      plot_bgcolor:  'rgba(255,255,255,0.7)',
-      font: { color: '#0b1220', size: 12 },
-      colorway: ['#3b82f6','#f59e0b','#10b981','#8b5cf6','#ef4444'],
-      xaxis: { title: { text: 'Slot' }, gridcolor: '#e0e0e0', tickfont: { size: 11 } },
-      yaxis: { title: { text: yTitle }, gridcolor: '#e0e0e0', tickfont: { size: 11 } }
+      paper_bgcolor: '#101b18',
+      plot_bgcolor: '#101b18',
+      font: { color: '#f3f3ef', size: 12 },
+      colorway: ['#f4b267', '#5fd0c3', '#f7d08a', '#9ad4c7', '#e6a59c'],
+      xaxis: { title: { text: 'Slot' }, gridcolor: '#2f3d38', tickfont: { size: 11 } },
+      yaxis: { title: { text: yTitle }, gridcolor: '#2f3d38', tickfont: { size: 11 } }
     };
   }
+  return {
+    title,
+    paper_bgcolor: 'rgba(244,239,229,0.75)',
+    plot_bgcolor: 'rgba(244,239,229,0.75)',
+    font: { color: '#1a1f1c', size: 12 },
+    colorway: ['#d89046', '#2ea69a', '#c97c5d', '#6a9c7e', '#9a7e6b'],
+    xaxis: { title: { text: 'Slot' }, gridcolor: '#d6d3c8', tickfont: { size: 11 } },
+    yaxis: { title: { text: yTitle }, gridcolor: '#d6d3c8', tickfont: { size: 11 } }
+  };
 }
 
-/* ============================
-   Utilities
-   ============================ */
-function linspace(a, b, n) {
-  const step = (b - a) / (n - 1);
-  return Array.from({length: n}, (_, i) => a + i * step);
+function extractCountry(location) {
+  if (!location) return 'Unknown';
+  const parts = String(location).split(',');
+  const last = parts[parts.length - 1];
+  return (last || 'Unknown').trim() || 'Unknown';
 }
 
-function sphereGrid(phiArr, thetaArr) {
-  const XS = [], YS = [], ZS = [];
-  for (let i = 0; i < thetaArr.length; i++) {
-    const rowX = [], rowY = [], rowZ = [];
-    for (let j = 0; j < phiArr.length; j++) {
-      const phi = phiArr[j], th = thetaArr[i];
-      rowX.push(Math.sin(phi) * Math.cos(th));
-      rowY.push(Math.sin(phi) * Math.sin(th));
-      rowZ.push(Math.cos(phi));
-    }
-    XS.push(rowX); YS.push(rowY); ZS.push(rowZ);
-  }
-  return {XS, YS, ZS};
-}
+const COUNTRY_ISO3 = {
+  USA: 'USA',
+  Japan: 'JPN',
+  India: 'IND',
+  Australia: 'AUS',
+  Germany: 'DEU',
+  Italy: 'ITA',
+  Canada: 'CAN',
+  'South Africa': 'ZAF',
+  Taiwan: 'TWN',
+  China: 'CHN',
+  'South Korea': 'KOR',
+  Singapore: 'SGP',
+  Indonesia: 'IDN',
+  Poland: 'POL',
+  Finland: 'FIN',
+  Sweden: 'SWE',
+  Spain: 'ESP',
+  Belgium: 'BEL',
+  UK: 'GBR',
+  Netherlands: 'NLD',
+  Switzerland: 'CHE',
+  France: 'FRA',
+  Qatar: 'QAT',
+  Israel: 'ISR',
+  Brazil: 'BRA',
+  Chile: 'CHL'
+};
 
-function latlonToXYZ(latDeg, lonDeg) {
-  const phi = latDeg * Math.PI / 180;
-  const theta = lonDeg * Math.PI / 180;
-  return [Math.cos(phi) * Math.cos(theta), Math.cos(phi) * Math.sin(theta), Math.sin(phi)];
-}
-
-function decimate(coords, step) {
-  if (step <= 1) return coords;
-  const out = [];
-  for (let i = 0; i < coords.length; i += step) out.push(coords[i]);
-  if (coords.length && out[out.length - 1] !== coords[coords.length - 1]) out.push(coords[coords.length - 1]);
-  return out;
-}
-
-function buildGlobeSeries(slotIndex, radius = 0.2) {
-  const normalizedRadius = Number.isFinite(radius) && radius > 0 ? radius : 0.2;
-  const cacheKey = `${slotIndex}|${normalizedRadius}`;
-  const cached = GLOBE_CACHE.get(cacheKey);
-  if (cached) return cached;
-
-  const thresholdSq = normalizedRadius * normalizedRadius;
-  const regionEntries = [];
-
-  for (const [region, rawCount] of (DATA.slots[slotIndex] || [])) {
-    const xyz = DATA.gcpXYZ.get(String(region));
-    const count = Number(rawCount) || 0;
-    if (!xyz || count <= 0) continue;
-
-    regionEntries.push({
-      x: xyz[0],
-      y: xyz[1],
-      z: xyz[2],
-      count,
-    });
-  }
-
-  // Density only depends on occupied regions, not on every validator pair.
-  const regionDensities = regionEntries.map(entry => Math.max(0, entry.count - 1));
-  for (let i = 0; i < regionEntries.length; i++) {
-    for (let j = i + 1; j < regionEntries.length; j++) {
-      const dx = regionEntries[i].x - regionEntries[j].x;
-      const dy = regionEntries[i].y - regionEntries[j].y;
-      const dz = regionEntries[i].z - regionEntries[j].z;
-      const distSq = dx * dx + dy * dy + dz * dz;
-
-      if (distSq <= thresholdSq) {
-        regionDensities[i] += regionEntries[j].count;
-        regionDensities[j] += regionEntries[i].count;
-      }
-    }
-  }
-
-  const xs = [];
-  const ys = [];
-  const zs = [];
-  const dens = [];
-
-  for (let i = 0; i < regionEntries.length; i++) {
-    const entry = regionEntries[i];
-    const density = regionDensities[i];
-    for (let k = 0; k < entry.count; k++) {
-      xs.push(entry.x);
-      ys.push(entry.y);
-      zs.push(entry.z);
-      dens.push(density);
-    }
-  }
-
-  const result = { xs, ys, zs, dens };
-  GLOBE_CACHE.set(cacheKey, result);
-  return result;
-}
-
-/* ============================
-   Data loading
-   ============================ */
 async function loadGCPData() {
-    const csvUrl = './data/gcp_regions.csv';
+  const csvUrl = './data/gcp_regions.csv';
+  const resp = await fetch(csvUrl, { cache: 'no-cache' });
+  if (!resp.ok) throw new Error(`Failed to load ${csvUrl}`);
+  RAW_GCP_CSV = await resp.text();
 
-    // fetch once so we can also export the same CSV later
-    const resp = await fetch(csvUrl, { cache: 'no-cache' });
-    if (!resp.ok) throw new Error(`Failed to load ${csvUrl}`);
-    RAW_GCP_CSV = await resp.text();
-
-    return new Promise((resolve, reject) => {
-        Papa.parse(RAW_GCP_CSV, {
-            header: true,         // Parse headers automatically
-            skipEmptyLines: true, // Skip empty lines
-            
-            // Callback when parsing is finished
-            complete: function(results) {
-                const dataMap = new Map();
-
-                results.data.forEach(row => {
-                    const key = row.Region; 
-
-                    if (key) {
-                        dataMap.set(key, row);
-                    }
-                });
-
-                resolve(dataMap);
-            },
-            
-            error: function(err) {
-                reject(err);
-            }
+  return new Promise((resolve, reject) => {
+    Papa.parse(RAW_GCP_CSV, {
+      header: true,
+      skipEmptyLines: true,
+      complete(results) {
+        const dataMap = new Map();
+        results.data.forEach(row => {
+          const key = row.Region;
+          if (key) dataMap.set(key, row);
         });
+        resolve(dataMap);
+      },
+      error(err) {
+        reject(err);
+      }
     });
+  });
 }
 
 async function loadData() {
@@ -357,18 +455,19 @@ async function loadData() {
   if (!resp.ok) throw new Error(`Failed to load ${SETTINGS.dataset}`);
   RAW_DATA_JSON = await resp.text();
   DATA = JSON.parse(RAW_DATA_JSON);
-  GLOBE_CACHE = new Map();
 
+  updateSummaryPanel(DATA);
   DATA.gcpData = await loadGCPData();
 
-  const gcpXYZ = new Map();
-  for (const [k, v] of DATA.gcpData.entries()) {
-    const x = Number(v.x), y = Number(v.y), z = Number(v.z);
-    if (Number.isFinite(x) && Number.isFinite(y) && Number.isFinite(z)) {
-      gcpXYZ.set(String(k), [x, y, z]);
+  const gcpLatLon = new Map();
+  for (const [key, value] of DATA.gcpData.entries()) {
+    const lat = Number(value['Nearest City Latitude']);
+    const lon = Number(value['Nearest City Longitude']);
+    if (Number.isFinite(lat) && Number.isFinite(lon)) {
+      gcpLatLon.set(String(key), [lat, lon]);
     }
   }
-  DATA.gcpXYZ = gcpXYZ;
+  DATA.gcpLatLon = gcpLatLon;
 
   nSlots = Math.max(
     1,
@@ -377,133 +476,125 @@ async function loadData() {
     DATA.slots?.length || 0
   );
   FULL_X = Array.from({ length: nSlots }, (_, i) => i);
-
   document.getElementById('slider').max = String(Math.max(0, nSlots - 1));
 
-  RELAY_NAMES = (DATA.sources || []).map(s => s[0]);
-  RELAY_X = []; RELAY_Y = []; RELAY_Z = [];
-  for (const src of (DATA.sources || [])) {
-    const region = String(src[1]);
-    const xyz = DATA.gcpXYZ.get(region);
-    if (xyz) {
-      RELAY_X.push(xyz[0]); RELAY_Y.push(xyz[1]); RELAY_Z.push(xyz[2]);
+  RELAY_NAMES = (DATA.sources || []).map(source => source[0]);
+  RELAY_LAT = [];
+  RELAY_LON = [];
+  for (const source of (DATA.sources || [])) {
+    const region = String(source[1]);
+    const latLon = DATA.gcpLatLon.get(region);
+    if (latLon) {
+      RELAY_LAT.push(latLon[0]);
+      RELAY_LON.push(latLon[1]);
     } else {
-      RELAY_X.push(0); RELAY_Y.push(0); RELAY_Z.push(0);
+      RELAY_LAT.push(0);
+      RELAY_LON.push(0);
+    }
+  }
+}
+
+function drawGlobe(index) {
+  const countryCounts = new Map();
+  for (const [region, count] of (DATA.slots[index] || [])) {
+    const row = DATA.gcpData && DATA.gcpData.get(String(region));
+    const country = extractCountry(row && row.location);
+    const validators = Number(count) || 0;
+    if (COUNTRY_ISO3[country]) {
+      countryCounts.set(country, (countryCounts.get(country) || 0) + validators);
     }
   }
 
-  const phi = linspace(0, Math.PI, 40), theta = linspace(0, 2*Math.PI, 80);
-  SPHERE = sphereGrid(phi, theta);
-}
-
-async function loadWorldBorders() {
-  if (WORLD_BORDER_TRACES) return WORLD_BORDER_TRACES;
-  const url = './data/world_countries.geo.json';
-  const resp = await fetch(url, { cache: 'force-cache' });
-  if (!resp.ok) throw new Error('Failed to load countries.geo.json');
-  const gj = await resp.json();
-  RAW_GEOJSON = gj;
-
-  const tracesLight = [], tracesDark = [];
-  for (const feat of gj.features) {
-    const geom = feat.geometry;
-    if (!geom) continue;
-    const polys = (geom.type === 'Polygon') ? [geom.coordinates]
-                 : (geom.type === 'MultiPolygon') ? geom.coordinates : [];
-    for (const poly of polys) {
-      if (!poly.length) continue;
-      const ring = decimate(poly[0], SETTINGS.decimation || 5); // [[lon,lat], ...]
-      if (ring.length < 2) continue;
-      const xs = [], ys = [], zs = [];
-      for (const [lon, lat] of ring) {
-        const [x, y, z] = latlonToXYZ(lat, lon);
-        xs.push(x); ys.push(y); zs.push(z);
-      }
-      const base = { type: 'scatter3d', mode: 'lines', x: xs, y: ys, z: zs, hoverinfo: 'skip', showlegend: false };
-      tracesLight.push({ ...base, line: { width: 1, color: '#888'  } });
-      tracesDark .push({ ...base, line: { width: 1, color: '#aaaaaa' } });
-    }
+  let maxCountryCount = 1;
+  for (const count of countryCounts.values()) {
+    if (count > maxCountryCount) maxCountryCount = count;
   }
-  WORLD_BORDER_TRACES = { light: tracesLight, dark: tracesDark };
-  return WORLD_BORDER_TRACES;
-}
 
-/* ============================
-   Plot builders
-   ============================ */
-function drawGlobe(i) {
-  const { xs, ys, zs, dens } = buildGlobeSeries(i, SETTINGS.density_radius);
+  const locations = [];
+  const values = [];
+  const hoverText = [];
+  for (const [country, count] of countryCounts.entries()) {
+    const iso3 = COUNTRY_ISO3[country];
+    if (!iso3) continue;
+    locations.push(iso3);
+    values.push(count);
+    hoverText.push(`${country} • ${count} validators`);
+  }
 
   if (!globeReady) {
-    const validators = {
-      type: 'scatter3d', mode: 'markers',
-      x: xs, y: ys, z: zs,
-      marker: {
-        size: 4,
-        color: dens,
-        colorscale: dark ? 'Plasma' : 'Viridis',
-        showscale: true,
-        colorbar: {
-          title: 'Local Density', x: 1.15, len: 0.7,
-          titlefont: { color: dark ? '#f0f0f0' : '#0b1220' },
-          tickfont:  { color: dark ? '#f0f0f0' : '#0b1220' }
-        }
+    const countries = {
+      type: 'choropleth',
+      locations,
+      z: values,
+      text: hoverText,
+      locationmode: 'ISO-3',
+      colorscale: dark
+        ? [[0, '#17302b'], [0.35, '#2f7d74'], [0.7, '#86cbb9'], [1, '#f2b35d']]
+        : [[0, '#f2ece2'], [0.3, '#d9b488'], [0.65, '#b97744'], [1, '#8f5326']],
+      zmin: 0,
+      zmax: maxCountryCount,
+      showscale: true,
+      colorbar: {
+        title: { text: 'Number of validators', side: 'right' },
+        x: 1.12,
+        len: 0.7,
+        titlefont: { color: dark ? '#f0f0f0' : '#0b1220' },
+        tickfont: { color: dark ? '#f0f0f0' : '#0b1220' }
       },
+      marker: { line: { color: dark ? '#2f3d38' : '#c8c2b8', width: 0.5 } },
+      hovertemplate: '%{text}<extra>Country</extra>',
       name: 'Validators'
     };
 
-    const sphere = {
-      type: 'surface', x: SPHERE.XS, y: SPHERE.YS, z: SPHERE.ZS, showscale: false, opacity: 0.2,
-      colorscale: [[0, dark ? '#444444' : 'lightblue'], [1, dark ? '#444444' : 'lightblue']],
-      hoverinfo: 'skip', name: 'Earth'
-    };
-
     const relays = {
-      type: 'scatter3d', mode: 'markers+text',
-      x: RELAY_X, y: RELAY_Y, z: RELAY_Z,
+      type: 'scattergeo',
+      mode: 'markers',
+      lat: RELAY_LAT,
+      lon: RELAY_LON,
       marker: { size: 10, color: 'red', symbol: 'diamond', line: { color: 'black', width: 1 } },
-      text: RELAY_NAMES, textposition: 'top center', name: 'Info Sources'
+      text: RELAY_NAMES,
+      hovertemplate: '%{text}<extra>Info Source</extra>',
+      name: 'Info Sources'
     };
-
-    const traces = [validators, sphere, relays];
-
-    const borders = dark ? WORLD_BORDER_TRACES.dark : WORLD_BORDER_TRACES.light;
-    traces.push(...borders);
 
     const layout = {
       ...plotlyTheme(dark, 'Geo Tracker', ''),
-      margin: { l: 15, r: 160, b: 20, t: 40 },
-      uirevision: 'keep-camera',
-      scene: {
-        xaxis: { range: [-1,1], backgroundcolor: dark ? '#1e1e1e' : 'rgba(255,255,255,0.7)',
-                 gridcolor: dark ? '#444444' : '#e0e0e0', showbackground: true, showgrid: true, showticklabels: false, zerolinecolor: dark ? '#666' : '#999' },
-        yaxis: { range: [-1,1], backgroundcolor: dark ? '#1e1e1e' : 'rgba(255,255,255,0.7)',
-                 gridcolor: dark ? '#444444' : '#e0e0e0', showbackground: true, showgrid: true, showticklabels: false, zerolinecolor: dark ? '#666' : '#999' },
-        zaxis: { range: [-1,1], backgroundcolor: dark ? '#1e1e1e' : 'rgba(255,255,255,0.7)',
-                 gridcolor: dark ? '#444444' : '#e0e0e0', showbackground: true, showgrid: true, showticklabels: false, zerolinecolor: dark ? '#666' : '#999' },
-        aspectmode: 'cube'
+      margin: { l: 15, r: 40, b: 20, t: 40 },
+      geo: {
+        projection: { type: 'natural earth' },
+        showland: true,
+        landcolor: dark ? '#15201d' : '#e7e1d6',
+        showocean: true,
+        oceancolor: dark ? '#0f1714' : '#f3f1ea',
+        showcountries: true,
+        countrycolor: dark ? '#2e3a36' : '#c8c2b8',
+        showcoastlines: true,
+        coastlinecolor: dark ? '#2e3a36' : '#c8c2b8',
+        bgcolor: 'rgba(0,0,0,0)'
       },
       showlegend: true,
       legend: { x: 0.02, y: 0.98, bgcolor: dark ? 'rgba(45,45,45,0.7)' : 'rgba(255,255,255,0.7)' }
     };
 
-    Plotly.newPlot('globe', traces, layout, { displaylogo: false, responsive: true, displayModeBar: false });
+    Plotly.newPlot('globe', [countries, relays], layout, { displaylogo: false, responsive: true, displayModeBar: false });
     globeReady = true;
     return;
   }
 
   Plotly.restyle('globe', {
-    x: [xs], y: [ys], z: [zs],
-    'marker.color': [dens]
+    locations: [locations],
+    z: [values],
+    zmax: [maxCountryCount],
+    text: [hoverText]
   }, [0]);
 }
 
-function drawLine(divId, x, y, title, yTitle='') {
+function drawLine(divId, x, y, title, yTitle = '') {
   const el = document.getElementById(divId);
-  const h  = (el.clientHeight || 360) * 0.94;
+  const height = (el.clientHeight || 360) * 0.94;
   const layout = {
     ...plotlyTheme(dark, title, yTitle),
-    height: h,
+    height,
     margin: { l: 60, r: 20, t: 40, b: 40 },
     hovermode: 'x unified',
     xaxis: {
@@ -513,77 +604,86 @@ function drawLine(divId, x, y, title, yTitle='') {
     }
   };
   Plotly.newPlot(divId, [{
-    type: 'scatter', mode: 'lines', x, y, line: { width: 2 }
+    type: 'scatter',
+    mode: 'lines',
+    x,
+    y,
+    line: { width: 2 }
   }], layout, { displaylogo: false, responsive: true, displayModeBar: false });
 }
 
-function drawRelayDist(i) {
+function drawRelayDist() {
   const el = document.getElementById('relaydist');
-  const h  = (el.clientHeight || 360) * 0.94;
+  const height = (el.clientHeight || 360) * 0.94;
   const series = DATA.metrics.info_avg_distance || [];
-  const names  = RELAY_NAMES || [];
+  const names = RELAY_NAMES || [];
 
   const traces = [];
-  const m = Math.max(names.length, ...(series || []).map(arr => (arr || []).length), 0);
-  for (let j = 0; j < m; j++) {
+  const count = Math.max(names.length, ...(series || []).map(row => (row || []).length), 0);
+  for (let sourceIndex = 0; sourceIndex < count; sourceIndex++) {
     const y = new Array(nSlots).fill(null);
     for (let t = 0; t < nSlots; t++) {
       const row = series[t];
-      y[t] = (row && row[j] != null) ? row[j] : null;
+      y[t] = (row && row[sourceIndex] != null) ? row[sourceIndex] : null;
     }
-    traces.push({ type: 'scatter', mode: 'lines', x: FULL_X, y, name: names[j] || `Source ${j}`, line: { width: 2 } });
+    traces.push({
+      type: 'scatter',
+      mode: 'lines',
+      x: FULL_X,
+      y,
+      name: names[sourceIndex] || `Source ${sourceIndex}`,
+      line: { width: 2 },
+      hovertemplate: '%{y}<extra>%{fullData.name}</extra>'
+    });
   }
 
   const layout = {
-    ...plotlyTheme(dark, 'Avg Distance to Info Sources', 'Avg. Distance'),
-    height: h,
+    ...plotlyTheme(dark, 'Avg Distance to Info Sources', 'Avg. Distance to Info Sources'),
+    height,
     margin: { l: 60, r: 20, t: 40, b: 40 },
     hovermode: 'x unified',
     xaxis: {
       ...(plotlyTheme(dark, '', '').xaxis),
       autorange: false,
       range: [0, 0]
-    },
-    legend: { orientation: 'h', yanchor: 'top', y: -0.25, xanchor: 'center', x: 0.5, font: { size: 11 } }
+    }
   };
   Plotly.newPlot('relaydist', traces, layout, { displaylogo: false, responsive: true, displayModeBar: false });
+  Plotly.relayout('relaydist', { showlegend: false });
 }
 
-/* ============================
-   Rendering orchestration
-   ============================ */
-function infoHTML(i) {
-  const S = DATA.metrics;
-  const num = (v, d=0) => (Number.isFinite(v) ? v : d);
+function infoHTML(index) {
+  const metrics = DATA.metrics;
+  const number = value => Number.isFinite(value) ? value : 0;
   return `
     <div style="display:flex;flex-wrap:wrap;gap:18px">
-      <span><b>Slot</b> ${i + 1}</span>
-      <span>Clusters: ${S.clusters[i]}</span>
-      <span>Total Distance: ${num(S.total_distance[i]).toFixed(4)}</span>
-      <span>Avg NND: ${num(S.avg_nnd[i]).toFixed(4)}</span>
-      <span>NNI: ${num(S.nni[i]).toFixed(4)}</span>
-      <span>MEV: ${num(S.mev[i]).toFixed(4)}</span>
-      <span>Attest: ${num(S.attestations[i]).toFixed(2)}%</span>
-      <span>Proposal Time: ${num(S.proposal_times[i]).toFixed(2)} ms</span>
+      <span><b>Slot</b> ${index + 1}</span>
+      <span>Clusters: ${metrics.clusters[index]}</span>
+      <span>Total Distance: ${number(metrics.total_distance[index]).toFixed(4)}</span>
+      <span>Avg NND: ${number(metrics.avg_nnd[index]).toFixed(4)}</span>
+      <span>NNI: ${number(metrics.nni[index]).toFixed(4)}</span>
+      <span>MEV: ${number(metrics.mev[index]).toFixed(4)}</span>
+      <span>Attest: ${number(metrics.attestations[index]).toFixed(2)}%</span>
+      <span>Proposal Time: ${number(metrics.proposal_times[index]).toFixed(2)} ms</span>
     </div>`;
 }
 
-function updateLineWindows(i) {
-  const range = i <= 0 ? [-1, -0.1] : [0, i];
-  const plot_range = { 'xaxis.range': range };
-  Plotly.relayout('Gini', plot_range);
-  Plotly.relayout('HHI', plot_range);
-  Plotly.relayout('liveness', plot_range);
-  Plotly.relayout('CV', plot_range);
-  Plotly.relayout('clusters', plot_range);
-  Plotly.relayout('totaldist', plot_range);
-  Plotly.relayout('avgnnd', plot_range);
-  Plotly.relayout('nni', plot_range);
-  Plotly.relayout('mev', plot_range);
-  Plotly.relayout('attest', plot_range);
-  Plotly.relayout('failed', plot_range);
-  Plotly.relayout('proposal', plot_range);
-  Plotly.relayout('relaydist', plot_range);
+function updateLineWindows(index) {
+  const range = index <= 0 ? [-1, -0.1] : [0, index];
+  const plotRange = { 'xaxis.range': range };
+  Plotly.relayout('Gini', plotRange);
+  Plotly.relayout('HHI', plotRange);
+  Plotly.relayout('liveness', plotRange);
+  Plotly.relayout('CV', plotRange);
+  Plotly.relayout('clusters', plotRange);
+  Plotly.relayout('totaldist', plotRange);
+  Plotly.relayout('avgnnd', plotRange);
+  Plotly.relayout('nni', plotRange);
+  Plotly.relayout('mev', plotRange);
+  Plotly.relayout('attest', plotRange);
+  Plotly.relayout('failed', plotRange);
+  Plotly.relayout('proposal', plotRange);
+  Plotly.relayout('relaydist', plotRange);
 }
 
 function drawAll() {
@@ -593,21 +693,20 @@ function drawAll() {
   if (!plotsReady) {
     drawGlobe(slot);
 
-    const S = DATA.metrics;
-    drawLine('Gini', FULL_X, (S.gini || []).slice(0, nSlots), 'Gini Coefficient', 'Gini');
-    drawLine('HHI', FULL_X, (S.hhi || []).slice(0, nSlots), 'HHI', 'HHI');
-    drawLine('liveness', FULL_X, (S.liveness || []).slice(0, nSlots), 'Liveness Coefficient', 'Liveness Coefficient');
-    drawLine('CV', FULL_X, (S.profit_variance || []).slice(0, nSlots), 'Coefficient of Variation', 'CV');
-    drawLine('clusters', FULL_X, (S.clusters || []).slice(0, nSlots), 'Clusters', 'Clusters (#)');
-    drawLine('totaldist', FULL_X, (S.total_distance || []).slice(0, nSlots), 'Total Distance', 'Total Distance');
-    drawLine('avgnnd', FULL_X, (S.avg_nnd || []).slice(0, nSlots), 'Avg NND', 'Avg NND');
-    drawLine('nni', FULL_X, (S.nni || []).slice(0, nSlots), 'NNI', 'NNI');
-    drawLine('mev', FULL_X, (S.mev || []).slice(0, nSlots), 'MEV Earned', 'Block Value');
-    drawLine('attest', FULL_X, (S.attestations || []).slice(0, nSlots), 'Attestation Rate %', 'Attestation Rate (%)');
-    drawLine('failed', FULL_X, (S.failed_block_proposals || []).slice(0, nSlots), 'Failed Block Proposals', 'Failed Proposals (#)');
-    drawLine('proposal', FULL_X, (S.proposal_times || []).slice(0, nSlots), 'Proposal Time (ms)', 'Proposal Time (ms)');
-
-    drawRelayDist(0);
+    const metrics = DATA.metrics;
+    drawLine('Gini', FULL_X, (metrics.gini || []).slice(0, nSlots), 'Gini Coefficient', 'Gini');
+    drawLine('HHI', FULL_X, (metrics.hhi || []).slice(0, nSlots), 'HHI', 'HHI');
+    drawLine('liveness', FULL_X, (metrics.liveness || []).slice(0, nSlots), 'Liveness Coefficient', 'Liveness Coefficient');
+    drawLine('CV', FULL_X, (metrics.profit_variance || []).slice(0, nSlots), 'Coefficient of Variation', 'CV');
+    drawLine('clusters', FULL_X, (metrics.clusters || []).slice(0, nSlots), 'Clusters', 'Clusters (#)');
+    drawLine('totaldist', FULL_X, (metrics.total_distance || []).slice(0, nSlots), 'Total Distance', 'Total Distance');
+    drawLine('avgnnd', FULL_X, (metrics.avg_nnd || []).slice(0, nSlots), 'Avg NND', 'Avg NND');
+    drawLine('nni', FULL_X, (metrics.nni || []).slice(0, nSlots), 'NNI', 'NNI');
+    drawLine('mev', FULL_X, (metrics.mev || []).slice(0, nSlots), 'MEV Earned', 'Block Value');
+    drawLine('attest', FULL_X, (metrics.attestations || []).slice(0, nSlots), 'Attestation Rate %', 'Attestation Rate (%)');
+    drawLine('failed', FULL_X, (metrics.failed_block_proposals || []).slice(0, nSlots), 'Failed Block Proposals', 'Failed Proposals (#)');
+    drawLine('proposal', FULL_X, (metrics.proposal_times || []).slice(0, nSlots), 'Proposal Time (ms)', 'Proposal Time (ms)');
+    drawRelayDist();
 
     plotsReady = true;
     updateLineWindows(slot);
@@ -624,12 +723,9 @@ function tick() {
   }
 }
 
-/* ============================
-   Controls
-   ============================ */
-document.getElementById('play').onclick  = () => { playing = true;  };
+document.getElementById('play').onclick = () => { playing = true; };
 document.getElementById('pause').onclick = () => { playing = false; };
-document.getElementById('step').onchange = (e) => { stepSize = parseInt(e.target.value, 10) || 1; };
+document.getElementById('step').onchange = event => { stepSize = parseInt(event.target.value, 10) || 1; };
 document.getElementById('theme').onclick = () => {
   dark = !dark;
   document.documentElement.classList.toggle('dark', dark);
@@ -637,68 +733,45 @@ document.getElementById('theme').onclick = () => {
   globeReady = false;
   drawAll();
 };
-document.getElementById('slider').oninput = (e) => {
-  slot = parseInt(e.target.value, 10) || 0;
+document.getElementById('slider').oninput = event => {
+  slot = parseInt(event.target.value, 10) || 0;
   playing = false;
   drawAll();
 };
 
-/* ============================
-   Export button
-   ============================ */
 document.getElementById('export').onclick = async () => {
   if (!DATA) return;
 
   const zip = new JSZip();
   const btn = document.getElementById('export');
-  const originalText = btn.innerText;
-
   btn.disabled = true;
 
   try {
-    zip.file("data.json", RAW_DATA_JSON || JSON.stringify(DATA, null, 2));
-
-    // Use the already fetched GeoJSON
-    if (RAW_GEOJSON) {
-      zip.file("countries.geo.json", JSON.stringify(RAW_GEOJSON, null, 2));
-    }
-
+    zip.file('data.json', RAW_DATA_JSON || JSON.stringify(DATA, null, 2));
     if (RAW_GCP_CSV) {
-      zip.file("gcp_regions.csv", RAW_GCP_CSV);
+      zip.file('gcp_regions.csv', RAW_GCP_CSV);
     }
 
-    const content = await zip.generateAsync({ type: "blob" });
+    const content = await zip.generateAsync({ type: 'blob' });
     const url = URL.createObjectURL(content);
-
     const link = document.createElement('a');
     link.href = url;
-    link.download = "geo_simulation.zip";
+    link.download = 'geo_simulation.zip';
     document.body.appendChild(link);
     link.click();
-
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
-
   } catch (err) {
-    console.error("Export failed", err);
+    console.error('Export failed', err);
   } finally {
     btn.disabled = false;
   }
 };
 
-/* ============================
-   Boot
-   ============================ */
 (async function boot() {
-  // Apply initial theme class
   document.documentElement.classList.toggle('dark', dark);
-
   await loadData();
-  await loadWorldBorders();
-  
   drawAll();
-
-  // Autoplay if requested
   playing = !!SETTINGS.autoplay;
   stepSize = SETTINGS.step || 1;
   setInterval(tick, 250);
