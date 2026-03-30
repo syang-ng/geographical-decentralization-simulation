@@ -141,3 +141,23 @@ This log is intentionally short and skim-first. It tracks the core engineering s
 
 - Truth-first note:
   The summary-first worker path is a delivery optimization around the same exact engine. Fixed-seed benchmark hashes remained unchanged, so this batch did not move the canonical research outputs on the checked scenarios.
+
+## Simulation Lab Visual System Pass
+
+- `explorer/src/index.css`, `explorer/src/lib/theme.ts`
+  Added actual `lab-stage`, `lab-panel`, `lab-chip`, and metric-card styling so the Simulation Lab has a real panel hierarchy and calmer motion system instead of relying on mostly flat default surfaces.
+
+- `explorer/src/components/blocks/ChartBlock.tsx`, `explorer/src/components/blocks/TimeSeriesBlock.tsx`, `explorer/src/components/blocks/MapBlock.tsx`
+  Tightened chart chrome, reduced visual noise in the line/timeseries views, and made geography depth environmental rather than deceptive. The result is meant to feel more like an instrument panel than an animated marketing surface.
+
+- `explorer/src/pages/SimulationLabPage.tsx`
+  Added a compact run-notes panel so the explorer more clearly surfaces MEV meaning, threshold/cutoff context, cost/timing settings, and model assumptions alongside the exact run.
+
+- `explorer/src/lib/export.ts`, `explorer/src/pages/FindingsPage.tsx`, `explorer/src/components/layout/TabNav.tsx`, `explorer/server/simulation-runtime.ts`, `explorer/src/data/default-blocks.ts`
+  Fixed adjacent build/smoke issues uncovered while validating the visual pass. These were supporting engineering repairs, not changes to the simulation math.
+
+- Validation:
+  `npm run build` and `npm run smoke` in `explorer/` both passed after this pass.
+
+- Truth-first note:
+  This was a presentation and verification pass. It changes how the simulation is framed and rendered in the explorer, not the underlying exact simulation outputs.
